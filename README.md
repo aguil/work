@@ -54,7 +54,8 @@ workctl config set auto-track true
 | Area | Commands |
 | ---- | -------- |
 | Workspace | `track`, `untrack`, `list`, `new`, `close`, `reconcile` |
-| Agents | `scan`, `agents`, `launch`, `agent relaunch`, `status` |
+| Agents | `scan`, `agents`, `launch`, `agent relaunch`, `agent hook-event`, `status` |
+| Hooks | `hooks install cursor`, `hooks print-env` |
 | Trees | `add-tree`, `remove-tree`, `trees`, `window use-repo` |
 | Actions | `action list`, `action run`, `trust add/remove` |
 | Config | `config get/set/list`, `repos` |
@@ -64,6 +65,21 @@ workctl config set auto-track true
 
 Agent hooks use a single-pane scan fast path (`scan --pane`) so large sessions
 stay responsive.
+
+### Cursor hooks (Tier 1 status)
+
+For accurate `working` / `blocked` / `idle` on interactive Cursor agents, install
+user-level hooks that call `workctl agent hook-event`:
+
+```bash
+npm run build
+node dist/workctl.mjs hooks install cursor
+# optional: add to shell profile for tmux-launched agents
+eval "$(node dist/workctl.mjs hooks print-env)"
+```
+
+Hooks write **explicit** status (overriding manifest/title heuristics until
+`sessionEnd`). Reload Cursor after install. See [Cursor hooks](https://cursor.com/docs/hooks).
 
 ## tmux integration
 

@@ -16,7 +16,12 @@ no runtime dependencies beyond Node built-ins and `commander`.
 - `src/vcs/` — git/jj detection, worktree/workspace creation, metadata
 - `src/commands/trees.ts` — add-tree, remove-tree, trees
 - `scripts/test-phase1.sh` — Phase 1 integration test suite
-- `scripts/test-phase2.sh` — Phase 2 tree/VCS integration tests
+- `scripts/test-phase2.sh` — Phase 2 tree and VCS integration tests
+- `scripts/test-phase3.sh` — Phase 3 workspace lifecycle tests
+- `scripts/test-phase4.sh` — Phase 4 actions and repo picker tests
+- `scripts/test-phase5.sh` — Phase 5 status adapter tests
+- `scripts/test-phase6.sh` — Phase 6 Cursor hook Tier 1 tests
+- `src/adapters/` — manifest loader, rule evaluation, Cursor adapter, hook events
 
 ## Development
 
