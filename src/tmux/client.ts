@@ -194,6 +194,53 @@ export function attachSession(name: string): void {
   tmux("attach-session", "-t", name);
 }
 
+export function activePaneInWindow(windowTarget: string): string {
+  const panes = tmux("list-panes", "-t", windowTarget, "-F", "#{pane_id}\t#{pane_active}");
+  for (const line of panes.split("\n")) {
+    if (!line) continue;
+    const [paneId, active] = line.split("\t");
+    if (active === "1") return paneId;
+  }
+  const first = panes.split("\n")[0]?.split("\t")[0];
+  if (!first) throw new Error(`No panes in window ${windowTarget}`);
+  return first;
+}
+
+export function respawnPane(
+  paneId: string,
+  opts?: { cwd?: string },
+): void {
+  const args = ["respawn-pane", "-k", "-t", paneId];
+  if (opts?.cwd) args.push("-c", opts.cwd);
+  tmux(...args);
+}
+
+export function renameWindow(target: string, name: string): void {
+  tmux("rename-window", "-t", target, name);
+}
+
+export function unsetOption(
+  scope: "global" | "session" | "window" | "pane",
+  name: string,
+  target?: string,
+): void {
+  const args = ["set-option", "-u"];
+  switch (scope) {
+    case "global":
+      args.push("-g");
+      break;
+    case "pane":
+      args.push("-p");
+      break;
+    case "window":
+      args.push("-w");
+      break;
+  }
+  if (target) args.push("-t", target);
+  args.push(name);
+  tmux(...args);
+}
+
 export function killPane(paneId: string): void {
   tmux("kill-pane", "-t", paneId);
 }
