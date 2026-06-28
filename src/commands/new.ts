@@ -1,7 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { Command } from "commander";
-import { getConfigValue } from "../config/store.js";
+import { getRepoScanDirs } from "../config/store.js";
 import { promptLine, promptRepoSelection } from "../prompt/readline.js";
 import * as tmux from "../tmux/client.js";
 import {
@@ -9,7 +9,7 @@ import {
   detectRepoBackend,
   detectVcs,
 } from "../vcs/detect.js";
-import { resolveRepoPaths, scanRepoDirectory } from "../vcs/scan.js";
+import { resolveRepoPaths, scanRepoDirectories } from "../vcs/scan.js";
 import { scanSession } from "../scanner/scan-session.js";
 import {
   createWorkspace,
@@ -63,24 +63,28 @@ export function registerNewCommand(program: Command): void {
           throw new Error(`Workspace already exists: ${name}`);
         }
 
-        const scanDir = getConfigValue("repo-scan-dir");
+        const scanDirs = getRepoScanDirs();
         let selectedRepos;
 
         if (opts.repos) {
-          selectedRepos = resolveRepoPaths(opts.repos, scanDir);
+          selectedRepos = resolveRepoPaths(opts.repos, scanDirs);
         } else {
-          if (!scanDir) {
+          if (scanDirs.length === 0) {
             throw new Error(
-              "No repo-scan-dir configured. Run: workctl config set repo-scan-dir <path>",
+              "No repo-scan-dir configured. Run: workctl config set repo-scan-dir <path>[,<path>...]",
             );
           }
-          const repos = scanRepoDirectory(scanDir);
+          const repos = scanRepoDirectories(scanDirs);
           if (repos.length === 0) {
-            throw new Error(`No repositories found in ${scanDir}`);
+            throw new Error(
+              `No repositories found in ${scanDirs.join(", ")}`,
+            );
           }
 
           if (!opts.quiet) {
-            console.log(`Scanning ${scanDir} for repositories...`);
+            console.log(
+              `Scanning ${scanDirs.join(", ")} for repositories...`,
+            );
           }
           selectedRepos = await promptRepoSelection(repos);
         }

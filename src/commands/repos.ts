@@ -1,6 +1,6 @@
 import type { Command } from "commander";
-import { getConfigValue } from "../config/store.js";
-import { scanRepoDirectory } from "../vcs/scan.js";
+import { getRepoScanDirs } from "../config/store.js";
+import { scanRepoDirectories } from "../vcs/scan.js";
 
 export function registerReposCommands(program: Command): void {
   program
@@ -13,14 +13,14 @@ export function registerReposCommands(program: Command): void {
       "text",
     )
     .action((opts: { json?: boolean; format?: string }) => {
-      const scanDir = getConfigValue("repo-scan-dir");
-      if (!scanDir) {
+      const scanDirs = getRepoScanDirs();
+      if (scanDirs.length === 0) {
         throw new Error(
-          "No repo-scan-dir configured. Run: workctl config set repo-scan-dir <path>",
+          "No repo-scan-dir configured. Run: workctl config set repo-scan-dir <path>[,<path>...]",
         );
       }
 
-      const repos = scanRepoDirectory(scanDir);
+      const repos = scanRepoDirectories(scanDirs);
       const format = opts.json ? "json" : (opts.format ?? "text");
 
       if (format === "json") {

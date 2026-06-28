@@ -5,10 +5,8 @@ import { paths } from "./paths.js";
 export interface Config {
   "agent-clis": string[];
   "auto-track": boolean;
-  "prompt-actions-on-new": boolean;
-  "prompt-repos-on-new": boolean;
   "prompt-repos-on-new-window": boolean;
-  "repo-scan-dir": string | null;
+  "repo-scan-dir": string[];
   "checkout-base": string | null;
   "sidebar-width": number;
   "sidebar-position": "left" | "right";
@@ -24,10 +22,8 @@ const DEFAULTS: Config = {
     "opencode",
   ],
   "auto-track": false,
-  "prompt-actions-on-new": false,
-  "prompt-repos-on-new": false,
   "prompt-repos-on-new-window": false,
-  "repo-scan-dir": null,
+  "repo-scan-dir": [],
   "checkout-base": null,
   "sidebar-width": 40,
   "sidebar-position": "right",
@@ -35,15 +31,64 @@ const DEFAULTS: Config = {
 
 type ConfigKey = keyof Config;
 
+const REMOVED_CONFIG_KEYS = [
+  "prompt-actions-on-new",
+  "prompt-repos-on-new",
+] as const;
+
 let cached: Config | null = null;
+
+function normalizeRepoScanDir(value: unknown): string[] {
+  if (value == null || value === "") return [];
+  if (Array.isArray(value)) {
+    return value.map(String).filter(Boolean);
+  }
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function normalizeLoaded(raw: Record<string, unknown>): {
+  config: Config;
+  dirty: boolean;
+} {
+  let dirty = false;
+  const merged: Record<string, unknown> = { ...DEFAULTS, ...raw };
+
+  for (const key of REMOVED_CONFIG_KEYS) {
+    if (key in raw) {
+      delete merged[key];
+      dirty = true;
+    }
+  }
+
+  const scanDir = normalizeRepoScanDir(raw["repo-scan-dir"]);
+  if (JSON.stringify(scanDir) !== JSON.stringify(raw["repo-scan-dir"])) {
+    dirty = true;
+  }
+  merged["repo-scan-dir"] = scanDir;
+
+  return { config: merged as unknown as Config, dirty };
+}
 
 function load(): Config {
   if (cached) return cached;
   try {
-    const raw = readFileSync(paths.configFile, "utf-8");
-    cached = { ...DEFAULTS, ...JSON.parse(raw) } as Config;
+    const raw = JSON.parse(readFileSync(paths.configFile, "utf-8")) as Record<
+      string,
+      unknown
+    >;
+    const { config, dirty } = normalizeLoaded(raw);
+    cached = config;
+    if (dirty) {
+      save(config);
+    }
   } catch {
-    cached = { ...DEFAULTS } as Config;
+    cached = { ...DEFAULTS };
   }
   return cached!;
 }
@@ -62,6 +107,10 @@ export function getConfigValue<K extends ConfigKey>(key: K): Config[K] {
   return load()[key];
 }
 
+export function getRepoScanDirs(): string[] {
+  return getConfigValue("repo-scan-dir");
+}
+
 export function setConfigValue<K extends ConfigKey>(
   key: K,
   value: Config[K],
@@ -75,19 +124,23 @@ export function parseConfigValue(
   key: string,
   raw: string,
 ): Config[ConfigKey] | undefined {
+  if ((REMOVED_CONFIG_KEYS as readonly string[]).includes(key)) {
+    return undefined;
+  }
+
   switch (key as ConfigKey) {
     case "agent-clis":
-      return raw.split(",").map((s) => s.trim());
+      return raw.split(",").map((s) => s.trim()).filter(Boolean);
     case "auto-track":
-      return raw === "true";
-    case "prompt-actions-on-new":
-      return raw === "true";
-    case "prompt-repos-on-new":
       return raw === "true";
     case "prompt-repos-on-new-window":
       return raw === "true";
     case "repo-scan-dir":
-      return raw === "null" ? null : raw;
+      if (raw === "null" || raw === "") return [];
+      return raw
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter(Boolean);
     case "checkout-base":
       return raw === "null" ? null : raw;
     case "sidebar-width":

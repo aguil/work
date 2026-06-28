@@ -78,9 +78,27 @@ export function scanRepoDirectory(
   return repos.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+export function scanRepoDirectories(
+  dirs: string[],
+  maxDepth = 4,
+): ScannedRepo[] {
+  const repos: ScannedRepo[] = [];
+  const seen = new Set<string>();
+
+  for (const dir of dirs) {
+    for (const repo of scanRepoDirectory(dir, maxDepth)) {
+      if (seen.has(repo.path)) continue;
+      seen.add(repo.path);
+      repos.push(repo);
+    }
+  }
+
+  return repos.sort((a, b) => a.path.localeCompare(b.path));
+}
+
 export function resolveRepoPaths(
   raw: string,
-  scanDir: string | null,
+  scanDirs: string[],
 ): ScannedRepo[] {
   const paths = raw
     .split(",")
@@ -106,7 +124,7 @@ export function resolveRepoPaths(
     });
   }
 
-  if (repos.length === 0 && scanDir) {
+  if (repos.length === 0 && scanDirs.length > 0) {
     throw new Error("No repositories specified");
   }
 

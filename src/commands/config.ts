@@ -52,15 +52,13 @@ export function registerConfigCommands(program: Command): void {
           );
         }
       }
-      if (key === "prompt-actions-on-new") {
-        console.log(
-          "Note: attach-time action picker is disabled; use workctl action run.",
-        );
-      }
-      if (key === "prompt-repos-on-new") {
-        console.log(
-          "Note: attach-time repo picker is disabled; use prompt-repos-on-new-window.",
-        );
+      if (key === "repo-scan-dir") {
+        const dirs = parsed as string[];
+        if (dirs.length === 0) {
+          console.log("Repo scan disabled.");
+        } else {
+          console.log(`Scanning ${dirs.length} director${dirs.length === 1 ? "y" : "ies"} for repos.`);
+        }
       }
       if (key === "prompt-repos-on-new-window") {
         if (parsed === true) {
@@ -68,8 +66,15 @@ export function registerConfigCommands(program: Command): void {
             "New windows in tracked sessions will show the repo picker to add a tree and cd.",
           );
         } else {
+          console.log("Repo picker on new window disabled.");
+        }
+      }
+      if (key === "checkout-base") {
+        if (parsed) {
+          console.log(`Project checkouts will be created under ${parsed}.`);
+        } else {
           console.log(
-            "Repo picker on new window disabled.",
+            "Checkout base cleared; inferred from workspace trees or ~/dev/projects/<session>.",
           );
         }
       }
