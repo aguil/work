@@ -3,6 +3,8 @@ import * as tmux from "../tmux/client.js";
 import {
   createWorkspace,
   findWorkspaceBySession,
+  findArchivedWorkspaceBySession,
+  unarchiveWorkspace,
   saveWorkspace,
   listWorkspaces,
   deleteWorkspace,
@@ -14,7 +16,13 @@ export function registerTrackCommands(program: Command): void {
     .description("Start tracking a tmux session as a workspace")
     .argument("<session>", "tmux session name")
     .option("-q, --quiet", "Suppress output")
-    .action((session: string, opts: { quiet?: boolean }) => {
+    .action(
+      (
+        session: string,
+        opts: {
+          quiet?: boolean;
+        },
+      ) => {
       if (!tmux.hasSession(session)) {
         if (!opts.quiet) console.error(`Session "${session}" not found`);
         process.exit(1);
@@ -27,11 +35,24 @@ export function registerTrackCommands(program: Command): void {
         return;
       }
 
-      const ws = createWorkspace(session, session, false);
+      const archived = findArchivedWorkspaceBySession(session);
+      const ws = archived
+        ? unarchiveWorkspace(archived)
+        : createWorkspace(session, session, false);
       tmux.setOption("session", "@workctl-workspace", ws.name, session);
+      tmux.setOption("session", "@workctl-sidebar-visible", "1", session);
 
-      if (!opts.quiet) console.log(`Tracking session "${session}" as workspace "${ws.name}"`);
-    });
+      if (!opts.quiet) {
+        if (archived) {
+          console.log(
+            `Restored workspace "${ws.name}" (${ws.trees.length} trees, ${Object.keys(ws.agents).length} agents)`,
+          );
+        } else {
+          console.log(`Tracking session "${session}" as workspace "${ws.name}"`);
+        }
+      }
+    },
+    );
 
   program
     .command("untrack")

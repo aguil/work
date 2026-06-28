@@ -115,6 +115,21 @@ export function findWorkspaceBySession(
   );
 }
 
+export function findArchivedWorkspaceBySession(
+  sessionName: string,
+): WorkspaceState | null {
+  const all = listWorkspaces();
+  return (
+    all.find((w) => w.archived && w.sessionName === sessionName) ?? null
+  );
+}
+
+export function unarchiveWorkspace(ws: WorkspaceState): WorkspaceState {
+  ws.archived = false;
+  saveWorkspace(ws);
+  return ws;
+}
+
 export function upsertAgent(
   workspace: WorkspaceState,
   agent: AgentRecord,
