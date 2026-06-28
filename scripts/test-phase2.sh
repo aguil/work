@@ -124,8 +124,26 @@ else
 fi
 
 section "4. remove-tree"
+echo "wip" >>"$WORKTREE_ROOT/README.md"
+git -C "$WORKTREE_ROOT" commit -am "wip feature commit" >/dev/null
+
+if $WORKCTL remove-tree "$WORKTREE_ROOT" --session "$SESSION" >/dev/null 2>&1; then
+  fail "remove-tree blocks unmerged worktree without --force"
+else
+  pass "remove-tree blocks unmerged worktree without --force"
+fi
+
+OUT=$($WORKCTL remove-tree "$WORKTREE_ROOT" --session "$SESSION" --force 2>&1)
+assert_contains "remove-tree --force removes worktree checkout" "checkout removed" "$OUT"
+
+if [[ ! -e "$WORKTREE_ROOT" ]]; then
+  pass "remove-tree deletes git worktree from disk"
+else
+  fail "remove-tree deletes git worktree from disk"
+fi
+
 OUT=$($WORKCTL remove-tree "$REPO_ROOT" --session "$SESSION" 2>&1)
-assert_contains "remove-tree succeeds" "removed tree" "$OUT"
+assert_contains "remove-tree succeeds for primary repo" "removed tree" "$OUT"
 
 OUT=$($WORKCTL trees --session "$SESSION" 2>&1)
 if [[ "$OUT" != *"$REPO_ROOT"* ]]; then

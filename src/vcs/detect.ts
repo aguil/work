@@ -124,6 +124,18 @@ export function createCheckout(
   git.createGitWorktree(repoPath, destPath, branch);
 }
 
+export function canRemoveCheckout(
+  path: string,
+  vcsType: VcsType,
+  createdByWorkctl: boolean,
+): boolean {
+  if (vcsType === "plain") return false;
+  if (createdByWorkctl) return true;
+  if (vcsType === "git") return git.isGitWorktreeCheckout(path);
+  if (vcsType === "jj") return jj.isJjSecondaryWorkspace(path);
+  return false;
+}
+
 export function removeCheckout(path: string, vcsType: VcsType): void {
   if (vcsType === "git") {
     git.removeGitWorktree(path);

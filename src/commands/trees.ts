@@ -1,79 +1,26 @@
-import { basename, join, resolve } from "node:path";
+import { basename, join } from "node:path";
 import type { Command } from "commander";
 import * as tmux from "../tmux/client.js";
 import {
-  findWorkspaceBySession,
   listWorkspaces,
   saveWorkspace,
-  type TreeRecord,
-  type WorkspaceState,
 } from "../workspace/state.js";
 import {
   createCheckout,
+  canRemoveCheckout,
   detectRepoBackend,
-  detectVcs,
   enrichTree,
+  removeCheckout,
   resolveDestPath,
   resolveTreePath,
 } from "../vcs/detect.js";
-
-function currentSession(): string | null {
-  if (!process.env.TMUX) return null;
-  try {
-    return tmux.displayMessage("#{session_name}");
-  } catch {
-    return null;
-  }
-}
-
-function requireWorkspace(session?: string): WorkspaceState {
-  const sessionName = session ?? currentSession();
-  if (!sessionName) {
-    throw new Error(
-      "No tmux session context. Pass --session or run inside tmux.",
-    );
-  }
-
-  const ws = findWorkspaceBySession(sessionName);
-  if (!ws) {
-    throw new Error(`Session "${sessionName}" is not tracked`);
-  }
-  return ws;
-}
-
-function treePathsEqual(a: string, b: string): boolean {
-  try {
-    return resolveTreePath(a) === resolveTreePath(b);
-  } catch {
-    return resolve(a) === resolve(b);
-  }
-}
-
-function findTreeIndex(ws: WorkspaceState, path: string): number {
-  return ws.trees.findIndex((tree) => treePathsEqual(tree.path, path));
-}
-
-function addTree(
-  ws: WorkspaceState,
-  path: string,
-  createdByWorkctl: boolean,
-): TreeRecord {
-  const absPath = resolveTreePath(path);
-  if (findTreeIndex(ws, absPath) >= 0) {
-    throw new Error(`Tree already associated: ${absPath}`);
-  }
-
-  const meta = detectVcs(absPath);
-  const record: TreeRecord = {
-    path: absPath,
-    vcsType: meta.vcsType,
-    branch: meta.branch,
-    createdByWorkctl,
-  };
-  ws.trees.push(record);
-  saveWorkspace(ws);
-  return record;
-}
+import { requireWorkspace } from "../workspace/helpers.js";
+import { promptConfirm } from "../prompt/readline.js";
+import {
+  addTreeToWorkspace,
+  findTreeIndex,
+} from "../workspace/trees.js";
+import { assessCheckoutRemovalRisk } from "../vcs/removal-risk.js";
 
 export function registerTreeCommands(program: Command): void {
   program
@@ -129,7 +76,7 @@ export function registerTreeCommands(program: Command): void {
           throw new Error("path argument is required");
         }
 
-        const record = addTree(ws, targetPath!, createdByWorkctl);
+        const record = addTreeToWorkspace(ws, targetPath!, createdByWorkctl);
         if (!opts.quiet) {
           const meta = enrichTree(record);
           const branch = meta.branch ? ` (${meta.branch})` : "";
@@ -142,14 +89,29 @@ export function registerTreeCommands(program: Command): void {
 
   program
     .command("remove-tree")
-    .description("Remove a tree association (does not delete the checkout)")
+    .description(
+      "Remove a tree association and forget workctl-created jj/git checkouts",
+    )
     .argument("<path>", "Associated directory path")
     .option("-s, --session <name>", "Tracked tmux session")
+    .option(
+      "--no-cleanup",
+      "Only remove the association; leave checkouts on disk",
+    )
+    .option(
+      "--force",
+      "Remove checkout even when there are unmerged or uncommitted changes",
+    )
     .option("-q, --quiet", "Suppress output")
     .action(
-      (
+      async (
         path: string,
-        opts: { session?: string; quiet?: boolean },
+        opts: {
+          session?: string;
+          noCleanup?: boolean;
+          force?: boolean;
+          quiet?: boolean;
+        },
       ) => {
         const ws = requireWorkspace(opts.session);
         const idx = findTreeIndex(ws, path);
@@ -157,11 +119,46 @@ export function registerTreeCommands(program: Command): void {
           throw new Error(`Tree not associated: ${path}`);
         }
 
-        const [removed] = ws.trees.splice(idx, 1);
+        const removed = ws.trees[idx];
+        const willCleanup =
+          !opts.noCleanup &&
+          canRemoveCheckout(removed.path, removed.vcsType, removed.createdByWorkctl);
+
+        if (willCleanup && !opts.force) {
+          const risk = assessCheckoutRemovalRisk(removed.path, removed.vcsType);
+          if (risk.warnings.length > 0) {
+            for (const warning of risk.warnings) {
+              console.error(`warning: ${removed.path}: ${warning}`);
+            }
+
+            if (process.stdin.isTTY) {
+              const proceed = await promptConfirm(
+                "Remove checkout anyway?",
+                false,
+              );
+              if (!proceed) {
+                throw new Error("Aborted.");
+              }
+            } else {
+              throw new Error(
+                "Refusing to remove checkout with unmerged or uncommitted changes. Use --force.",
+              );
+            }
+          }
+        }
+
+        ws.trees.splice(idx, 1);
         saveWorkspace(ws);
 
+        let forgotCheckout = false;
+        if (willCleanup) {
+          removeCheckout(removed.path, removed.vcsType);
+          forgotCheckout = true;
+        }
+
         if (!opts.quiet) {
-          console.log(`${ws.name}: removed tree ${removed.path}`);
+          const suffix = forgotCheckout ? " (checkout removed)" : "";
+          console.log(`${ws.name}: removed tree ${removed.path}${suffix}`);
         }
       },
     );

@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync } from "node:fs";
-import { basename, dirname } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import { commandExists, tryCommand, runCommand } from "./exec.js";
 
 export function jjRoot(cwd: string): string | null {
@@ -91,6 +91,54 @@ export function createJjWorkspace(
 
   mkdirSync(dirname(destPath), { recursive: true });
   runCommand("jj", ["workspace", "add", destPath], { cwd: repoPath });
+}
+
+export function isJjSecondaryWorkspace(path: string): boolean {
+  if (!isJjWorkspace(path)) return false;
+  const root = jjRoot(path);
+  if (!root) return false;
+  return resolve(path) !== resolve(root);
+}
+
+export function jjHasCommitsNotIn(cwd: string, bookmark: string): boolean {
+  const out = tryCommand(
+    "jj",
+    [
+      "log",
+      "-r",
+      `@ ~ ${bookmark}`,
+      "--limit",
+      "1",
+      "-T",
+      "change_id",
+      "--no-graph",
+      "--ignore-working-copy",
+    ],
+    { cwd },
+  );
+  return Boolean(out);
+}
+
+export function jjDefaultBookmark(cwd: string): string | null {
+  for (const name of ["main", "master", "trunk"]) {
+    const exists = tryCommand(
+      "jj",
+      [
+        "log",
+        "-r",
+        name,
+        "--limit",
+        "1",
+        "-T",
+        "commit_id",
+        "--no-graph",
+        "--ignore-working-copy",
+      ],
+      { cwd },
+    );
+    if (exists) return name;
+  }
+  return null;
 }
 
 export function repoHasJj(repoPath: string): boolean {

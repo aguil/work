@@ -76,6 +76,41 @@ export function createGitWorktree(
   ]);
 }
 
+export function gitCommitsAheadOf(cwd: string, base: string): number {
+  const count = tryCommand(
+    "git",
+    ["rev-list", "--count", `${base}..HEAD`],
+    { cwd },
+  );
+  if (!count) return 0;
+  const parsed = parseInt(count, 10);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+export function gitDefaultBranch(cwd: string): string | null {
+  const originHead = tryCommand(
+    "git",
+    ["symbolic-ref", "refs/remotes/origin/HEAD"],
+    { cwd },
+  );
+  if (originHead) {
+    const match = originHead.match(/^refs\/remotes\/origin\/(.+)$/);
+    if (match?.[1]) return match[1];
+  }
+
+  for (const name of ["main", "master"]) {
+    if (
+      tryCommand("git", ["show-ref", "--verify", `refs/heads/${name}`], {
+        cwd,
+      })
+    ) {
+      return name;
+    }
+  }
+
+  return null;
+}
+
 export function isGitWorktreeCheckout(path: string): boolean {
   const gitPath = tryCommand("git", ["rev-parse", "--git-path", "HEAD"], {
     cwd: path,
