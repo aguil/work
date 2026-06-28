@@ -1,0 +1,72 @@
+# Cursor CLI status manifest (bundled default).
+# User overrides: ~/.config/workctl/manifests/cursor.toml
+
+agent = "cursor"
+process_names = ["cursor", "cursor-agent", "agent"]
+
+[[rules]]
+priority = 110
+state = "blocked"
+visible_blocker = true
+[rules.match]
+region = "pane_title"
+contains = ["action required", "waiting for approval"]
+
+[[rules]]
+priority = 100
+state = "blocked"
+visible_blocker = true
+[rules.match]
+region = "bottom_lines"
+lines = 8
+any = [
+  { contains = ["waiting for approval"] },
+  { contains = ["run this command?"] },
+  { contains = ["allow this command"] },
+]
+
+[[rules]]
+priority = 98
+state = "working"
+[rules.match]
+region = "pane_title"
+any = [
+  { contains = ["working"] },
+  { contains = ["⏳"] },
+  { regex = ['^[\u2800-\u28FF]'] },
+]
+
+[[rules]]
+priority = 92
+state = "idle"
+visible_idle = true
+[rules.match]
+region = "pane_title"
+any = [
+  { contains = ["ready"] },
+  { contains = ["✅"] },
+]
+
+[[rules]]
+priority = 90
+state = "working"
+[rules.match]
+region = "bottom_lines"
+lines = 6
+any = [
+  { contains = ["ctrl+c to stop"] },
+  { contains = ["esc to cancel"] },
+  { regex = ['^\s*(⬡|⬢)\s+\w+ing\b'] },
+]
+
+[[rules]]
+priority = 10
+state = "idle"
+visible_idle = true
+[rules.match]
+region = "bottom_lines"
+lines = 3
+any = [
+  { line_regex = ['^\s*>\s*$'] },
+  { contains = ["ask anything"] },
+]

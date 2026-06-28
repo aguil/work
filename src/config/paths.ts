@@ -48,6 +48,7 @@ export const paths = {
 export function ensureDirs(): void {
   mkdirSync(paths.config, { recursive: true });
   mkdirSync(paths.actionsDir, { recursive: true });
+  mkdirSync(paths.manifestsDir, { recursive: true });
   mkdirSync(paths.workspacesDir, { recursive: true });
   mkdirSync(paths.runtime, { recursive: true, mode: 0o700 });
 }

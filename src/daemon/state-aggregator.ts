@@ -11,6 +11,7 @@ import {
 } from "../workspace/state.js";
 import type { SessionSnapshot } from "./protocol.js";
 import { enrichTree } from "../vcs/detect.js";
+import { observeAgentsInWorkspace } from "../adapters/update-agent.js";
 
 export interface AggregatedState {
   sessions: SessionSnapshot[];
@@ -40,6 +41,9 @@ export function aggregateState(): AggregatedState {
 
     if (ws) {
       syncAgentsToWorkspace(ws, detected);
+      if (observeAgentsInWorkspace(Object.values(ws.agents))) {
+        saveWorkspace(ws);
+      }
       agents = Object.values(ws.agents);
     } else {
       agents = detected.map((d) => ({

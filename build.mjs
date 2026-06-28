@@ -1,4 +1,5 @@
 import { build, context } from "esbuild";
+import { cpSync, mkdirSync } from "node:fs";
 
 const shared = {
   bundle: true,
@@ -32,5 +33,7 @@ if (isWatch) {
   for (const entry of entryPoints) {
     await build({ ...shared, ...entry });
   }
+  mkdirSync("dist/manifests", { recursive: true });
+  cpSync("src/adapters/manifests", "dist/manifests", { recursive: true });
   console.log("Build complete.");
 }

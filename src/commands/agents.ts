@@ -5,6 +5,8 @@ import {
   saveWorkspace,
   type AgentRecord,
 } from "../workspace/state.js";
+import { updateAgentFromPane } from "../adapters/update-agent.js";
+import { observeAgentPane } from "../adapters/observe.js";
 import { registerAgentRelaunch } from "./launch.js";
 
 export function registerAgentsCommands(program: Command): void {
@@ -87,6 +89,8 @@ export function registerAgentsCommands(program: Command): void {
         agent.status = "detached";
         agent.detachedAt = new Date().toISOString();
         agent.paneId = null;
+        agent.pendingIdleCount = 0;
+        agent.confidence = "none";
         saveWorkspace(ws);
 
         if (!opts.quiet)
@@ -109,15 +113,74 @@ export function registerAgentsCommands(program: Command): void {
         const agent = findAgentByPane(ws, paneId);
         if (!agent) continue;
 
-        agent.lastSeen = new Date().toISOString();
-        saveWorkspace(ws);
+        const changed = updateAgentFromPane(agent, paneId);
+        if (changed) saveWorkspace(ws);
 
-        if (!opts.quiet)
+        if (!opts.quiet) {
           console.log(
-            `Title changed for ${agent.label} in ${ws.name}`,
+            `Title changed for ${agent.label} in ${ws.name}: ${agent.status} (${agent.confidence})`,
           );
+        }
         return;
       }
+    });
+
+  agent
+    .command("observe")
+    .description("Evaluate status adapter rules for an agent pane")
+    .argument("<pane-id>", "Pane ID")
+    .option("--apply", "Apply observation to workspace agent state")
+    .option("--json", "Output as JSON")
+    .option("-q, --quiet", "Suppress output")
+    .action((paneId: string, opts: { apply?: boolean; json?: boolean; quiet?: boolean }) => {
+      const workspaces = listWorkspaces().filter((w) => !w.archived);
+
+      for (const ws of workspaces) {
+        const agent = findAgentByPane(ws, paneId);
+        if (!agent) continue;
+
+        const observed = observeAgentPane(paneId, agent.cli);
+        if (opts.apply && observed) {
+          if (updateAgentFromPane(agent, paneId)) {
+            saveWorkspace(ws);
+          }
+        }
+
+        if (opts.json) {
+          console.log(
+            JSON.stringify(
+              {
+                workspace: ws.name,
+                label: agent.label,
+                cli: agent.cli,
+                observed,
+                agent: {
+                  status: agent.status,
+                  confidence: agent.confidence,
+                  pendingIdleCount: agent.pendingIdleCount ?? 0,
+                },
+              },
+              null,
+              2,
+            ),
+          );
+          return;
+        }
+
+        if (observed) {
+          if (!opts.quiet) {
+            console.log(
+              `${ws.name}/${agent.label}: ${observed.status} (${observed.confidence}, rule ${observed.rulePriority})`,
+            );
+          }
+        } else if (!opts.quiet) {
+          console.log(`${ws.name}/${agent.label}: no manifest match`);
+        }
+        return;
+      }
+
+      if (!opts.quiet) console.error(`No agent found for pane ${paneId}`);
+      process.exit(1);
     });
 
   registerAgentRelaunch(agent);
