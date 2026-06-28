@@ -5,6 +5,7 @@ import {
   saveWorkspace,
   type AgentRecord,
 } from "../workspace/state.js";
+import { registerAgentRelaunch } from "./launch.js";
 
 export function registerAgentsCommands(program: Command): void {
   program
@@ -118,4 +119,6 @@ export function registerAgentsCommands(program: Command): void {
         return;
       }
     });
+
+  registerAgentRelaunch(agent);
 }

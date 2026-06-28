@@ -19,6 +19,9 @@ async function main(): Promise<void> {
   const { registerConfigCommands } = await import("./commands/config.js");
   const { registerSidebarCommand } = await import("./commands/sidebar.js");
   const { registerTreeCommands } = await import("./commands/trees.js");
+  const { registerNewCommand } = await import("./commands/new.js");
+  const { registerCloseCommand } = await import("./commands/close.js");
+  const { registerLaunchCommand } = await import("./commands/launch.js");
 
   registerTrackCommands(program);
   registerScanCommand(program);
@@ -28,6 +31,9 @@ async function main(): Promise<void> {
   registerConfigCommands(program);
   registerSidebarCommand(program);
   registerTreeCommands(program);
+  registerNewCommand(program);
+  registerCloseCommand(program);
+  registerLaunchCommand(program);
 
   await program.parseAsync(process.argv);
 }
