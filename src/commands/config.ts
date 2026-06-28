@@ -41,6 +41,17 @@ export function registerConfigCommands(program: Command): void {
       }
       setConfigValue(key as Parameters<typeof setConfigValue>[0], parsed as never);
       console.log(`${key} = ${raw}`);
+      if (key === "auto-track") {
+        if (parsed === true) {
+          console.log(
+            "New tmux sessions will be tracked and scanned automatically.",
+          );
+        } else {
+          console.log(
+            "Auto-track disabled. Use 'workctl track <session>' for manual tracking.",
+          );
+        }
+      }
     });
 
   config

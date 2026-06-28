@@ -10,6 +10,7 @@ import {
   detectVcs,
 } from "../vcs/detect.js";
 import { resolveRepoPaths, scanRepoDirectory } from "../vcs/scan.js";
+import { scanSession } from "../scanner/scan-session.js";
 import {
   createWorkspace,
   loadWorkspace,
@@ -140,6 +141,7 @@ export function registerNewCommand(program: Command): void {
         );
         saveWorkspace(ws);
         tmux.setOption("session", "@workctl-workspace", ws.name, name);
+        scanSession(name, { quiet: true });
 
         if (!opts.quiet) {
           console.log(`\nCreated tmux session "${name}"`);

@@ -29,7 +29,12 @@ export function tryCommand(
   opts?: { cwd?: string; timeout?: number },
 ): string | null {
   try {
-    return runCommand(cmd, args, opts);
+    return execFileSync(cmd, args, {
+      encoding: "utf-8",
+      cwd: opts?.cwd,
+      timeout: opts?.timeout ?? 10_000,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trimEnd();
   } catch {
     return null;
   }
