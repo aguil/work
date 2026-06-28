@@ -13,7 +13,10 @@ no runtime dependencies beyond Node built-ins and `commander`.
 - `src/workspace/` — per-workspace JSON state
 - `src/scanner/` — agent detection by process name
 - `src/sidebar/` — ANSI TUI client
-- `scripts/test-phase1.sh` — integration test suite
+- `src/vcs/` — git/jj detection, worktree/workspace creation, metadata
+- `src/commands/trees.ts` — add-tree, remove-tree, trees
+- `scripts/test-phase1.sh` — Phase 1 integration test suite
+- `scripts/test-phase2.sh` — Phase 2 tree/VCS integration tests
 
 ## Development
 

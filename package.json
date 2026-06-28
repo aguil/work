@@ -14,7 +14,7 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
-    "test": "bash scripts/test-phase1.sh",
+    "test": "bash scripts/test-phase1.sh && bash scripts/test-phase2.sh",
     "pre-commit": "bash scripts/pre-commit.sh",
     "check": "npm run typecheck && npm run lint && npm run build && npm run test"
   },
