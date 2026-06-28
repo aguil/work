@@ -40,6 +40,7 @@ export function registerTreeCommands(program: Command): void {
       "--dest <path>",
       "Destination for --new-worktree (default: ./<repo-name> in cwd)",
     )
+    .option("--open", "Open a new tmux window with cwd set to the tree")
     .option("-q, --quiet", "Suppress output")
     .action(
       (
@@ -49,6 +50,7 @@ export function registerTreeCommands(program: Command): void {
           newWorktree?: string;
           repo?: string;
           dest?: string;
+          open?: boolean;
           quiet?: boolean;
         },
       ) => {
@@ -77,11 +79,25 @@ export function registerTreeCommands(program: Command): void {
         }
 
         const record = addTreeToWorkspace(ws, targetPath!, createdByWorkctl);
+
+        if (opts.open) {
+          if (!tmux.hasSession(ws.sessionName)) {
+            throw new Error(`Tracked session not found: ${ws.sessionName}`);
+          }
+          const windowName = basename(record.path);
+          tmux.newWindow({
+            target: ws.sessionName,
+            name: windowName,
+            cwd: record.path,
+          });
+        }
+
         if (!opts.quiet) {
           const meta = enrichTree(record);
           const branch = meta.branch ? ` (${meta.branch})` : "";
+          const opened = opts.open ? " (window opened)" : "";
           console.log(
-            `${ws.name}: added tree ${meta.path} [${meta.vcsType}]${branch}`,
+            `${ws.name}: added tree ${meta.path} [${meta.vcsType}]${branch}${opened}`,
           );
         }
       },
