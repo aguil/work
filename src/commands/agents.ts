@@ -8,6 +8,7 @@ import {
 import { updateAgentFromPane } from "../adapters/update-agent.js";
 import { observeAgentPane } from "../adapters/observe.js";
 import { registerAgentRelaunch } from "./launch.js";
+import { registerAgentHookCommand } from "./agent-hook.js";
 
 export function registerAgentsCommands(program: Command): void {
   program
@@ -184,4 +185,5 @@ export function registerAgentsCommands(program: Command): void {
     });
 
   registerAgentRelaunch(agent);
+  registerAgentHookCommand(agent);
 }

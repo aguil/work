@@ -1,6 +1,6 @@
 import * as tmux from "../tmux/client.js";
 import type { AgentRecord } from "../workspace/state.js";
-import { applyObservation } from "./debounce.js";
+import { applyObservation, hasExplicitHookStatus } from "./debounce.js";
 import { observeAgentPane, observePane } from "./observe.js";
 
 export function updateAgentFromPane(
@@ -8,6 +8,7 @@ export function updateAgentFromPane(
   paneId: string,
 ): boolean {
   if (agent.status === "detached" || !agent.paneId) return false;
+  if (hasExplicitHookStatus(agent)) return false;
 
   const result = observeAgentPane(paneId, agent.cli);
   if (!result) return false;
@@ -20,6 +21,7 @@ export function observeAgentsInWorkspace(
   let changed = false;
   for (const agent of agents) {
     if (!agent.paneId || agent.status === "detached") continue;
+    if (hasExplicitHookStatus(agent)) continue;
     const pane = tmux.getPane(agent.paneId);
     if (!pane) continue;
     const result = observePane(pane, agent.cli);

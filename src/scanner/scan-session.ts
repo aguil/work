@@ -2,6 +2,7 @@ import * as tmux from "../tmux/client.js";
 import type { DetectedAgent } from "./detect.js";
 import { detectAgents, detectSinglePane, isSidebarPane } from "./detect.js";
 import { applyObservation } from "../adapters/debounce.js";
+import { getBindingByPane } from "../adapters/conversation-map.js";
 import { observePane } from "../adapters/observe.js";
 import {
   findWorkspaceBySession,
@@ -22,6 +23,11 @@ function registerDetectedAgent(
 
   const existing = findAgentByPane(ws, detected.paneId);
   if (existing) {
+    const binding = getBindingByPane(detected.paneId);
+    if (binding && existing.conversationId !== binding.conversationId) {
+      existing.conversationId = binding.conversationId;
+      saveWorkspace(ws);
+    }
     if (pane) {
       const observed = observePane(pane, detected.cli);
       if (observed && applyObservation(existing, observed)) {
@@ -58,6 +64,11 @@ function registerDetectedAgent(
   if (pane) {
     const observed = observePane(pane, detected.cli);
     if (observed) applyObservation(record, observed);
+  }
+
+  const binding = getBindingByPane(detected.paneId);
+  if (binding) {
+    record.conversationId = binding.conversationId;
   }
 
   upsertAgent(ws, record);

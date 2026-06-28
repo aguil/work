@@ -20,6 +20,9 @@ export interface AgentRecord {
   confidence: "explicit" | "inferred" | "heuristic" | "none";
   detachedAt: string | null;
   lastSeen: string;
+  pendingIdleCount?: number;
+  conversationId?: string | null;
+  hookEvent?: string | null;
 }
 
 export interface TreeRecord {
@@ -142,6 +145,15 @@ export function findAgentByPane(
   paneId: string,
 ): AgentRecord | undefined {
   return Object.values(workspace.agents).find((a) => a.paneId === paneId);
+}
+
+export function findAgentByConversation(
+  workspace: WorkspaceState,
+  conversationId: string,
+): AgentRecord | undefined {
+  return Object.values(workspace.agents).find(
+    (a) => a.conversationId === conversationId,
+  );
 }
 
 export function agentKey(workspaceName: string, label: string): string {

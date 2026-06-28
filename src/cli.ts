@@ -27,6 +27,7 @@ async function main(): Promise<void> {
   const { registerReposCommands } = await import("./commands/repos.js");
   const { registerSessionCommands } = await import("./commands/session.js");
   const { registerWindowCommands } = await import("./commands/window.js");
+  const { registerHooksCommands } = await import("./commands/hooks-install.js");
 
   registerTrackCommands(program);
   registerScanCommand(program);
@@ -44,6 +45,7 @@ async function main(): Promise<void> {
   registerReposCommands(program);
   registerSessionCommands(program);
   registerWindowCommands(program);
+  registerHooksCommands(program);
 
   await program.parseAsync(process.argv);
 }

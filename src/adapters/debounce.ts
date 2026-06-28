@@ -39,3 +39,25 @@ export function applyObservation(
 export function resetObservation(agent: AgentRecord): void {
   agent.pendingIdleCount = 0;
 }
+
+export function hasExplicitHookStatus(agent: AgentRecord): boolean {
+  return agent.confidence === "explicit";
+}
+
+export function applyHookStatus(
+  agent: AgentRecord,
+  status: AgentStatus,
+  eventName: string,
+): boolean {
+  agent.pendingIdleCount = 0;
+  const changed =
+    agent.status !== status ||
+    agent.confidence !== "explicit" ||
+    agent.hookEvent !== eventName;
+
+  agent.status = status;
+  agent.confidence = "explicit";
+  agent.hookEvent = eventName;
+  agent.lastSeen = new Date().toISOString();
+  return changed;
+}
