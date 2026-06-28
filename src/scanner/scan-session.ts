@@ -1,25 +1,51 @@
 import * as tmux from "../tmux/client.js";
-import { detectAgents, detectSinglePane } from "./detect.js";
+import type { DetectedAgent } from "./detect.js";
+import { detectAgents, detectSinglePane, isSidebarPane } from "./detect.js";
+import { applyObservation } from "../adapters/debounce.js";
+import { observePane } from "../adapters/observe.js";
 import {
   findWorkspaceBySession,
   saveWorkspace,
   upsertAgent,
   findAgentByPane,
   autoLabel,
+  type AgentRecord,
 } from "../workspace/state.js";
 
 function registerDetectedAgent(
   ws: ReturnType<typeof findWorkspaceBySession>,
-  detected: NonNullable<ReturnType<typeof detectSinglePane>>,
+  detected: DetectedAgent,
+  pane: ReturnType<typeof tmux.getPane>,
   opts?: { quiet?: boolean },
 ): number {
   if (!ws) return 0;
 
   const existing = findAgentByPane(ws, detected.paneId);
-  if (existing) return 0;
+  if (existing) {
+    if (pane) {
+      const observed = observePane(pane, detected.cli);
+      if (observed && applyObservation(existing, observed)) {
+        saveWorkspace(ws);
+      }
+    }
+    const currentLabel = tmux.getOption(
+      "pane",
+      "@workctl-agent-label",
+      detected.paneId,
+    );
+    if (currentLabel !== existing.label) {
+      tmux.setOption(
+        "pane",
+        "@workctl-agent-label",
+        existing.label,
+        detected.paneId,
+      );
+    }
+    return 0;
+  }
 
   const label = autoLabel(detected.cli, ws);
-  upsertAgent(ws, {
+  const record: AgentRecord = {
     label,
     cli: detected.cli,
     paneId: detected.paneId,
@@ -27,7 +53,14 @@ function registerDetectedAgent(
     confidence: "none",
     detachedAt: null,
     lastSeen: new Date().toISOString(),
-  });
+  };
+
+  if (pane) {
+    const observed = observePane(pane, detected.cli);
+    if (observed) applyObservation(record, observed);
+  }
+
+  upsertAgent(ws, record);
 
   tmux.setOption("pane", "@workctl-agent-label", label, detected.paneId);
   tmux.setOption("pane", "@workctl-agent-cli", detected.cli, detected.paneId);
@@ -45,7 +78,7 @@ export function scanPane(
   opts?: { quiet?: boolean },
 ): number {
   const pane = tmux.getPane(paneId);
-  if (!pane) return 0;
+  if (!pane || isSidebarPane(pane)) return 0;
 
   const detected = detectSinglePane(pane);
   if (!detected) return 0;
@@ -58,7 +91,7 @@ export function scanPane(
     return 0;
   }
 
-  return registerDetectedAgent(ws, detected, opts);
+  return registerDetectedAgent(ws, detected, pane, opts);
 }
 
 export function scanSession(
@@ -66,7 +99,10 @@ export function scanSession(
   opts?: { quiet?: boolean },
 ): number {
   const panes = tmux.listPanes(sessionName);
-  const detected = detectAgents(panes);
+  const sidebarPaneIds = new Set(
+    panes.filter(isSidebarPane).map((p) => p.id),
+  );
+  const detected = detectAgents(panes, sidebarPaneIds);
   if (detected.length === 0) return 0;
 
   const ws = findWorkspaceBySession(sessionName);
@@ -81,8 +117,10 @@ export function scanSession(
 
   let totalNew = 0;
 
+  const paneById = new Map(panes.map((p) => [p.id, p]));
+
   for (const d of detected) {
-    totalNew += registerDetectedAgent(ws, d, opts);
+    totalNew += registerDetectedAgent(ws, d, paneById.get(d.paneId) ?? null, opts);
   }
 
   return totalNew;

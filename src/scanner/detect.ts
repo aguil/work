@@ -1,5 +1,9 @@
 import type { TmuxPane } from "../tmux/client.js";
 import { getConfigValue } from "../config/store.js";
+import * as tmux from "../tmux/client.js";
+import { evaluateMatch } from "../adapters/evaluate.js";
+import { resolveManifestForCli } from "../adapters/loader.js";
+import { buildObservationContext, regionText } from "../adapters/regions.js";
 
 export interface DetectedAgent {
   paneId: string;
@@ -9,6 +13,59 @@ export interface DetectedAgent {
   windowIndex: number;
   paneIndex: number;
   sessionName: string;
+}
+
+const CURSOR_AGENT_TITLE = /\bAgent\s+-/;
+const ACTIVE_AGENT_TITLE = /working|⏳|[\u2800-\u28FF]/i;
+
+function isActiveAgentTitle(title: string): boolean {
+  return ACTIVE_AGENT_TITLE.test(title);
+}
+
+/** True when pane scrollback shows Cursor agent UI, not a stale restored title. */
+function hasAgentScreenEvidence(pane: TmuxPane, cli: string): boolean {
+  const manifest = resolveManifestForCli(cli);
+  if (!manifest) return false;
+
+  const ctx = buildObservationContext(pane);
+  for (const rule of manifest.rules) {
+    const region = rule.match.region ?? "bottom_lines";
+    if (region === "pane_title") continue;
+    const lines = rule.match.lines ?? 5;
+    const text = regionText(ctx, region, lines);
+    if (evaluateMatch(text, rule.match)) return true;
+  }
+  return false;
+}
+
+function resolveAgentCli(pane: TmuxPane, cliSet: Set<string>): string | null {
+  const cmd = pane.currentCommand.toLowerCase();
+  if (cliSet.has(cmd)) return pane.currentCommand;
+
+  const registeredCli =
+    tmux.getOption("pane", "@workctl-agent-cli", pane.id) ?? "agent";
+  const registeredLabel = tmux.getOption(
+    "pane",
+    "@workctl-agent-label",
+    pane.id,
+  );
+
+  if (registeredLabel) {
+    if (
+      cliSet.has(cmd) ||
+      isActiveAgentTitle(pane.title) ||
+      hasAgentScreenEvidence(pane, registeredCli)
+    ) {
+      return registeredCli;
+    }
+    return null;
+  }
+
+  if (!CURSOR_AGENT_TITLE.test(pane.title)) return null;
+
+  if (isActiveAgentTitle(pane.title)) return "agent";
+  if (hasAgentScreenEvidence(pane, "agent")) return "agent";
+  return null;
 }
 
 export function detectAgents(
@@ -22,37 +79,37 @@ export function detectAgents(
   for (const pane of panes) {
     if (excludePaneIds?.has(pane.id)) continue;
 
-    const cmd = pane.currentCommand.toLowerCase();
-    if (cliSet.has(cmd)) {
-      detected.push({
-        paneId: pane.id,
-        cli: pane.currentCommand,
-        paneTitle: pane.title,
-        currentPath: pane.currentPath,
-        windowIndex: pane.windowIndex,
-        paneIndex: pane.index,
-        sessionName: pane.sessionName,
-      });
-    }
+    const cli = resolveAgentCli(pane, cliSet);
+    if (!cli) continue;
+
+    detected.push({
+      paneId: pane.id,
+      cli,
+      paneTitle: pane.title,
+      currentPath: pane.currentPath,
+      windowIndex: pane.windowIndex,
+      paneIndex: pane.index,
+      sessionName: pane.sessionName,
+    });
   }
 
   return detected;
 }
 
 export function isSidebarPane(pane: TmuxPane): boolean {
-  return pane.currentCommand === "workctl" && pane.title.includes("sidebar");
+  if (pane.currentCommand !== "workctl") return false;
+  return tmux.getOption("pane", "@workctl-sidebar", pane.id) === "1";
 }
 
 export function detectSinglePane(pane: TmuxPane): DetectedAgent | null {
   const agentClis = getConfigValue("agent-clis");
   const cliSet = new Set(agentClis.map((c) => c.toLowerCase()));
-  const cmd = pane.currentCommand.toLowerCase();
-
-  if (!cliSet.has(cmd)) return null;
+  const cli = resolveAgentCli(pane, cliSet);
+  if (!cli) return null;
 
   return {
     paneId: pane.id,
-    cli: pane.currentCommand,
+    cli,
     paneTitle: pane.title,
     currentPath: pane.currentPath,
     windowIndex: pane.windowIndex,
