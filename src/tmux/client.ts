@@ -132,6 +132,33 @@ export function listPanes(target?: string): TmuxPane[] {
   }));
 }
 
+function parsePane(fields: string[]): TmuxPane {
+  return {
+    id: fields[0],
+    sessionName: fields[1],
+    windowId: fields[2],
+    windowIndex: parseInt(fields[3], 10),
+    index: parseInt(fields[4], 10),
+    pid: parseInt(fields[5], 10),
+    currentCommand: fields[6],
+    currentPath: fields[7],
+    title: fields[8],
+    width: parseInt(fields[9], 10),
+    height: parseInt(fields[10], 10),
+    active: fields[11] === "11",
+  };
+}
+
+export function getPane(paneId: string): TmuxPane | null {
+  try {
+    const out = tmux("list-panes", "-t", paneId, "-F", PANE_FMT);
+    if (!out) return null;
+    return parsePane(out.split("\t"));
+  } catch {
+    return null;
+  }
+}
+
 export function splitWindow(opts: {
   target?: string;
   horizontal?: boolean;
