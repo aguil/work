@@ -123,3 +123,15 @@ export function createCheckout(
   }
   git.createGitWorktree(repoPath, destPath, branch);
 }
+
+export function removeCheckout(path: string, vcsType: VcsType): void {
+  if (vcsType === "git") {
+    git.removeGitWorktree(path);
+    return;
+  }
+  if (vcsType === "jj") {
+    jj.removeJjWorkspace(path);
+    return;
+  }
+  throw new Error(`Cannot remove plain directory checkout: ${path}`);
+}

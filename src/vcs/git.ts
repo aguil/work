@@ -87,3 +87,17 @@ export function isGitWorktreeCheckout(path: string): boolean {
 export function repoHasGit(repoPath: string): boolean {
   return existsSync(`${repoPath}/.git`) || gitRoot(repoPath) !== null;
 }
+
+export function removeGitWorktree(checkoutPath: string): void {
+  if (!commandExists("git")) {
+    throw new Error("git is not installed");
+  }
+
+  if (!gitRoot(checkoutPath)) {
+    throw new Error(`Not a git checkout: ${checkoutPath}`);
+  }
+
+  runCommand("git", ["worktree", "remove", "--force", checkoutPath], {
+    cwd: checkoutPath,
+  });
+}

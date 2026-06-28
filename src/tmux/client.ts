@@ -138,14 +138,60 @@ export function splitWindow(opts: {
   size?: number | string;
   command?: string;
   before?: boolean;
+  cwd?: string;
 }): string {
   const args = ["split-window", "-P", "-F", "#{pane_id}"];
   if (opts.horizontal) args.push("-h");
   if (opts.before) args.push("-b");
   if (opts.size != null) args.push("-l", String(opts.size));
+  if (opts.cwd) args.push("-c", opts.cwd);
   if (opts.target) args.push("-t", opts.target);
   if (opts.command) args.push(opts.command);
   return tmux(...args);
+}
+
+export function newSession(opts: {
+  name: string;
+  cwd?: string;
+  windowName?: string;
+  attach?: boolean;
+}): string {
+  const args = ["new-session", "-P", "-F", "#{session_name}"];
+  if (!opts.attach) args.push("-d");
+  args.push("-s", opts.name);
+  if (opts.cwd) args.push("-c", opts.cwd);
+  if (opts.windowName) args.push("-n", opts.windowName);
+  return tmux(...args);
+}
+
+export function newWindow(opts: {
+  target: string;
+  name?: string;
+  cwd?: string;
+}): string {
+  const args = ["new-window", "-P", "-F", "#{window_id}"];
+  args.push("-t", opts.target);
+  if (opts.name) args.push("-n", opts.name);
+  if (opts.cwd) args.push("-c", opts.cwd);
+  return tmux(...args);
+}
+
+export function sendKeys(
+  target: string,
+  keys: string,
+  enter = false,
+): void {
+  const args = ["send-keys", "-t", target, keys];
+  if (enter) args.push("Enter");
+  tmux(...args);
+}
+
+export function killSession(name: string): void {
+  tmux("kill-session", "-t", name);
+}
+
+export function attachSession(name: string): void {
+  tmux("attach-session", "-t", name);
 }
 
 export function killPane(paneId: string): void {
