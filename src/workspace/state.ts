@@ -1,0 +1,151 @@
+import { readFileSync, writeFileSync, readdirSync, renameSync, unlinkSync } from "node:fs";
+import { join, basename } from "node:path";
+import { randomBytes } from "node:crypto";
+import { paths, ensureDirs } from "../config/paths.js";
+
+export type AgentStatus =
+  | "idle"
+  | "working"
+  | "blocked"
+  | "done"
+  | "error"
+  | "detached"
+  | "unknown";
+
+export interface AgentRecord {
+  label: string;
+  cli: string;
+  paneId: string | null;
+  status: AgentStatus;
+  confidence: "explicit" | "inferred" | "heuristic" | "none";
+  detachedAt: string | null;
+  lastSeen: string;
+}
+
+export interface TreeRecord {
+  path: string;
+  vcsType: "git" | "jj" | "plain";
+  branch: string | null;
+  createdByWorkctl: boolean;
+}
+
+export interface WorkspaceState {
+  name: string;
+  sessionName: string;
+  agents: Record<string, AgentRecord>;
+  trees: TreeRecord[];
+  createdAt: string;
+  updatedAt: string;
+  createdByWorkctl: boolean;
+  archived: boolean;
+}
+
+function workspacePath(name: string): string {
+  return join(paths.workspacesDir, `${name}.json`);
+}
+
+export function loadWorkspace(name: string): WorkspaceState | null {
+  try {
+    const raw = readFileSync(workspacePath(name), "utf-8");
+    return JSON.parse(raw) as WorkspaceState;
+  } catch {
+    return null;
+  }
+}
+
+export function saveWorkspace(state: WorkspaceState): void {
+  ensureDirs();
+  const target = workspacePath(state.name);
+  const tmp = target + "." + randomBytes(4).toString("hex") + ".tmp";
+  state.updatedAt = new Date().toISOString();
+  writeFileSync(tmp, JSON.stringify(state, null, 2) + "\n");
+  renameSync(tmp, target);
+}
+
+export function deleteWorkspace(name: string): void {
+  try {
+    unlinkSync(workspacePath(name));
+  } catch {
+    // already gone
+  }
+}
+
+export function listWorkspaces(): WorkspaceState[] {
+  ensureDirs();
+  const dir = paths.workspacesDir;
+  const files = readdirSync(dir).filter((f) => f.endsWith(".json"));
+  const results: WorkspaceState[] = [];
+  for (const file of files) {
+    try {
+      const raw = readFileSync(join(dir, file), "utf-8");
+      results.push(JSON.parse(raw) as WorkspaceState);
+    } catch {
+      // skip corrupt files
+    }
+  }
+  return results;
+}
+
+export function createWorkspace(
+  name: string,
+  sessionName: string,
+  createdByWorkctl: boolean,
+): WorkspaceState {
+  const now = new Date().toISOString();
+  const state: WorkspaceState = {
+    name,
+    sessionName,
+    agents: {},
+    trees: [],
+    createdAt: now,
+    updatedAt: now,
+    createdByWorkctl,
+    archived: false,
+  };
+  saveWorkspace(state);
+  return state;
+}
+
+export function findWorkspaceBySession(
+  sessionName: string,
+): WorkspaceState | null {
+  const all = listWorkspaces();
+  return (
+    all.find((w) => !w.archived && w.sessionName === sessionName) ?? null
+  );
+}
+
+export function upsertAgent(
+  workspace: WorkspaceState,
+  agent: AgentRecord,
+): void {
+  workspace.agents[agent.label] = agent;
+}
+
+export function findAgentByPane(
+  workspace: WorkspaceState,
+  paneId: string,
+): AgentRecord | undefined {
+  return Object.values(workspace.agents).find((a) => a.paneId === paneId);
+}
+
+export function agentKey(workspaceName: string, label: string): string {
+  return `${workspaceName}:${label}`;
+}
+
+function generateLabel(cli: string, existing: string[]): string {
+  const base = basename(cli);
+  if (!existing.includes(base)) return base;
+  for (let i = 2; ; i++) {
+    const candidate = `${base}-${i}`;
+    if (!existing.includes(candidate)) return candidate;
+  }
+}
+
+export function autoLabel(
+  cli: string,
+  workspace: WorkspaceState,
+): string {
+  const existingLabels = Object.keys(workspace.agents);
+  return generateLabel(cli, existingLabels);
+}
