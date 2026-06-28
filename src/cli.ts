@@ -22,6 +22,11 @@ async function main(): Promise<void> {
   const { registerNewCommand } = await import("./commands/new.js");
   const { registerCloseCommand } = await import("./commands/close.js");
   const { registerLaunchCommand } = await import("./commands/launch.js");
+  const { registerActionCommands } = await import("./commands/actions.js");
+  const { registerTrustCommands } = await import("./commands/trust.js");
+  const { registerReposCommands } = await import("./commands/repos.js");
+  const { registerSessionCommands } = await import("./commands/session.js");
+  const { registerWindowCommands } = await import("./commands/window.js");
 
   registerTrackCommands(program);
   registerScanCommand(program);
@@ -34,6 +39,11 @@ async function main(): Promise<void> {
   registerNewCommand(program);
   registerCloseCommand(program);
   registerLaunchCommand(program);
+  registerActionCommands(program);
+  registerTrustCommands(program);
+  registerReposCommands(program);
+  registerSessionCommands(program);
+  registerWindowCommands(program);
 
   await program.parseAsync(process.argv);
 }

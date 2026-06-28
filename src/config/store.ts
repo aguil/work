@@ -5,7 +5,11 @@ import { paths } from "./paths.js";
 export interface Config {
   "agent-clis": string[];
   "auto-track": boolean;
+  "prompt-actions-on-new": boolean;
+  "prompt-repos-on-new": boolean;
+  "prompt-repos-on-new-window": boolean;
   "repo-scan-dir": string | null;
+  "checkout-base": string | null;
   "sidebar-width": number;
   "sidebar-position": "left" | "right";
 }
@@ -20,7 +24,11 @@ const DEFAULTS: Config = {
     "opencode",
   ],
   "auto-track": false,
+  "prompt-actions-on-new": false,
+  "prompt-repos-on-new": false,
+  "prompt-repos-on-new-window": false,
   "repo-scan-dir": null,
+  "checkout-base": null,
   "sidebar-width": 40,
   "sidebar-position": "right",
 };
@@ -72,7 +80,15 @@ export function parseConfigValue(
       return raw.split(",").map((s) => s.trim());
     case "auto-track":
       return raw === "true";
+    case "prompt-actions-on-new":
+      return raw === "true";
+    case "prompt-repos-on-new":
+      return raw === "true";
+    case "prompt-repos-on-new-window":
+      return raw === "true";
     case "repo-scan-dir":
+      return raw === "null" ? null : raw;
+    case "checkout-base":
       return raw === "null" ? null : raw;
     case "sidebar-width":
       return parseInt(raw, 10);

@@ -52,6 +52,27 @@ export function registerConfigCommands(program: Command): void {
           );
         }
       }
+      if (key === "prompt-actions-on-new") {
+        console.log(
+          "Note: attach-time action picker is disabled; use workctl action run.",
+        );
+      }
+      if (key === "prompt-repos-on-new") {
+        console.log(
+          "Note: attach-time repo picker is disabled; use prompt-repos-on-new-window.",
+        );
+      }
+      if (key === "prompt-repos-on-new-window") {
+        if (parsed === true) {
+          console.log(
+            "New windows in tracked sessions will show the repo picker to add a tree and cd.",
+          );
+        } else {
+          console.log(
+            "Repo picker on new window disabled.",
+          );
+        }
+      }
     });
 
   config

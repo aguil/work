@@ -1,5 +1,5 @@
-import { existsSync, readdirSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, readdirSync } from "node:fs";
+import { basename, join, relative, resolve } from "node:path";
 import { commandExists } from "./exec.js";
 import * as git from "./git.js";
 import * as jj from "./jj.js";
@@ -16,34 +16,65 @@ function isRepoDir(path: string): "git" | "jj" | null {
   return null;
 }
 
-export function scanRepoDirectory(dir: string): ScannedRepo[] {
+const SKIP_DIR_NAMES = new Set([
+  "node_modules",
+  ".git",
+  ".jj",
+  ".cache",
+  "dist",
+  "build",
+  "target",
+  "vendor",
+]);
+
+export function scanRepoDirectory(
+  dir: string,
+  maxDepth = 4,
+): ScannedRepo[] {
   const absDir = resolve(dir);
   if (!existsSync(absDir)) {
     throw new Error(`Repo scan directory not found: ${dir}`);
   }
 
-  const entries = readdirSync(absDir, { withFileTypes: true });
   const repos: ScannedRepo[] = [];
+  const seen = new Set<string>();
 
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const path = join(absDir, entry.name);
-    try {
-      if (!statSync(path).isDirectory()) continue;
-    } catch {
-      continue;
-    }
-
-    const vcsType = isRepoDir(path);
-    if (!vcsType) continue;
-
+  function addRepo(path: string, vcsType: "git" | "jj"): void {
+    const normalized = resolve(path);
+    if (seen.has(normalized)) return;
+    seen.add(normalized);
     repos.push({
-      name: entry.name,
-      path,
+      name: relative(absDir, normalized) || basename(normalized),
+      path: normalized,
       vcsType,
     });
   }
 
+  function walk(current: string, depth: number): void {
+    if (depth > maxDepth) return;
+
+    const vcsType = isRepoDir(current);
+    if (vcsType) {
+      addRepo(current, vcsType);
+      return;
+    }
+
+    let entries;
+    try {
+      entries = readdirSync(current, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name.startsWith(".")) continue;
+      if (SKIP_DIR_NAMES.has(entry.name)) continue;
+      walk(join(current, entry.name), depth + 1);
+    }
+  }
+
+  walk(absDir, 0);
   return repos.sort((a, b) => a.name.localeCompare(b.name));
 }
 

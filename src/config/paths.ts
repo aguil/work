@@ -37,10 +37,17 @@ export const paths = {
   get manifestsDir(): string {
     return join(this.config, "manifests");
   },
+  get actionsDir(): string {
+    return join(this.config, "actions");
+  },
+  get trustFile(): string {
+    return join(this.state, "trust.json");
+  },
 } as const;
 
 export function ensureDirs(): void {
   mkdirSync(paths.config, { recursive: true });
+  mkdirSync(paths.actionsDir, { recursive: true });
   mkdirSync(paths.workspacesDir, { recursive: true });
   mkdirSync(paths.runtime, { recursive: true, mode: 0o700 });
 }
