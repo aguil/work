@@ -1,4 +1,5 @@
-import type { AgentRecord, TreeRecord } from "../workspace/state.js";
+import type { AgentRecord } from "../workspace/state.js";
+import type { TreeView } from "../vcs/detect.js";
 
 export interface SessionSnapshot {
   id: string;
@@ -8,7 +9,7 @@ export interface SessionSnapshot {
   tracked: boolean;
   workspaceName: string | null;
   agents: AgentRecord[];
-  trees: TreeRecord[];
+  trees: TreeView[];
 }
 
 export interface StateSnapshot {

@@ -10,6 +10,7 @@ import {
   type AgentRecord,
 } from "../workspace/state.js";
 import type { SessionSnapshot } from "./protocol.js";
+import { enrichTree } from "../vcs/detect.js";
 
 export interface AggregatedState {
   sessions: SessionSnapshot[];
@@ -60,7 +61,7 @@ export function aggregateState(): AggregatedState {
       tracked: ws != null,
       workspaceName: ws?.name ?? null,
       agents,
-      trees: ws?.trees ?? [],
+      trees: (ws?.trees ?? []).map(enrichTree),
     });
   }
 

@@ -228,3 +228,9 @@ export function getServerPid(): number | null {
     return null;
   }
 }
+
+export function displayMessage(format: string, target?: string): string {
+  const args = ["display-message", "-p", format];
+  if (target) args.push("-t", target);
+  return tmux(...args);
+}

@@ -47,18 +47,27 @@ export function render(
     const agentCount = session.agents.filter(
       (a) => a.status !== "detached",
     ).length;
+    const treeCount = session.trees.length;
     const marker = session.tracked ? `${cyan}▸${reset}` : `${dim}○${reset}`;
     const nameStyle = session.tracked ? bold : dim;
-    const agentSuffix =
-      agentCount > 0 ? ` ${dim}(${agentCount})${reset}` : "";
+    const countParts: string[] = [];
+    if (agentCount > 0) countParts.push(String(agentCount));
+    if (session.tracked && treeCount > 0) {
+      countParts.push(`${treeCount}t`);
+    }
+    const countSuffix =
+      countParts.length > 0
+        ? ` ${dim}(${countParts.join(" · ")})${reset}`
+        : "";
     const attachedMark = session.attached ? `${green}*${reset}` : "";
 
     lines.push(
-      `${marker} ${nameStyle}${truncate(session.name, w - 8)}${reset}${attachedMark}${agentSuffix}`,
+      `${marker} ${nameStyle}${truncate(session.name, w - 10)}${reset}${attachedMark}${countSuffix}`,
     );
 
     if (session.tracked) {
       for (const agent of session.agents) {
+        if (agent.status === "detached") continue;
         if (lines.length >= rows - 2) break;
         lines.push(renderAgent(agent, w));
       }
@@ -66,9 +75,10 @@ export function render(
       for (const tree of session.trees) {
         if (lines.length >= rows - 2) break;
         const branchInfo = tree.branch ? ` ${dim}${tree.branch}${reset}` : "";
+        const dirtyMark = tree.dirty ? `${colors.yellow}*${reset}` : "";
         const vcsTag = tree.vcsType !== "plain" ? `${dim}[${tree.vcsType}]${reset} ` : "";
         const name = tree.path.split("/").pop() ?? tree.path;
-        lines.push(`    ${vcsTag}${truncate(name, w - 12)}${branchInfo}`);
+        lines.push(`    ${vcsTag}${truncate(name, w - 12)}${branchInfo}${dirtyMark}`);
       }
     }
   }
