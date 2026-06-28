@@ -1,0 +1,182 @@
+#!/usr/bin/env bash
+# Phase 4 automated tests: quick actions, trust, and action picker flag.
+
+set -uo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WORKCTL_DIR="${WORKCTL_DIR:-$ROOT}"
+WORKCTL="node $WORKCTL_DIR/dist/workctl.mjs"
+
+SESSION_PREFIX="workctl-autotest-actions"
+SESSION="${SESSION_PREFIX}-$$"
+
+TEST_ROOT="$(mktemp -d "/tmp/workctl-test-phase4-XXXXXX")"
+export XDG_CONFIG_HOME="$TEST_ROOT/config"
+export XDG_STATE_HOME="$TEST_ROOT/state"
+export XDG_RUNTIME_DIR="$TEST_ROOT/runtime"
+mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME" "$XDG_RUNTIME_DIR"
+chmod 700 "$XDG_RUNTIME_DIR"
+
+ACTIONS_DIR="$XDG_CONFIG_HOME/workctl/actions"
+REPO="$TEST_ROOT/repos/demo"
+TREE_DIR="$TEST_ROOT/trees/demo"
+
+PASS=0
+FAIL=0
+
+pass() { echo "  PASS: $1"; PASS=$((PASS + 1)); }
+fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
+assert_contains() {
+  local desc="$1" needle="$2" haystack="$3"
+  if [[ "$haystack" == *"$needle"* ]]; then pass "$desc"
+  else fail "$desc (missing '$needle')"; fi
+}
+
+section() { echo; echo "== $1 =="; }
+
+cleanup() {
+  tmux kill-session -t "$SESSION" 2>/dev/null || true
+  tmux kill-session -t "${SESSION}-picker" 2>/dev/null || true
+  tmux kill-session -t "${SESSION}-opt-in" 2>/dev/null || true
+  tmux kill-session -t "${SESSION}-run" 2>/dev/null || true
+  rm -rf "$TEST_ROOT"
+}
+trap cleanup EXIT
+
+init_repo() {
+  mkdir -p "$1"
+  git -C "$1" init -b main >/dev/null
+  git -C "$1" config user.email "test@example.com"
+  git -C "$1" config user.name "Test"
+  echo demo >"$1/README.md"
+  git -C "$1" add README.md
+  git -C "$1" commit -m "init" >/dev/null
+}
+
+section "1. Build & command smoke"
+cd "$WORKCTL_DIR"
+npm run build >/dev/null
+
+OUT=$($WORKCTL --help 2>&1)
+assert_contains "help lists action" "action" "$OUT"
+assert_contains "help lists trust" "trust" "$OUT"
+
+section "2. Global actions"
+mkdir -p "$ACTIONS_DIR"
+cat >"$ACTIONS_DIR/hello.toml" <<'EOF'
+description = "Say hello"
+command = "echo hello-$WORKSPACE"
+EOF
+
+OUT=$($WORKCTL action list --json 2>&1)
+assert_contains "global action listed" '"id": "hello"' "$OUT"
+
+section "3. Trust and repo-local actions"
+init_repo "$REPO"
+mkdir -p "$REPO/.workctl/actions"
+cat >"$REPO/.workctl/actions/test.toml" <<'EOF'
+description = "Run demo test"
+command = "echo test-$TREE_ROOT"
+EOF
+
+tmux kill-session -t "$SESSION" 2>/dev/null || true
+tmux new-session -d -s "$SESSION" -c "$REPO"
+$WORKCTL track "$SESSION" --quiet
+$WORKCTL add-tree "$REPO" --session "$SESSION" --quiet
+
+OUT=$($WORKCTL action list --session "$SESSION" --json 2>&1)
+assert_contains "untrusted repo action hidden" '"id": "hello"' "$OUT"
+if [[ "$OUT" == *"demo/test"* ]]; then
+  fail "untrusted repo action hidden (found demo/test)"
+else
+  pass "untrusted repo action hidden"
+fi
+
+$WORKCTL trust add "$REPO" >/dev/null
+OUT=$($WORKCTL action list --session "$SESSION" --json 2>&1)
+assert_contains "trusted repo action listed" '"id": "demo/test"' "$OUT"
+
+section "4. Track without attach pickers"
+$WORKCTL config set prompt-actions-on-new true >/dev/null
+$WORKCTL config set prompt-repos-on-new true >/dev/null
+PICKER_SESSION="${SESSION}-picker"
+tmux kill-session -t "$PICKER_SESSION" 2>/dev/null || true
+tmux new-session -d -s "$PICKER_SESSION"
+$WORKCTL track "$PICKER_SESSION" --quiet
+
+REPO_FLAG=$(tmux show-option -t "$PICKER_SESSION" -v @workctl-repo-picker 2>/dev/null || echo "")
+ACTION_FLAG=$(tmux show-option -t "$PICKER_SESSION" -v @workctl-action-picker 2>/dev/null || echo "")
+if [[ -z "$REPO_FLAG" && -z "$ACTION_FLAG" ]]; then
+  pass "track does not set attach picker flags"
+else
+  fail "track does not set attach picker flags (repo=$REPO_FLAG action=$ACTION_FLAG)"
+fi
+
+section "5. action run"
+RUN_SESSION="${SESSION}-run"
+tmux kill-session -t "$RUN_SESSION" 2>/dev/null || true
+tmux new-session -d -s "$RUN_SESSION" -c "$REPO"
+$WORKCTL track "$RUN_SESSION" --quiet
+$WORKCTL add-tree "$REPO" --session "$RUN_SESSION" --quiet
+$WORKCTL trust add "$REPO" >/dev/null
+
+OUT=$($WORKCTL action run hello --session "$RUN_SESSION" --quiet 2>&1)
+if [[ -z "$OUT" ]]; then
+  pass "action run succeeds"
+else
+  fail "action run succeeds (output: $OUT)"
+fi
+
+PANE_CMD=$(tmux list-panes -t "$RUN_SESSION" -F '#{pane_current_command}' | tail -1)
+if [[ "$PANE_CMD" == *"echo"* || "$PANE_CMD" == *"sh"* ]]; then
+  pass "action run created pane"
+else
+  fail "action run created pane (got '$PANE_CMD')"
+fi
+
+section "6. window use-repo"
+SCAN_ROOT="$TEST_ROOT/scan"
+PROJECT_BASE="$TEST_ROOT/tmuxr"
+mkdir -p "$SCAN_ROOT/nested/org" "$PROJECT_BASE"
+init_repo "$PROJECT_BASE/workctl"
+init_repo "$SCAN_ROOT/nested/org/window-demo"
+WINDOW_SESSION="${SESSION}-window"
+tmux kill-session -t "$WINDOW_SESSION" 2>/dev/null || true
+tmux new-session -d -s "$WINDOW_SESSION"
+$WORKCTL track "$WINDOW_SESSION" --quiet
+$WORKCTL add-tree "$PROJECT_BASE/workctl" --session "$WINDOW_SESSION" --quiet
+$WORKCTL config set repo-scan-dir "$SCAN_ROOT" >/dev/null
+
+CHECKOUT="$PROJECT_BASE/window-demo"
+WIN_ID=$(tmux list-windows -t "$WINDOW_SESSION" -F '#{window_id}' | head -1)
+$WORKCTL window use-repo "$SCAN_ROOT/nested/org/window-demo" \
+  --session "$WINDOW_SESSION" --window "$WIN_ID" --quiet
+
+PANE_PATH=$(tmux list-panes -t "$WINDOW_SESSION" -F '#{pane_current_path}' | head -1)
+if [[ "$PANE_PATH" == "$CHECKOUT" ]]; then
+  pass "window use-repo sets pane cwd to project checkout"
+else
+  fail "window use-repo sets pane cwd to project checkout (got '$PANE_PATH', want '$CHECKOUT')"
+fi
+
+if git -C "$CHECKOUT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  pass "window use-repo creates git worktree checkout"
+else
+  fail "window use-repo creates git worktree checkout"
+fi
+
+TREES=$($WORKCTL trees --session "$WINDOW_SESSION" --json 2>&1)
+assert_contains "window use-repo adds tree" "window-demo" "$TREES"
+
+NESTED=$($WORKCTL repos --format names 2>&1)
+assert_contains "nested repo scan finds repo" "nested/org/window-demo" "$NESTED"
+
+OUT=$($WORKCTL config set prompt-repos-on-new-window true 2>&1)
+assert_contains "config set prompt-repos-on-new-window" "prompt-repos-on-new-window" "$OUT"
+
+section "Summary"
+TOTAL=$PASS
+echo "Passed: $PASS"
+echo "Failed: $FAIL"
+if [[ "$FAIL" -gt 0 ]]; then exit 1; fi
+echo "All Phase 4 tests passed."
