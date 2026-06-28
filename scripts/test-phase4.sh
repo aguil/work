@@ -97,8 +97,6 @@ OUT=$($WORKCTL action list --session "$SESSION" --json 2>&1)
 assert_contains "trusted repo action listed" '"id": "demo/test"' "$OUT"
 
 section "4. Track without attach pickers"
-$WORKCTL config set prompt-actions-on-new true >/dev/null
-$WORKCTL config set prompt-repos-on-new true >/dev/null
 PICKER_SESSION="${SESSION}-picker"
 tmux kill-session -t "$PICKER_SESSION" 2>/dev/null || true
 tmux new-session -d -s "$PICKER_SESSION"
@@ -110,6 +108,12 @@ if [[ -z "$REPO_FLAG" && -z "$ACTION_FLAG" ]]; then
   pass "track does not set attach picker flags"
 else
   fail "track does not set attach picker flags (repo=$REPO_FLAG action=$ACTION_FLAG)"
+fi
+
+if ! $WORKCTL config set prompt-actions-on-new true 2>&1; then
+  pass "removed config key prompt-actions-on-new rejected"
+else
+  fail "removed config key prompt-actions-on-new rejected"
 fi
 
 section "5. action run"
@@ -173,6 +177,55 @@ assert_contains "nested repo scan finds repo" "nested/org/window-demo" "$NESTED"
 
 OUT=$($WORKCTL config set prompt-repos-on-new-window true 2>&1)
 assert_contains "config set prompt-repos-on-new-window" "prompt-repos-on-new-window" "$OUT"
+
+section "7. Cleanup: multi scan dir, scan --pane, add-tree --open"
+SCAN_A="$TEST_ROOT/scan-a/nested"
+SCAN_B="$TEST_ROOT/scan-b"
+mkdir -p "$SCAN_A" "$SCAN_B"
+init_repo "$SCAN_A/repo-a"
+init_repo "$SCAN_B/repo-b"
+$WORKCTL config set repo-scan-dir "$SCAN_A,$SCAN_B" >/dev/null
+
+MULTI=$($WORKCTL repos --format names 2>&1)
+assert_contains "multi repo-scan-dir finds scan-a repo" "repo-a" "$MULTI"
+assert_contains "multi repo-scan-dir finds scan-b repo" "scan-b/repo-b" "$MULTI"
+
+FAST_SESSION="${SESSION}-fast"
+tmux kill-session -t "$FAST_SESSION" 2>/dev/null || true
+tmux new-session -d -s "$FAST_SESSION"
+$WORKCTL track "$FAST_SESSION" --quiet
+PANE_ID=$(tmux list-panes -t "$FAST_SESSION" -F '#{pane_id}' | head -1)
+tmux send-keys -t "$PANE_ID" "exec sh -c 'sleep 300'" Enter
+sleep 0.3
+$WORKCTL scan --pane "$PANE_ID" --quiet 2>/dev/null || true
+AGENTS=$($WORKCTL agents --json 2>&1)
+if [[ "$AGENTS" == *"$FAST_SESSION"* ]]; then
+  fail "scan --pane does not register non-agent shell"
+else
+  pass "scan --pane ignores non-agent panes"
+fi
+
+OPEN_SESSION="${SESSION}-open"
+TREE_PATH="$TEST_ROOT/open-tree"
+init_repo "$TREE_PATH"
+tmux kill-session -t "$OPEN_SESSION" 2>/dev/null || true
+tmux new-session -d -s "$OPEN_SESSION"
+$WORKCTL track "$OPEN_SESSION" --quiet
+BEFORE=$(tmux list-windows -t "$OPEN_SESSION" | wc -l)
+$WORKCTL add-tree "$TREE_PATH" --session "$OPEN_SESSION" --open --quiet
+AFTER=$(tmux list-windows -t "$OPEN_SESSION" | wc -l)
+if [[ "$AFTER" -gt "$BEFORE" ]]; then
+  pass "add-tree --open creates a window"
+else
+  fail "add-tree --open creates a window"
+fi
+WIN_NAME=$(basename "$TREE_PATH")
+WIN_CWD=$(tmux list-panes -t "$OPEN_SESSION:$WIN_NAME" -F '#{pane_current_path}' 2>/dev/null | head -1)
+if [[ "$WIN_CWD" == "$TREE_PATH" ]]; then
+  pass "add-tree --open window cwd matches tree"
+else
+  fail "add-tree --open window cwd matches tree (got '$WIN_CWD')"
+fi
 
 section "Summary"
 TOTAL=$PASS
