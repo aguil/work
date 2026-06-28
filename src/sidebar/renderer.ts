@@ -76,9 +76,15 @@ export function render(
         if (lines.length >= rows - 2) break;
         const branchInfo = tree.branch ? ` ${dim}${tree.branch}${reset}` : "";
         const dirtyMark = tree.dirty ? `${colors.yellow}*${reset}` : "";
+        const syncInfo =
+          tree.ahead != null && tree.behind != null
+            ? ` ${dim}↑${tree.ahead}↓${tree.behind}${reset}`
+            : "";
         const vcsTag = tree.vcsType !== "plain" ? `${dim}[${tree.vcsType}]${reset} ` : "";
         const name = tree.path.split("/").pop() ?? tree.path;
-        lines.push(`    ${vcsTag}${truncate(name, w - 12)}${branchInfo}${dirtyMark}`);
+        lines.push(
+          `    ${vcsTag}${truncate(name, w - 16)}${branchInfo}${dirtyMark}${syncInfo}`,
+        );
       }
     }
   }
