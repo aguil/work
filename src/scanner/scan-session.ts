@@ -1,7 +1,7 @@
 import * as tmux from "../tmux/client.js";
 import type { DetectedAgent } from "./detect.js";
 import { detectAgents, detectSinglePane, isSidebarPane } from "./detect.js";
-import { applyObservation } from "../adapters/debounce.js";
+import { applyObservation, hasExplicitHookStatus } from "../adapters/debounce.js";
 import { getBindingByPane } from "../adapters/conversation-map.js";
 import { observePane } from "../adapters/observe.js";
 import {
@@ -28,7 +28,7 @@ function registerDetectedAgent(
       existing.conversationId = binding.conversationId;
       saveWorkspace(ws);
     }
-    if (pane) {
+    if (pane && !hasExplicitHookStatus(existing)) {
       const observed = observePane(pane, detected.cli);
       if (observed && applyObservation(existing, observed)) {
         saveWorkspace(ws);

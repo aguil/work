@@ -45,8 +45,14 @@ assert_contains() {
 
 section() { echo; echo "== $1 =="; }
 
+DISCOVER_SESSION="${SESSION_PREFIX}-discover-$$"
+CHECKOUT_BASE="$TEST_ROOT/projects/workspace"
+PANE_REPO="$TEST_ROOT/pane-repo"
+BASE_REPO="$CHECKOUT_BASE/from-base"
+
 cleanup() {
   tmux kill-session -t "$SESSION" 2>/dev/null || true
+  tmux kill-session -t "$DISCOVER_SESSION" 2>/dev/null || true
   rm -rf "$TEST_ROOT"
 }
 trap cleanup EXIT
@@ -163,6 +169,38 @@ PLAIN_DIR="$TEST_ROOT/plain"
 mkdir -p "$PLAIN_DIR"
 OUT=$($WORK add-tree "$PLAIN_DIR" --session "$SESSION" 2>&1)
 assert_contains "add-tree accepts plain directory" "[plain]" "$OUT"
+
+section "6. Track discovers pane cwd and checkout-base trees"
+require_git
+
+mkdir -p "$PANE_REPO" "$CHECKOUT_BASE"
+git -C "$PANE_REPO" init -b main >/dev/null
+git -C "$PANE_REPO" config user.email "test@example.com"
+git -C "$PANE_REPO" config user.name "Test"
+echo "pane" >"$PANE_REPO/README.md"
+git -C "$PANE_REPO" add README.md
+git -C "$PANE_REPO" commit -m "init" >/dev/null
+
+mkdir -p "$BASE_REPO"
+git -C "$BASE_REPO" init -b main >/dev/null
+git -C "$BASE_REPO" config user.email "test@example.com"
+git -C "$BASE_REPO" config user.name "Test"
+echo "base" >"$BASE_REPO/README.md"
+git -C "$BASE_REPO" add README.md
+git -C "$BASE_REPO" commit -m "init" >/dev/null
+
+tmux kill-session -t "$DISCOVER_SESSION" 2>/dev/null || true
+tmux new-session -d -s "$DISCOVER_SESSION" -c "$PANE_REPO" "sleep 999"
+sleep 0.2
+
+$WORK config set checkout-base "$CHECKOUT_BASE" >/dev/null
+OUT=$($WORK track "$DISCOVER_SESSION" 2>&1)
+assert_contains "track reports tracking session" "Tracking session" "$OUT"
+assert_contains "track discovers checkout-base tree" "from-base" "$OUT"
+
+OUT=$($WORK trees --session "$DISCOVER_SESSION" --json 2>&1)
+assert_contains "trees include pane cwd checkout" "$PANE_REPO" "$OUT"
+assert_contains "trees include checkout-base child" "$BASE_REPO" "$OUT"
 
 section "Summary"
 TOTAL=$((PASS + FAIL + SKIP))

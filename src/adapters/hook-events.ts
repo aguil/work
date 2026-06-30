@@ -44,7 +44,8 @@ export function mapHookEventToStatus(
     case "preToolUse":
       return "working";
     case "postToolUse":
-      return "idle";
+      // Tool finished; agent may invoke more tools before the turn ends.
+      return null;
     case "postToolUseFailure":
       if (input.failure_type === "permission_denied") return "blocked";
       return "error";
@@ -64,7 +65,8 @@ export function mapHookEventToStatus(
     case "subagentStart":
       return "working";
     case "subagentStop":
-      return "idle";
+      // Subagent finished; parent agent may still be working.
+      return null;
     default:
       return null;
   }

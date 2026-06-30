@@ -77,13 +77,13 @@ section "3. Explicit status wins over manifest observe"
 tmux select-pane -t "$AGENT_PANE" -T '⢀ working'
 OUT=$(printf '%s' '{"hook_event_name":"postToolUse","conversation_id":"conv-test-1"}' \
   | $WORK agent hook-event --pane "$AGENT_PANE" --json 2>&1)
-assert_contains "postToolUse idle explicit" '"status": "idle"' "$OUT"
+assert_contains "postToolUse does not clear working" '"applied": false' "$OUT"
 
-BEFORE=$($WORK agent observe "$AGENT_PANE" --json 2>&1)
+BEFORE=$($WORK agents --json 2>&1)
 $WORK agent observe "$AGENT_PANE" --apply --json >/dev/null 2>&1 || true
 AFTER=$($WORK agents --json 2>&1)
 assert_contains "observe apply does not drop explicit" '"confidence": "explicit"' "$AFTER"
-assert_contains "idle explicit preserved" '"status": "idle"' "$AFTER"
+assert_contains "working explicit preserved after postToolUse" '"status": "working"' "$AFTER"
 
 section "4. Permission denied maps to blocked"
 OUT=$(printf '%s' '{"hook_event_name":"postToolUseFailure","conversation_id":"conv-test-1","failure_type":"permission_denied"}' \
