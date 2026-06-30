@@ -34,9 +34,9 @@ function bundledHooksDir(): string {
   return join(dirname(fileURLToPath(import.meta.url)), "hooks", "cursor");
 }
 
-function resolveWorkctlBin(): string {
-  if (process.env.WORKCTL_BIN) return process.env.WORKCTL_BIN;
-  return process.argv[1] ?? "workctl";
+function resolveWorkBin(): string {
+  if (process.env.WORK_BIN) return process.env.WORK_BIN;
+  return process.argv[1] ?? "work";
 }
 
 function mergeHooksJson(
@@ -63,7 +63,7 @@ export function registerHooksCommands(program: Command): void {
 
   hooks
     .command("install")
-    .description("Install Cursor hooks that report agent status to workctl")
+    .description("Install Cursor hooks that report agent status to work")
     .argument("[target]", "Hook bundle to install", "cursor")
     .option("--dry-run", "Show paths without writing files")
     .action((target: string, opts: { dryRun?: boolean }) => {
@@ -72,7 +72,7 @@ export function registerHooksCommands(program: Command): void {
         process.exit(1);
       }
 
-      const srcScript = join(bundledHooksDir(), "workctl-event.sh");
+      const srcScript = join(bundledHooksDir(), "work-event.sh");
       if (!existsSync(srcScript)) {
         console.error(`Bundled hook script missing: ${srcScript}`);
         console.error("Run npm run build first.");
@@ -81,15 +81,15 @@ export function registerHooksCommands(program: Command): void {
 
       const cursorDir = join(homedir(), ".cursor");
       const hooksDir = join(cursorDir, "hooks");
-      const destScript = join(hooksDir, "workctl-event.sh");
+      const destScript = join(hooksDir, "work-event.sh");
       const hooksJsonPath = join(cursorDir, "hooks.json");
-      const workctlBin = resolveWorkctlBin();
-      const command = "./hooks/workctl-event.sh";
+      const workBin = resolveWorkBin();
+      const command = "./hooks/work-event.sh";
 
       if (opts.dryRun) {
         console.log(`Would install ${destScript}`);
         console.log(`Would update ${hooksJsonPath}`);
-        console.log(`WORKCTL_BIN=${workctlBin}`);
+        console.log(`WORK_BIN=${workBin}`);
         return;
       }
 
@@ -97,8 +97,8 @@ export function registerHooksCommands(program: Command): void {
 
       let script = readFileSync(srcScript, "utf-8");
       script = script.replace(
-        "__WORKCTL_BIN__",
-        workctlBin.replace(/'/g, "'\\''"),
+        "__WORK_BIN__",
+        workBin.replace(/'/g, "'\\''"),
       );
       writeFileSync(destScript, script, { mode: 0o755 });
       chmodSync(destScript, 0o755);
@@ -127,7 +127,7 @@ export function registerHooksCommands(program: Command): void {
     .command("print-env")
     .description("Print env vars to set before launching Cursor/agent in tmux")
     .action(() => {
-      const workctlBin = resolveWorkctlBin();
-      console.log(`export WORKCTL_BIN='${workctlBin.replace(/'/g, "'\\''")}'`);
+      const workBin = resolveWorkBin();
+      console.log(`export WORK_BIN='${workBin.replace(/'/g, "'\\''")}'`);
     });
 }

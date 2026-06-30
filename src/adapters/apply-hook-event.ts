@@ -80,8 +80,8 @@ function ensureAgentForPane(
     conversationId: null,
   };
   upsertAgent(ws, record);
-  tmux.setOption("pane", "@workctl-agent-label", record.label, paneId);
-  tmux.setOption("pane", "@workctl-agent-cli", record.cli, paneId);
+  tmux.setOption("pane", "@work-agent-label", record.label, paneId);
+  tmux.setOption("pane", "@work-agent-cli", record.cli, paneId);
   return record;
 }
 

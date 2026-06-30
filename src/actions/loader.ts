@@ -7,7 +7,7 @@ import type { WorkspaceState } from "../workspace/state.js";
 import { enrichTree } from "../vcs/detect.js";
 import type { ActionDefinition } from "./types.js";
 
-const REPO_ACTIONS_DIR = ".workctl/actions";
+const REPO_ACTIONS_DIR = ".work/actions";
 
 interface RawActionToml {
   name?: string;

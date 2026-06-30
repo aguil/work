@@ -29,7 +29,7 @@ export interface TreeRecord {
   path: string;
   vcsType: "git" | "jj" | "plain";
   branch: string | null;
-  createdByWorkctl: boolean;
+  createdByWork: boolean;
 }
 
 export interface WorkspaceState {
@@ -39,7 +39,7 @@ export interface WorkspaceState {
   trees: TreeRecord[];
   createdAt: string;
   updatedAt: string;
-  createdByWorkctl: boolean;
+  createdByWork: boolean;
   archived: boolean;
 }
 
@@ -92,7 +92,7 @@ export function listWorkspaces(): WorkspaceState[] {
 export function createWorkspace(
   name: string,
   sessionName: string,
-  createdByWorkctl: boolean,
+  createdByWork: boolean,
 ): WorkspaceState {
   const now = new Date().toISOString();
   const state: WorkspaceState = {
@@ -102,7 +102,7 @@ export function createWorkspace(
     trees: [],
     createdAt: now,
     updatedAt: now,
-    createdByWorkctl,
+    createdByWork,
     archived: false,
   };
   saveWorkspace(state);

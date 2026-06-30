@@ -4,20 +4,20 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WORKCTL_DIR="${WORKCTL_DIR:-$ROOT}"
-WORKCTL="node $WORKCTL_DIR/dist/workctl.mjs"
+WORK_DIR="${WORK_DIR:-$ROOT}"
+WORK="node $WORK_DIR/dist/work.mjs"
 
-SESSION_PREFIX="workctl-autotest-actions"
+SESSION_PREFIX="work-autotest-actions"
 SESSION="${SESSION_PREFIX}-$$"
 
-TEST_ROOT="$(mktemp -d "/tmp/workctl-test-phase4-XXXXXX")"
+TEST_ROOT="$(mktemp -d "/tmp/work-test-phase4-XXXXXX")"
 export XDG_CONFIG_HOME="$TEST_ROOT/config"
 export XDG_STATE_HOME="$TEST_ROOT/state"
 export XDG_RUNTIME_DIR="$TEST_ROOT/runtime"
 mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME" "$XDG_RUNTIME_DIR"
 chmod 700 "$XDG_RUNTIME_DIR"
 
-ACTIONS_DIR="$XDG_CONFIG_HOME/workctl/actions"
+ACTIONS_DIR="$XDG_CONFIG_HOME/work/actions"
 REPO="$TEST_ROOT/repos/demo"
 TREE_DIR="$TEST_ROOT/trees/demo"
 
@@ -54,10 +54,10 @@ init_repo() {
 }
 
 section "1. Build & command smoke"
-cd "$WORKCTL_DIR"
+cd "$WORK_DIR"
 npm run build >/dev/null
 
-OUT=$($WORKCTL --help 2>&1)
+OUT=$($WORK --help 2>&1)
 assert_contains "help lists action" "action" "$OUT"
 assert_contains "help lists trust" "trust" "$OUT"
 
@@ -68,23 +68,23 @@ description = "Say hello"
 command = "echo hello-$WORKSPACE"
 EOF
 
-OUT=$($WORKCTL action list --json 2>&1)
+OUT=$($WORK action list --json 2>&1)
 assert_contains "global action listed" '"id": "hello"' "$OUT"
 
 section "3. Trust and repo-local actions"
 init_repo "$REPO"
-mkdir -p "$REPO/.workctl/actions"
-cat >"$REPO/.workctl/actions/test.toml" <<'EOF'
+mkdir -p "$REPO/.work/actions"
+cat >"$REPO/.work/actions/test.toml" <<'EOF'
 description = "Run demo test"
 command = "echo test-$TREE_ROOT"
 EOF
 
 tmux kill-session -t "$SESSION" 2>/dev/null || true
 tmux new-session -d -s "$SESSION" -c "$REPO"
-$WORKCTL track "$SESSION" --quiet
-$WORKCTL add-tree "$REPO" --session "$SESSION" --quiet
+$WORK track "$SESSION" --quiet
+$WORK add-tree "$REPO" --session "$SESSION" --quiet
 
-OUT=$($WORKCTL action list --session "$SESSION" --json 2>&1)
+OUT=$($WORK action list --session "$SESSION" --json 2>&1)
 assert_contains "untrusted repo action hidden" '"id": "hello"' "$OUT"
 if [[ "$OUT" == *"demo/test"* ]]; then
   fail "untrusted repo action hidden (found demo/test)"
@@ -92,25 +92,25 @@ else
   pass "untrusted repo action hidden"
 fi
 
-$WORKCTL trust add "$REPO" >/dev/null
-OUT=$($WORKCTL action list --session "$SESSION" --json 2>&1)
+$WORK trust add "$REPO" >/dev/null
+OUT=$($WORK action list --session "$SESSION" --json 2>&1)
 assert_contains "trusted repo action listed" '"id": "demo/test"' "$OUT"
 
 section "4. Track without attach pickers"
 PICKER_SESSION="${SESSION}-picker"
 tmux kill-session -t "$PICKER_SESSION" 2>/dev/null || true
 tmux new-session -d -s "$PICKER_SESSION"
-$WORKCTL track "$PICKER_SESSION" --quiet
+$WORK track "$PICKER_SESSION" --quiet
 
-REPO_FLAG=$(tmux show-option -t "$PICKER_SESSION" -v @workctl-repo-picker 2>/dev/null || echo "")
-ACTION_FLAG=$(tmux show-option -t "$PICKER_SESSION" -v @workctl-action-picker 2>/dev/null || echo "")
+REPO_FLAG=$(tmux show-option -t "$PICKER_SESSION" -v @work-repo-picker 2>/dev/null || echo "")
+ACTION_FLAG=$(tmux show-option -t "$PICKER_SESSION" -v @work-action-picker 2>/dev/null || echo "")
 if [[ -z "$REPO_FLAG" && -z "$ACTION_FLAG" ]]; then
   pass "track does not set attach picker flags"
 else
   fail "track does not set attach picker flags (repo=$REPO_FLAG action=$ACTION_FLAG)"
 fi
 
-if ! $WORKCTL config set prompt-actions-on-new true 2>&1; then
+if ! $WORK config set prompt-actions-on-new true 2>&1; then
   pass "removed config key prompt-actions-on-new rejected"
 else
   fail "removed config key prompt-actions-on-new rejected"
@@ -120,11 +120,11 @@ section "5. action run"
 RUN_SESSION="${SESSION}-run"
 tmux kill-session -t "$RUN_SESSION" 2>/dev/null || true
 tmux new-session -d -s "$RUN_SESSION" -c "$REPO"
-$WORKCTL track "$RUN_SESSION" --quiet
-$WORKCTL add-tree "$REPO" --session "$RUN_SESSION" --quiet
-$WORKCTL trust add "$REPO" >/dev/null
+$WORK track "$RUN_SESSION" --quiet
+$WORK add-tree "$REPO" --session "$RUN_SESSION" --quiet
+$WORK trust add "$REPO" >/dev/null
 
-OUT=$($WORKCTL action run hello --session "$RUN_SESSION" --quiet 2>&1)
+OUT=$($WORK action run hello --session "$RUN_SESSION" --quiet 2>&1)
 if [[ -z "$OUT" ]]; then
   pass "action run succeeds"
 else
@@ -142,18 +142,18 @@ section "6. window use-repo"
 SCAN_ROOT="$TEST_ROOT/scan"
 PROJECT_BASE="$TEST_ROOT/tmuxr"
 mkdir -p "$SCAN_ROOT/nested/org" "$PROJECT_BASE"
-init_repo "$PROJECT_BASE/workctl"
+init_repo "$PROJECT_BASE/work"
 init_repo "$SCAN_ROOT/nested/org/window-demo"
 WINDOW_SESSION="${SESSION}-window"
 tmux kill-session -t "$WINDOW_SESSION" 2>/dev/null || true
 tmux new-session -d -s "$WINDOW_SESSION"
-$WORKCTL track "$WINDOW_SESSION" --quiet
-$WORKCTL add-tree "$PROJECT_BASE/workctl" --session "$WINDOW_SESSION" --quiet
-$WORKCTL config set repo-scan-dir "$SCAN_ROOT" >/dev/null
+$WORK track "$WINDOW_SESSION" --quiet
+$WORK add-tree "$PROJECT_BASE/work" --session "$WINDOW_SESSION" --quiet
+$WORK config set repo-scan-dir "$SCAN_ROOT" >/dev/null
 
 CHECKOUT="$PROJECT_BASE/window-demo"
 WIN_ID=$(tmux list-windows -t "$WINDOW_SESSION" -F '#{window_id}' | head -1)
-$WORKCTL window use-repo "$SCAN_ROOT/nested/org/window-demo" \
+$WORK window use-repo "$SCAN_ROOT/nested/org/window-demo" \
   --session "$WINDOW_SESSION" --window "$WIN_ID" --quiet
 
 PANE_PATH=$(tmux list-panes -t "$WINDOW_SESSION" -F '#{pane_current_path}' | head -1)
@@ -169,13 +169,13 @@ else
   fail "window use-repo creates git worktree checkout"
 fi
 
-TREES=$($WORKCTL trees --session "$WINDOW_SESSION" --json 2>&1)
+TREES=$($WORK trees --session "$WINDOW_SESSION" --json 2>&1)
 assert_contains "window use-repo adds tree" "window-demo" "$TREES"
 
-NESTED=$($WORKCTL repos --format names 2>&1)
+NESTED=$($WORK repos --format names 2>&1)
 assert_contains "nested repo scan finds repo" "nested/org/window-demo" "$NESTED"
 
-OUT=$($WORKCTL config set prompt-repos-on-new-window true 2>&1)
+OUT=$($WORK config set prompt-repos-on-new-window true 2>&1)
 assert_contains "config set prompt-repos-on-new-window" "prompt-repos-on-new-window" "$OUT"
 
 section "7. Cleanup: multi scan dir, scan --pane, add-tree --open"
@@ -184,21 +184,21 @@ SCAN_B="$TEST_ROOT/scan-b"
 mkdir -p "$SCAN_A" "$SCAN_B"
 init_repo "$SCAN_A/repo-a"
 init_repo "$SCAN_B/repo-b"
-$WORKCTL config set repo-scan-dir "$SCAN_A,$SCAN_B" >/dev/null
+$WORK config set repo-scan-dir "$SCAN_A,$SCAN_B" >/dev/null
 
-MULTI=$($WORKCTL repos --format names 2>&1)
+MULTI=$($WORK repos --format names 2>&1)
 assert_contains "multi repo-scan-dir finds scan-a repo" "repo-a" "$MULTI"
 assert_contains "multi repo-scan-dir finds scan-b repo" "scan-b/repo-b" "$MULTI"
 
 FAST_SESSION="${SESSION}-fast"
 tmux kill-session -t "$FAST_SESSION" 2>/dev/null || true
 tmux new-session -d -s "$FAST_SESSION"
-$WORKCTL track "$FAST_SESSION" --quiet
+$WORK track "$FAST_SESSION" --quiet
 PANE_ID=$(tmux list-panes -t "$FAST_SESSION" -F '#{pane_id}' | head -1)
 tmux send-keys -t "$PANE_ID" "exec sh -c 'sleep 300'" Enter
 sleep 0.3
-$WORKCTL scan --pane "$PANE_ID" --quiet 2>/dev/null || true
-AGENTS=$($WORKCTL agents --json 2>&1)
+$WORK scan --pane "$PANE_ID" --quiet 2>/dev/null || true
+AGENTS=$($WORK agents --json 2>&1)
 if [[ "$AGENTS" == *"$FAST_SESSION"* ]]; then
   fail "scan --pane does not register non-agent shell"
 else
@@ -210,9 +210,9 @@ TREE_PATH="$TEST_ROOT/open-tree"
 init_repo "$TREE_PATH"
 tmux kill-session -t "$OPEN_SESSION" 2>/dev/null || true
 tmux new-session -d -s "$OPEN_SESSION"
-$WORKCTL track "$OPEN_SESSION" --quiet
+$WORK track "$OPEN_SESSION" --quiet
 BEFORE=$(tmux list-windows -t "$OPEN_SESSION" | wc -l)
-$WORKCTL add-tree "$TREE_PATH" --session "$OPEN_SESSION" --open --quiet
+$WORK add-tree "$TREE_PATH" --session "$OPEN_SESSION" --open --quiet
 AFTER=$(tmux list-windows -t "$OPEN_SESSION" | wc -l)
 if [[ "$AFTER" -gt "$BEFORE" ]]; then
   pass "add-tree --open creates a window"

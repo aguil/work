@@ -71,7 +71,7 @@ export function registerNewCommand(program: Command): void {
         } else {
           if (scanDirs.length === 0) {
             throw new Error(
-              "No repo-scan-dir configured. Run: workctl config set repo-scan-dir <path>[,<path>...]",
+              "No repo-scan-dir configured. Run: work config set repo-scan-dir <path>[,<path>...]",
             );
           }
           const repos = scanRepoDirectories(scanDirs);
@@ -139,12 +139,12 @@ export function registerNewCommand(program: Command): void {
               path: tree.checkoutPath,
               vcsType: meta.vcsType,
               branch: meta.branch ?? branch,
-              createdByWorkctl: true,
+              createdByWork: true,
             };
           },
         );
         saveWorkspace(ws);
-        tmux.setOption("session", "@workctl-workspace", ws.name, name);
+        tmux.setOption("session", "@work-workspace", ws.name, name);
         scanSession(name, { quiet: true });
 
         if (!opts.quiet) {

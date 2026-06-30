@@ -1,12 +1,12 @@
-# workctl — agent instructions
+# work — agent instructions
 
 TypeScript CLI for tmux-native agent workspace tracking. Bundled with esbuild;
-no runtime dependencies beyond Node built-ins and `commander`.
+runtime dependencies: Node built-ins, `commander`, and `smol-toml` (manifest loaders).
 
 ## Repository layout
 
-- `src/cli.ts` — CLI entry (`workctl`)
-- `src/daemon/` — `workctld` server, state aggregator, IPC protocol
+- `src/cli.ts` — CLI entry (`work`)
+- `src/daemon/` — `workd` server, state aggregator, IPC protocol
 - `src/commands/` — commander subcommands
 - `src/tmux/` — thin tmux CLI wrapper
 - `src/config/` — XDG paths and JSON config store
@@ -42,8 +42,8 @@ This repo uses **Jujutsu** colocated with git (`jj git init --colocate`).
 
 - Use `jj` for all mutations. Do **not** run `git commit`, `git rebase`, or
   other git write commands in this checkout.
-- Dev workspace checkout: `~/dev/projects/tmuxr/workctl`
-- Canonical store: `~/dev/repos/github.com/aguil/workctl`
+- Dev workspace checkout: `~/dev/projects/tmuxr/work`
+- Canonical store: `~/dev/repos/github.com/aguil/work`
 - Commit descriptions use **Conventional Commits** (`type: subject`) and always
   include a body paragraph after a blank line explaining why the change was made.
   Set with `jj desc -m` before `jj new`.
@@ -51,6 +51,6 @@ This repo uses **Jujutsu** colocated with git (`jj git init --colocate`).
 ## Conventions
 
 - ESM, Node 20+, strict TypeScript
-- Fast CLI startup matters — hooks invoke `workctl` on every pane event
+- Fast CLI startup matters — hooks invoke `work` on every pane event
 - State files use atomic write-to-temp + rename
 - Agent records keyed by `workspace + label`, not pane ID

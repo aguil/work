@@ -12,7 +12,7 @@ import { treePathsEqual } from "./trees.js";
 
 export interface ResolvedCheckout {
   path: string;
-  createdByWorkctl: boolean;
+  createdByWork: boolean;
 }
 
 function commonPathPrefix(paths: string[]): string | null {
@@ -70,18 +70,18 @@ export function resolveWindowCheckout(
     treePathsEqual(tree.path, destPath),
   );
   if (existingTree) {
-    return { path: destPath, createdByWorkctl: existingTree.createdByWorkctl };
+    return { path: destPath, createdByWork: existingTree.createdByWork };
   }
 
   if (existsSync(destPath)) {
-    return { path: destPath, createdByWorkctl: false };
+    return { path: destPath, createdByWork: false };
   }
 
   if (treePathsEqual(repoAbs, destPath)) {
-    return { path: destPath, createdByWorkctl: false };
+    return { path: destPath, createdByWork: false };
   }
 
   const backend = detectRepoBackend(repoAbs);
   createCheckout(backend, repoAbs, destPath, ws.name);
-  return { path: destPath, createdByWorkctl: true };
+  return { path: destPath, createdByWork: true };
 }

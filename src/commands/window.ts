@@ -28,12 +28,12 @@ export function registerWindowCommands(program: Command): void {
         const ws = requireWorkspace(opts.session);
         const windowTarget = opts.window ?? tmux.displayMessage("#{window_id}");
         const repoAbs = resolveTreePath(repoPath);
-        const { path: checkoutPath, createdByWorkctl } = resolveWindowCheckout(
+        const { path: checkoutPath, createdByWork } = resolveWindowCheckout(
           ws,
           repoAbs,
         );
 
-        ensureTreeInWorkspace(ws, checkoutPath, createdByWorkctl);
+        ensureTreeInWorkspace(ws, checkoutPath, createdByWork);
 
         const paneId = tmux.activePaneInWindow(windowTarget);
         tmux.respawnPane(paneId, { cwd: checkoutPath });
@@ -46,7 +46,7 @@ export function registerWindowCommands(program: Command): void {
         }
 
         if (!opts.quiet) {
-          const created = createdByWorkctl ? " (new checkout)" : "";
+          const created = createdByWork ? " (new checkout)" : "";
           console.log(`${ws.name}: ${windowName} → ${checkoutPath}${created}`);
         }
       },

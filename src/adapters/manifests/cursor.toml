@@ -1,5 +1,5 @@
 # Cursor CLI status manifest (bundled default).
-# User overrides: ~/.config/workctl/manifests/cursor.toml
+# User overrides: ~/.config/work/manifests/cursor.toml
 
 agent = "cursor"
 process_names = ["cursor", "cursor-agent", "agent"]

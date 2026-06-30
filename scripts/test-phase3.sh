@@ -6,20 +6,20 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WORKCTL_DIR="${WORKCTL_DIR:-$ROOT}"
-WORKCTL="node $WORKCTL_DIR/dist/workctl.mjs"
+WORK_DIR="${WORK_DIR:-$ROOT}"
+WORK="node $WORK_DIR/dist/work.mjs"
 
-SESSION_PREFIX="workctl-autotest-phase3"
+SESSION_PREFIX="work-autotest-phase3"
 WORKSPACE="${SESSION_PREFIX}-$$"
 
-TEST_ROOT="$(mktemp -d "/tmp/workctl-test-phase3-XXXXXX")"
+TEST_ROOT="$(mktemp -d "/tmp/work-test-phase3-XXXXXX")"
 export XDG_CONFIG_HOME="$TEST_ROOT/config"
 export XDG_STATE_HOME="$TEST_ROOT/state"
 export XDG_RUNTIME_DIR="$TEST_ROOT/runtime"
 mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME" "$XDG_RUNTIME_DIR"
 chmod 700 "$XDG_RUNTIME_DIR"
 
-STATE_DIR="$XDG_STATE_HOME/workctl"
+STATE_DIR="$XDG_STATE_HOME/work"
 REPOS_DIR="$TEST_ROOT/repos"
 DEST_BASE="$TEST_ROOT/workspaces/$WORKSPACE"
 FRONTEND_REPO="$REPOS_DIR/frontend"
@@ -73,25 +73,25 @@ echo "  XDG_STATE_HOME=$XDG_STATE_HOME"
 echo "  Workspace: $WORKSPACE"
 
 section "1. Build & command smoke"
-cd "$WORKCTL_DIR"
+cd "$WORK_DIR"
 npm run build >/dev/null
 
-OUT=$($WORKCTL --help 2>&1)
+OUT=$($WORK --help 2>&1)
 assert_contains "help lists new" "new" "$OUT"
 assert_contains "help lists close" "close" "$OUT"
 assert_contains "help lists launch" "launch" "$OUT"
 
-section "2. workctl new (non-interactive)"
+section "2. work new (non-interactive)"
 require_tmux
 require_git
 
 init_repo "$FRONTEND_REPO"
 init_repo "$BACKEND_REPO"
 
-$WORKCTL config set repo-scan-dir "$REPOS_DIR" >/dev/null
+$WORK config set repo-scan-dir "$REPOS_DIR" >/dev/null
 
 OUT=$(
-  $WORKCTL new "$WORKSPACE" \
+  $WORK new "$WORKSPACE" \
     --repos "$FRONTEND_REPO,$BACKEND_REPO" \
     --branch feature-test \
     --dest-base "$DEST_BASE" \
@@ -122,17 +122,17 @@ else
   fail "new creates backend worktree"
 fi
 
-OUT=$($WORKCTL list --json 2>&1)
+OUT=$($WORK list --json 2>&1)
 assert_contains "list includes workspace" "\"name\": \"$WORKSPACE\"" "$OUT"
 
-OUT=$($WORKCTL trees --session "$WORKSPACE" --json 2>&1)
+OUT=$($WORK trees --session "$WORKSPACE" --json 2>&1)
 assert_contains "trees lists frontend" "$FRONTEND_TREE" "$OUT"
 assert_contains "trees lists backend" "$BACKEND_TREE" "$OUT"
 
-if grep -q '"createdByWorkctl": true' "$STATE_DIR/workspaces/${WORKSPACE}.json"; then
-  pass "workspace marks createdByWorkctl trees"
+if grep -q '"createdByWork": true' "$STATE_DIR/workspaces/${WORKSPACE}.json"; then
+  pass "workspace marks createdByWork trees"
 else
-  fail "workspace marks createdByWorkctl trees"
+  fail "workspace marks createdByWork trees"
 fi
 
 WINDOW_COUNT=$(tmux list-windows -t "$WORKSPACE" | wc -l | tr -d ' ')
@@ -142,35 +142,35 @@ else
   fail "new creates one window per repo (got $WINDOW_COUNT)"
 fi
 
-section "3. workctl launch & agent relaunch"
-$WORKCTL config set agent-clis sleep,bash >/dev/null 2>&1 || true
+section "3. work launch & agent relaunch"
+$WORK config set agent-clis sleep,bash >/dev/null 2>&1 || true
 
 PANE=$(tmux list-panes -t "$WORKSPACE" -F '#{pane_id}' | head -1)
-OUT=$($WORKCTL launch "sleep 9999" --session "$WORKSPACE" --pane "$PANE" --label sleeper --quiet 2>&1)
+OUT=$($WORK launch "sleep 9999" --session "$WORKSPACE" --pane "$PANE" --label sleeper --quiet 2>&1)
 if [[ -z "$OUT" ]]; then
   pass "launch registers agent"
 else
   fail "launch registers agent (output: $OUT)"
 fi
 
-OUT=$($WORKCTL agents --json 2>&1)
+OUT=$($WORK agents --json 2>&1)
 assert_contains "agents lists sleeper" '"label": "sleeper"' "$OUT"
 
 tmux kill-pane -t "$PANE" 2>/dev/null || true
-$WORKCTL agent detach "$PANE" --quiet 2>/dev/null || true
+$WORK agent detach "$PANE" --quiet 2>/dev/null || true
 
-OUT=$($WORKCTL agent relaunch sleeper --session "$WORKSPACE" --quiet 2>&1)
+OUT=$($WORK agent relaunch sleeper --session "$WORKSPACE" --quiet 2>&1)
 if [[ -z "$OUT" ]]; then
   pass "agent relaunch succeeds"
 else
   fail "agent relaunch succeeds (output: $OUT)"
 fi
 
-OUT=$($WORKCTL agents --json 2>&1)
+OUT=$($WORK agents --json 2>&1)
 assert_contains "relaunched agent is not detached" '"status": "unknown"' "$OUT"
 
-section "4. workctl close with cleanup"
-OUT=$($WORKCTL close "$WORKSPACE" --yes --quiet 2>&1)
+section "4. work close with cleanup"
+OUT=$($WORK close "$WORKSPACE" --yes --quiet 2>&1)
 if [[ -z "$OUT" ]]; then
   pass "close --yes succeeds"
 else

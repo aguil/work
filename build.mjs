@@ -17,8 +17,8 @@ const shared = {
 };
 
 const entryPoints = [
-  { entryPoints: ["src/cli.ts"], outfile: "dist/workctl.mjs" },
-  { entryPoints: ["src/daemon/index.ts"], outfile: "dist/workctld.mjs" },
+  { entryPoints: ["src/cli.ts"], outfile: "dist/work.mjs" },
+  { entryPoints: ["src/daemon/index.ts"], outfile: "dist/workd.mjs" },
 ];
 
 const isWatch = process.argv.includes("--watch");

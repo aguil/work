@@ -39,8 +39,8 @@ export function registerTrackCommands(program: Command): void {
       const ws = archived
         ? unarchiveWorkspace(archived)
         : createWorkspace(session, session, false);
-      tmux.setOption("session", "@workctl-workspace", ws.name, session);
-      tmux.setOption("session", "@workctl-sidebar-visible", "1", session);
+      tmux.setOption("session", "@work-workspace", ws.name, session);
+      tmux.setOption("session", "@work-sidebar-visible", "1", session);
 
       if (!opts.quiet) {
         if (archived) {

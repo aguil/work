@@ -21,7 +21,7 @@ export function findTreeIndex(ws: WorkspaceState, path: string): number {
 export function addTreeToWorkspace(
   ws: WorkspaceState,
   path: string,
-  createdByWorkctl: boolean,
+  createdByWork: boolean,
 ): TreeRecord {
   const absPath = resolveTreePath(path);
   if (findTreeIndex(ws, absPath) >= 0) {
@@ -33,7 +33,7 @@ export function addTreeToWorkspace(
     path: absPath,
     vcsType: meta.vcsType,
     branch: meta.branch,
-    createdByWorkctl,
+    createdByWork,
   };
   ws.trees.push(record);
   saveWorkspace(ws);
@@ -43,10 +43,10 @@ export function addTreeToWorkspace(
 export function ensureTreeInWorkspace(
   ws: WorkspaceState,
   path: string,
-  createdByWorkctl: boolean,
+  createdByWork: boolean,
 ): TreeRecord {
   const absPath = resolveTreePath(path);
   const idx = findTreeIndex(ws, absPath);
   if (idx >= 0) return ws.trees[idx];
-  return addTreeToWorkspace(ws, absPath, createdByWorkctl);
+  return addTreeToWorkspace(ws, absPath, createdByWork);
 }

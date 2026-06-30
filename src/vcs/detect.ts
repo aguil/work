@@ -127,10 +127,10 @@ export function createCheckout(
 export function canRemoveCheckout(
   path: string,
   vcsType: VcsType,
-  createdByWorkctl: boolean,
+  createdByWork: boolean,
 ): boolean {
   if (vcsType === "plain") return false;
-  if (createdByWorkctl) return true;
+  if (createdByWork) return true;
   if (vcsType === "git") return git.isGitWorktreeCheckout(path);
   if (vcsType === "jj") return jj.isJjSecondaryWorkspace(path);
   return false;

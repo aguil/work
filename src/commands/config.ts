@@ -8,7 +8,7 @@ import {
 export function registerConfigCommands(program: Command): void {
   const config = program
     .command("config")
-    .description("Manage workctl configuration");
+    .description("Manage work configuration");
 
   config
     .command("get")
@@ -48,7 +48,7 @@ export function registerConfigCommands(program: Command): void {
           );
         } else {
           console.log(
-            "Auto-track disabled. Use 'workctl track <session>' for manual tracking.",
+            "Auto-track disabled. Use 'work track <session>' for manual tracking.",
           );
         }
       }

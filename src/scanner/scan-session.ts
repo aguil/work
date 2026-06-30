@@ -36,13 +36,13 @@ function registerDetectedAgent(
     }
     const currentLabel = tmux.getOption(
       "pane",
-      "@workctl-agent-label",
+      "@work-agent-label",
       detected.paneId,
     );
     if (currentLabel !== existing.label) {
       tmux.setOption(
         "pane",
-        "@workctl-agent-label",
+        "@work-agent-label",
         existing.label,
         detected.paneId,
       );
@@ -73,8 +73,8 @@ function registerDetectedAgent(
 
   upsertAgent(ws, record);
 
-  tmux.setOption("pane", "@workctl-agent-label", label, detected.paneId);
-  tmux.setOption("pane", "@workctl-agent-cli", detected.cli, detected.paneId);
+  tmux.setOption("pane", "@work-agent-label", label, detected.paneId);
+  tmux.setOption("pane", "@work-agent-cli", detected.cli, detected.paneId);
 
   if (!opts?.quiet) {
     console.log(`${ws.name}: found ${detected.cli} → ${label} (${detected.paneId})`);

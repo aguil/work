@@ -3,7 +3,7 @@ import { Command } from "commander";
 const program = new Command();
 
 program
-  .name("workctl")
+  .name("work")
   .description("Agent workspace manager for tmux")
   .version("0.1.0");
 

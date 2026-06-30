@@ -32,7 +32,7 @@ export function render(
   const statusDot = daemonConnected
     ? `${green}●${reset}`
     : `${colors.red}●${reset}`;
-  lines.push(`${bold}workctl${reset} ${statusDot}`);
+  lines.push(`${bold}work${reset} ${statusDot}`);
   lines.push(hr(w));
 
   // Sort: tracked first, then by name

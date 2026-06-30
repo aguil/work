@@ -56,7 +56,7 @@ export function registerTreeCommands(program: Command): void {
       ) => {
         const ws = requireWorkspace(opts.session);
         let targetPath = pathArg;
-        let createdByWorkctl = false;
+        let createdByWork = false;
 
         if (opts.newWorktree) {
           const repoPath = resolveTreePath(opts.repo ?? pathArg ?? "");
@@ -73,12 +73,12 @@ export function registerTreeCommands(program: Command): void {
           const backend = detectRepoBackend(repoPath);
           createCheckout(backend, repoPath, destPath, opts.newWorktree);
           targetPath = destPath;
-          createdByWorkctl = true;
+          createdByWork = true;
         } else if (!targetPath) {
           throw new Error("path argument is required");
         }
 
-        const record = addTreeToWorkspace(ws, targetPath!, createdByWorkctl);
+        const record = addTreeToWorkspace(ws, targetPath!, createdByWork);
 
         if (opts.open) {
           if (!tmux.hasSession(ws.sessionName)) {
@@ -106,7 +106,7 @@ export function registerTreeCommands(program: Command): void {
   program
     .command("remove-tree")
     .description(
-      "Remove a tree association and forget workctl-created jj/git checkouts",
+      "Remove a tree association and forget work-created jj/git checkouts",
     )
     .argument("<path>", "Associated directory path")
     .option("-s, --session <name>", "Tracked tmux session")
@@ -138,7 +138,7 @@ export function registerTreeCommands(program: Command): void {
         const removed = ws.trees[idx];
         const willCleanup =
           !opts.noCleanup &&
-          canRemoveCheckout(removed.path, removed.vcsType, removed.createdByWorkctl);
+          canRemoveCheckout(removed.path, removed.vcsType, removed.createdByWork);
 
         if (willCleanup && !opts.force) {
           const risk = assessCheckoutRemovalRisk(removed.path, removed.vcsType);

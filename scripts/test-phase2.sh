@@ -6,20 +6,20 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WORKCTL_DIR="${WORKCTL_DIR:-$ROOT}"
-WORKCTL="node $WORKCTL_DIR/dist/workctl.mjs"
+WORK_DIR="${WORK_DIR:-$ROOT}"
+WORK="node $WORK_DIR/dist/work.mjs"
 
-SESSION_PREFIX="workctl-autotest-trees"
+SESSION_PREFIX="work-autotest-trees"
 SESSION="${SESSION_PREFIX}-$$"
 
-TEST_ROOT="$(mktemp -d "/tmp/workctl-test-trees-XXXXXX")"
+TEST_ROOT="$(mktemp -d "/tmp/work-test-trees-XXXXXX")"
 export XDG_CONFIG_HOME="$TEST_ROOT/config"
 export XDG_STATE_HOME="$TEST_ROOT/state"
 export XDG_RUNTIME_DIR="$TEST_ROOT/runtime"
 mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME" "$XDG_RUNTIME_DIR"
 chmod 700 "$XDG_RUNTIME_DIR"
 
-STATE_DIR="$XDG_STATE_HOME/workctl"
+STATE_DIR="$XDG_STATE_HOME/work"
 REPO_ROOT="$TEST_ROOT/repos/demo"
 WORKTREE_ROOT="$TEST_ROOT/worktrees/demo-feature"
 
@@ -64,10 +64,10 @@ echo "  XDG_STATE_HOME=$XDG_STATE_HOME"
 echo "  Test session: $SESSION"
 
 section "1. Build & tree command smoke"
-cd "$WORKCTL_DIR"
+cd "$WORK_DIR"
 npm run build >/dev/null
 
-OUT=$($WORKCTL --help 2>&1)
+OUT=$($WORK --help 2>&1)
 assert_contains "help lists add-tree" "add-tree" "$OUT"
 assert_contains "help lists remove-tree" "remove-tree" "$OUT"
 assert_contains "help lists trees" "trees" "$OUT"
@@ -86,26 +86,26 @@ git -C "$REPO_ROOT" commit -m "init" >/dev/null
 
 tmux kill-session -t "$SESSION" 2>/dev/null || true
 tmux new-session -d -s "$SESSION"
-$WORKCTL track "$SESSION" --quiet
+$WORK track "$SESSION" --quiet
 
-OUT=$($WORKCTL add-tree "$REPO_ROOT" --session "$SESSION" 2>&1)
+OUT=$($WORK add-tree "$REPO_ROOT" --session "$SESSION" 2>&1)
 assert_contains "add-tree associates git repo" "[git]" "$OUT"
 
-OUT=$($WORKCTL trees --session "$SESSION" --json 2>&1)
+OUT=$($WORK trees --session "$SESSION" --json 2>&1)
 assert_contains "trees --json reports git type" '"vcsType": "git"' "$OUT"
 assert_contains "trees --json reports branch main" '"branch": "main"' "$OUT"
 
 echo "dirty" >>"$REPO_ROOT/README.md"
-OUT=$($WORKCTL trees --session "$SESSION" --json 2>&1)
+OUT=$($WORK trees --session "$SESSION" --json 2>&1)
 assert_contains "trees --json reports dirty state" '"dirty": true' "$OUT"
 
-OUT=$($WORKCTL add-tree "$REPO_ROOT" --session "$SESSION" 2>&1 || true)
+OUT=$($WORK add-tree "$REPO_ROOT" --session "$SESSION" 2>&1 || true)
 assert_contains "add-tree rejects duplicate" "already associated" "$OUT"
 
 section "3. Git worktree creation"
 mkdir -p "$(dirname "$WORKTREE_ROOT")"
 OUT=$(
-  $WORKCTL add-tree --new-worktree demo-feature "$REPO_ROOT" \
+  $WORK add-tree --new-worktree demo-feature "$REPO_ROOT" \
     --dest "$WORKTREE_ROOT" --session "$SESSION" --quiet 2>&1
 )
 if [[ -d "$WORKTREE_ROOT/.git" || -f "$WORKTREE_ROOT/.git" ]]; then
@@ -114,26 +114,26 @@ else
   fail "new-worktree creates checkout"
 fi
 
-OUT=$($WORKCTL trees --session "$SESSION" --json 2>&1)
+OUT=$($WORK trees --session "$SESSION" --json 2>&1)
 assert_contains "trees lists created worktree" "$WORKTREE_ROOT" "$OUT"
 
-if grep -q '"createdByWorkctl": true' "$STATE_DIR/workspaces/${SESSION}.json"; then
-  pass "worktree marked createdByWorkctl"
+if grep -q '"createdByWork": true' "$STATE_DIR/workspaces/${SESSION}.json"; then
+  pass "worktree marked createdByWork"
 else
-  fail "worktree marked createdByWorkctl"
+  fail "worktree marked createdByWork"
 fi
 
 section "4. remove-tree"
 echo "wip" >>"$WORKTREE_ROOT/README.md"
 git -C "$WORKTREE_ROOT" commit -am "wip feature commit" >/dev/null
 
-if $WORKCTL remove-tree "$WORKTREE_ROOT" --session "$SESSION" >/dev/null 2>&1; then
+if $WORK remove-tree "$WORKTREE_ROOT" --session "$SESSION" >/dev/null 2>&1; then
   fail "remove-tree blocks unmerged worktree without --force"
 else
   pass "remove-tree blocks unmerged worktree without --force"
 fi
 
-OUT=$($WORKCTL remove-tree "$WORKTREE_ROOT" --session "$SESSION" --force 2>&1)
+OUT=$($WORK remove-tree "$WORKTREE_ROOT" --session "$SESSION" --force 2>&1)
 assert_contains "remove-tree --force removes worktree checkout" "checkout removed" "$OUT"
 
 if [[ ! -e "$WORKTREE_ROOT" ]]; then
@@ -142,10 +142,10 @@ else
   fail "remove-tree deletes git worktree from disk"
 fi
 
-OUT=$($WORKCTL remove-tree "$REPO_ROOT" --session "$SESSION" 2>&1)
+OUT=$($WORK remove-tree "$REPO_ROOT" --session "$SESSION" 2>&1)
 assert_contains "remove-tree succeeds for primary repo" "removed tree" "$OUT"
 
-OUT=$($WORKCTL trees --session "$SESSION" 2>&1)
+OUT=$($WORK trees --session "$SESSION" 2>&1)
 if [[ "$OUT" != *"$REPO_ROOT"* ]]; then
   pass "removed tree no longer listed"
 else
@@ -161,7 +161,7 @@ fi
 section "5. Plain directory"
 PLAIN_DIR="$TEST_ROOT/plain"
 mkdir -p "$PLAIN_DIR"
-OUT=$($WORKCTL add-tree "$PLAIN_DIR" --session "$SESSION" 2>&1)
+OUT=$($WORK add-tree "$PLAIN_DIR" --session "$SESSION" 2>&1)
 assert_contains "add-tree accepts plain directory" "[plain]" "$OUT"
 
 section "Summary"

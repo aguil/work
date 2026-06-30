@@ -29,16 +29,16 @@ async function connectWithRetry(client: IpcClient): Promise<void> {
       return;
     } catch {
       if (attempt === 0) {
-        process.stderr.write("Waiting for workctld...\n");
+        process.stderr.write("Waiting for workd...\n");
       }
       await new Promise((r) => setTimeout(r, retryMs));
     }
   }
-  throw new Error("workctld not available after 60s");
+  throw new Error("workd not available after 60s");
 }
 
 export async function startSidebar(): Promise<void> {
-  process.title = "workctl sidebar";
+  process.title = "work sidebar";
 
   process.stdout.write("\x1b[?25l"); // hide cursor
   process.stdout.write("\x1b[?1049h"); // alternate screen
@@ -88,7 +88,7 @@ export async function startSidebar(): Promise<void> {
     connected = false;
     redraw();
     process.stderr.write(
-      `Failed to connect to workctld: ${err instanceof Error ? err.message : err}\n`,
+      `Failed to connect to workd: ${err instanceof Error ? err.message : err}\n`,
     );
     reconnectLoop(client);
   }

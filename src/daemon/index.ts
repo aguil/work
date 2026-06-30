@@ -47,7 +47,7 @@ export function isDaemonRunning(): boolean {
 async function main(): Promise<void> {
   if (isDaemonRunning()) {
     const pid = readPidFile();
-    console.error(`workctld already running (pid ${pid})`);
+    console.error(`workd already running (pid ${pid})`);
     process.exit(1);
   }
 
@@ -65,7 +65,7 @@ async function main(): Promise<void> {
   process.on("SIGHUP", shutdown);
 
   process.on("uncaughtException", (err) => {
-    console.error("workctld uncaught exception:", err);
+    console.error("workd uncaught exception:", err);
     removePidFile();
     process.exit(1);
   });
@@ -77,10 +77,10 @@ async function main(): Promise<void> {
       console.error("Socket file not created");
       process.exit(1);
     }
-    console.log(`workctld started (pid ${process.pid})`);
+    console.log(`workd started (pid ${process.pid})`);
     console.log(`Socket: ${paths.socketPath}`);
   } catch (err) {
-    console.error("Failed to start workctld:", err);
+    console.error("Failed to start workd:", err);
     removePidFile();
     process.exit(1);
   }

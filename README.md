@@ -1,4 +1,4 @@
-# workctl
+# work
 
 Agent workspace manager for tmux. Tracks sessions, detects agent CLIs, manages
 git/jj checkouts, and provides a sidebar dashboard via the companion
@@ -22,31 +22,31 @@ scripts/test-phase3.sh
 scripts/test-phase4.sh
 ```
 
-Binaries are written to `dist/workctl.mjs` and `dist/workctld.mjs`.
+Binaries are written to `dist/work.mjs` and `dist/workd.mjs`.
 
 ## Configuration
 
 State and config follow XDG Base Directory defaults:
 
-- Config: `~/.config/workctl/config.json`
-- Actions: `~/.config/workctl/actions/*.toml`
-- State: `~/.local/state/workctl/workspaces/`
-- Runtime socket: `$XDG_RUNTIME_DIR/workctl/workctl.sock`
+- Config: `~/.config/work/config.json`
+- Actions: `~/.config/work/actions/*.toml`
+- State: `~/.local/state/work/workspaces/`
+- Runtime socket: `$XDG_RUNTIME_DIR/work/work.sock`
 
 Common settings:
 
 ```bash
-# Where workctl new / repos / new-window picker find repositories
-workctl config set repo-scan-dir ~/dev/repos,~/dev/other
+# Where work new / repos / new-window picker find repositories
+work config set repo-scan-dir ~/dev/repos,~/dev/other
 
 # Base directory for project checkouts (window use-repo, new-window picker)
-workctl config set checkout-base ~/dev/projects/tmuxr
+work config set checkout-base ~/dev/projects/tmuxr
 
 # Opt-in repo picker on prefix+c in tracked sessions
-workctl config set prompt-repos-on-new-window true
+work config set prompt-repos-on-new-window true
 
 # Opt-in: track every new tmux session automatically
-workctl config set auto-track true
+work config set auto-track true
 ```
 
 ## Commands (summary)
@@ -61,7 +61,7 @@ workctl config set auto-track true
 | Config | `config get/set/list`, `repos` |
 
 `add-tree --open` associates a checkout and opens a new tmux window for it.
-`remove-tree` forgets workctl-created jj/git checkouts with safety prompts.
+`remove-tree` forgets work-created jj/git checkouts with safety prompts.
 
 Agent hooks use a single-pane scan fast path (`scan --pane`) so large sessions
 stay responsive.
@@ -69,13 +69,13 @@ stay responsive.
 ### Cursor hooks (Tier 1 status)
 
 For accurate `working` / `blocked` / `idle` on interactive Cursor agents, install
-user-level hooks that call `workctl agent hook-event`:
+user-level hooks that call `work agent hook-event`:
 
 ```bash
 npm run build
-node dist/workctl.mjs hooks install cursor
+node dist/work.mjs hooks install cursor
 # optional: add to shell profile for tmux-launched agents
-eval "$(node dist/workctl.mjs hooks print-env)"
+eval "$(node dist/work.mjs hooks print-env)"
 ```
 
 Hooks write **explicit** status (overriding manifest/title heuristics until

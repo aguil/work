@@ -16,7 +16,7 @@ export function registerReposCommands(program: Command): void {
       const scanDirs = getRepoScanDirs();
       if (scanDirs.length === 0) {
         throw new Error(
-          "No repo-scan-dir configured. Run: workctl config set repo-scan-dir <path>[,<path>...]",
+          "No repo-scan-dir configured. Run: work config set repo-scan-dir <path>[,<path>...]",
         );
       }
 

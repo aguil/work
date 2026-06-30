@@ -29,7 +29,7 @@ export function resolveHookEventName(input: CursorHookInput): string {
   return "unknown";
 }
 
-/** Map Cursor hook events to workctl agent status (Tier 1). */
+/** Map Cursor hook events to work agent status (Tier 1). */
 export function mapHookEventToStatus(
   eventName: string,
   input: CursorHookInput,

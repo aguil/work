@@ -37,8 +37,8 @@ function registerAgent(
 
   upsertAgent(ws, record);
   saveWorkspace(ws);
-  tmux.setOption("pane", "@workctl-agent-label", record.label, paneId);
-  tmux.setOption("pane", "@workctl-agent-cli", record.cli, paneId);
+  tmux.setOption("pane", "@work-agent-label", record.label, paneId);
+  tmux.setOption("pane", "@work-agent-cli", record.cli, paneId);
   return record;
 }
 
@@ -134,8 +134,8 @@ export function registerAgentRelaunch(agent: Command): void {
         agentRecord.lastSeen = new Date().toISOString();
         saveWorkspace(ws);
 
-        tmux.setOption("pane", "@workctl-agent-label", agentRecord.label, paneId);
-        tmux.setOption("pane", "@workctl-agent-cli", agentRecord.cli, paneId);
+        tmux.setOption("pane", "@work-agent-label", agentRecord.label, paneId);
+        tmux.setOption("pane", "@work-agent-cli", agentRecord.cli, paneId);
 
         if (!opts.quiet) {
           console.log(

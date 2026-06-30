@@ -13,7 +13,7 @@ async function cleanupTree(
   tree: TreeRecord,
   opts: { yes?: boolean; noCleanup?: boolean; quiet?: boolean },
 ): Promise<boolean> {
-  if (!tree.createdByWorkctl) return false;
+  if (!tree.createdByWork) return false;
 
   if (opts.noCleanup) return false;
 
@@ -38,7 +38,7 @@ export function registerCloseCommand(program: Command): void {
     .command("close")
     .description("Close a workspace and optionally clean up created checkouts")
     .argument("<name>", "Workspace name")
-    .option("-y, --yes", "Remove all workctl-created checkouts without prompting")
+    .option("-y, --yes", "Remove all work-created checkouts without prompting")
     .option("--no-cleanup", "Skip checkout cleanup")
     .option("-q, --quiet", "Suppress output")
     .action(

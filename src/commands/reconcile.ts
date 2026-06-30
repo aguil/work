@@ -56,7 +56,7 @@ export function registerReconcileCommand(program: Command): void {
           if (agent.paneId && !livePaneIds.has(agent.paneId)) {
             // Try to find by tmux user option
             const match = sessionPanes.find((p) => {
-              const label = tmux.getOption("pane", "@workctl-agent-label", p.id);
+              const label = tmux.getOption("pane", "@work-agent-label", p.id);
               return label === agent.label;
             });
 

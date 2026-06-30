@@ -14,13 +14,13 @@ function xdgState(): string {
 
 function xdgRuntime(): string {
   if (process.env.XDG_RUNTIME_DIR) return process.env.XDG_RUNTIME_DIR;
-  return join("/tmp", `workctl-${process.getuid?.() ?? process.pid}`);
+  return join("/tmp", `work-${process.getuid?.() ?? process.pid}`);
 }
 
 export const paths = {
-  config: join(xdgConfig(), "workctl"),
-  state: join(xdgState(), "workctl"),
-  runtime: join(xdgRuntime(), "workctl"),
+  config: join(xdgConfig(), "work"),
+  state: join(xdgState(), "work"),
+  runtime: join(xdgRuntime(), "work"),
 
   get configFile(): string {
     return join(this.config, "config.json");
@@ -29,10 +29,10 @@ export const paths = {
     return join(this.state, "workspaces");
   },
   get socketPath(): string {
-    return join(this.runtime, "workctl.sock");
+    return join(this.runtime, "work.sock");
   },
   get pidFile(): string {
-    return join(this.runtime, "workctld.pid");
+    return join(this.runtime, "workd.pid");
   },
   get manifestsDir(): string {
     return join(this.config, "manifests");

@@ -43,10 +43,10 @@ function resolveAgentCli(pane: TmuxPane, cliSet: Set<string>): string | null {
   if (cliSet.has(cmd)) return pane.currentCommand;
 
   const registeredCli =
-    tmux.getOption("pane", "@workctl-agent-cli", pane.id) ?? "agent";
+    tmux.getOption("pane", "@work-agent-cli", pane.id) ?? "agent";
   const registeredLabel = tmux.getOption(
     "pane",
-    "@workctl-agent-label",
+    "@work-agent-label",
     pane.id,
   );
 
@@ -97,8 +97,7 @@ export function detectAgents(
 }
 
 export function isSidebarPane(pane: TmuxPane): boolean {
-  if (pane.currentCommand !== "workctl") return false;
-  return tmux.getOption("pane", "@workctl-sidebar", pane.id) === "1";
+  return tmux.getOption("pane", "@work-sidebar", pane.id) === "1";
 }
 
 export function detectSinglePane(pane: TmuxPane): DetectedAgent | null {
