@@ -1,0 +1,68 @@
+# Claude Code status manifest (bundled default).
+# User overrides: ~/.config/work/manifests/claude.toml
+
+agent = "claude"
+process_names = ["claude"]
+
+[[rules]]
+priority = 115
+state = "blocked"
+visible_blocker = true
+[rules.match]
+region = "bottom_lines"
+lines = 14
+any = [
+  { contains = ["do you want to allow"] },
+  { contains = ["permission request"] },
+  { contains = ["waiting for approval"] },
+  { contains = ["allow this command"] },
+]
+
+[[rules]]
+priority = 110
+state = "blocked"
+visible_blocker = true
+[rules.match]
+region = "bottom_lines"
+lines = 10
+any = [
+  { contains = ["yes, and don't ask again"] },
+  { contains = ["yes, allow for this session"] },
+  { regex = ['^\s*\d+\.\s*(Yes|Allow)'] },
+]
+
+[[rules]]
+priority = 100
+state = "working"
+[rules.match]
+region = "bottom_lines"
+lines = 4
+any = [
+  { contains = ["esc to interrupt"] },
+  { contains = ["esc to cancel"] },
+]
+
+[[rules]]
+priority = 88
+state = "working"
+[rules.match]
+region = "bottom_lines"
+lines = 8
+any = [
+  { contains = ["thinking"] },
+  { contains = ["running"] },
+  { regex = ['^\s*(⬡|⬢)\s+\w+ing\b'] },
+]
+
+[[rules]]
+priority = 10
+state = "idle"
+visible_idle = true
+[rules.match]
+region = "bottom_lines"
+lines = 3
+any = [
+  { line_regex = ['^\s*>\s*$'] },
+  { contains = ["type a message"] },
+  { contains = ["ask anything"] },
+]
