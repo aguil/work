@@ -189,15 +189,46 @@ export function applyHookEvent(
   const { ws, agent } = target;
 
   if (conversationId) {
+    for (const other of Object.values(ws.agents)) {
+      if (
+        other.label !== agent.label &&
+        other.conversationId === conversationId
+      ) {
+        other.conversationId = null;
+      }
+    }
     agent.conversationId = conversationId;
   }
 
+  if (paneId && (!agent.paneId || agent.status === "detached")) {
+    agent.paneId = paneId;
+    agent.detachedAt = null;
+    if (agent.status === "detached") {
+      agent.status = "unknown";
+      agent.confidence = "none";
+    }
+  }
+
+  if (!agent.paneId && event !== "sessionEnd") {
+    return {
+      applied: false,
+      workspace: ws.name,
+      label: agent.label,
+      status,
+      conversationId,
+      paneId,
+      event,
+    };
+  }
+
   if (event === "sessionEnd") {
-    agent.status = status;
+    agent.status = "detached";
     agent.confidence = "none";
     agent.hookEvent = event;
     agent.pendingIdleCount = 0;
     agent.conversationId = null;
+    agent.paneId = null;
+    agent.detachedAt = new Date().toISOString();
     agent.lastSeen = new Date().toISOString();
     saveWorkspace(ws);
     return {

@@ -40,15 +40,23 @@ function hasAgentScreenEvidence(pane: TmuxPane, cli: string): boolean {
 
 function resolveAgentCli(pane: TmuxPane, cliSet: Set<string>): string | null {
   const cmd = pane.currentCommand.toLowerCase();
-  if (cliSet.has(cmd)) return pane.currentCommand;
-
   const registeredCli =
     tmux.getOption("pane", "@work-agent-cli", pane.id) ?? "agent";
   const registeredLabel = tmux.getOption("pane", "@work-agent-label", pane.id);
 
+  if (cliSet.has(cmd)) {
+    if (!registeredLabel) return pane.currentCommand;
+    if (
+      isActiveAgentTitle(pane.title) ||
+      hasAgentScreenEvidence(pane, registeredCli)
+    ) {
+      return registeredCli;
+    }
+    return null;
+  }
+
   if (registeredLabel) {
     if (
-      cliSet.has(cmd) ||
       isActiveAgentTitle(pane.title) ||
       hasAgentScreenEvidence(pane, registeredCli)
     ) {

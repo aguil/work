@@ -21,6 +21,12 @@ function hr(width: number, char = "─"): string {
   return dim + char.repeat(width) + reset;
 }
 
+function isDisplayedAgent(agent: AgentRecord): boolean {
+  if (agent.status === "detached" || !agent.paneId) return false;
+  if (agent.status === "done" || agent.status === "idle") return false;
+  return true;
+}
+
 export function render(
   sessions: SessionSnapshot[],
   cols: number,
@@ -46,9 +52,7 @@ export function render(
   for (const session of sorted) {
     if (lines.length >= rows - 2) break;
 
-    const agentCount = session.agents.filter(
-      (a) => a.status !== "detached",
-    ).length;
+    const agentCount = session.agents.filter(isDisplayedAgent).length;
     const treeCount = session.trees.length;
     const marker = session.tracked ? `${cyan}▸${reset}` : `${dim}○${reset}`;
     const nameStyle = session.tracked ? bold : dim;
@@ -67,7 +71,7 @@ export function render(
 
     if (session.tracked) {
       for (const agent of session.agents) {
-        if (agent.status === "detached") continue;
+        if (!isDisplayedAgent(agent)) continue;
         if (lines.length >= rows - 2) break;
         lines.push(renderAgent(agent, w));
       }

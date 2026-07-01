@@ -146,7 +146,7 @@ init_repo "$PROJECT_BASE/work"
 init_repo "$SCAN_ROOT/nested/org/window-demo"
 WINDOW_SESSION="${SESSION}-window"
 tmux kill-session -t "$WINDOW_SESSION" 2>/dev/null || true
-tmux new-session -d -s "$WINDOW_SESSION"
+tmux new-session -d -s "$WINDOW_SESSION" -c "$PROJECT_BASE"
 $WORK track "$WINDOW_SESSION" --quiet
 $WORK add-tree "$PROJECT_BASE/work" --session "$WINDOW_SESSION" --quiet
 $WORK config set repo-scan-dir "$SCAN_ROOT" >/dev/null

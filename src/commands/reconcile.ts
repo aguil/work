@@ -53,6 +53,16 @@ export function registerReconcileCommand(program: Command): void {
 
         // Re-map agents whose pane IDs are stale
         for (const agent of Object.values(ws.agents)) {
+          if (!agent.paneId && agent.status !== "detached") {
+            agent.status = "detached";
+            if (!agent.detachedAt) {
+              agent.detachedAt = new Date().toISOString();
+            }
+            agent.confidence = "none";
+            totalDetached++;
+            continue;
+          }
+
           if (agent.paneId && !livePaneIds.has(agent.paneId)) {
             // Try to find by tmux user option
             const match = sessionPanes.find((p) => {
@@ -77,6 +87,27 @@ export function registerReconcileCommand(program: Command): void {
               if (!opts.quiet)
                 console.log(`${ws.name}: detached ${agent.label}`);
             }
+          }
+        }
+
+        for (const agent of Object.values(ws.agents)) {
+          if (agent.status !== "detached" || agent.paneId) continue;
+
+          const match = sessionPanes.find((p) => {
+            const label = tmux.getOption("pane", "@work-agent-label", p.id);
+            return label === agent.label;
+          });
+
+          if (match) {
+            agent.paneId = match.id;
+            agent.status = "unknown";
+            agent.detachedAt = null;
+            agent.lastSeen = new Date().toISOString();
+            totalFixed++;
+            if (!opts.quiet)
+              console.log(
+                `${ws.name}: re-attached ${agent.label} → ${match.id}`,
+              );
           }
         }
 
