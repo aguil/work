@@ -21,7 +21,8 @@ runtime dependencies: Node built-ins, `commander`, and `smol-toml` (manifest loa
 - `scripts/test-phase4.sh` — Phase 4 actions and repo picker tests
 - `scripts/test-phase5.sh` — Phase 5 status adapter tests
 - `scripts/test-phase6.sh` — Phase 6 Cursor hook Tier 1 tests
-- `src/adapters/` — manifest loader, rule evaluation, Cursor adapter, hook events
+- `scripts/test-phase7.sh` — Phase 7 Claude Code hook Tier 1 tests
+- `src/adapters/` — manifest loader, rule evaluation, hook events, Cursor/Claude adapters
 
 ## Development
 
