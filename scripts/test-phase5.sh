@@ -122,6 +122,60 @@ section "7. status summary counts"
 OUT=$($WORK status 2>&1)
 assert_contains "status reports working agents" "working" "$OUT"
 
+ZOMBIE_SESSION="${SESSION_PREFIX}-zombie-$$"
+tmux kill-session -t "$ZOMBIE_SESSION" 2>/dev/null || true
+tmux new-session -d -s "$ZOMBIE_SESSION"
+$WORK track "$ZOMBIE_SESSION" --quiet
+AGENT_PANE=$(tmux split-window -t "$ZOMBIE_SESSION" -h -P -F '#{pane_id}' \
+  'bash -c "exec -a cursor sleep 300"')
+sleep 0.3
+$WORK scan --pane "$AGENT_PANE" --quiet
+$WORK agent detach "$AGENT_PANE" --quiet
+OUT=$($WORK status --session "$ZOMBIE_SESSION" --format tmux 2>&1)
+if [[ -z "$OUT" ]]; then
+  pass "status omits detached agents without live panes"
+else
+  fail "status omits detached agents without live panes (got '$OUT')"
+fi
+tmux kill-session -t "$ZOMBIE_SESSION" 2>/dev/null || true
+
+IDLE_SESSION="${SESSION_PREFIX}-idle-$$"
+tmux kill-session -t "$IDLE_SESSION" 2>/dev/null || true
+tmux new-session -d -s "$IDLE_SESSION"
+$WORK track "$IDLE_SESSION" --quiet
+IDLE_PANE=$(tmux split-window -t "$IDLE_SESSION" -h -P -F '#{pane_id}' \
+  'bash -c "exec -a cursor sleep 300"')
+sleep 0.3
+$WORK scan --pane "$IDLE_PANE" --quiet
+printf '{"hook_event_name":"stop","conversation_id":"conv-idle-status"}' \
+  | $WORK agent hook-event --pane "$IDLE_PANE" --json >/dev/null
+WINDOW_ID=$(tmux list-panes -t "$IDLE_PANE" -F '#{window_id}' | head -1)
+OUT=$($WORK status --session "$IDLE_SESSION" --format tmux 2>&1)
+assert_contains "status reports idle agents" "–1" "$OUT"
+
+WORK_SESSION="${SESSION_PREFIX}-session-scope-$$"
+tmux kill-session -t "$WORK_SESSION" 2>/dev/null || true
+tmux new-session -d -s "$WORK_SESSION"
+$WORK track "$WORK_SESSION" --quiet
+BUSY_PANE=$(tmux split-window -t "$WORK_SESSION" -h -P -F '#{pane_id}' \
+  'bash -c "exec -a cursor sleep 300"')
+sleep 0.3
+$WORK scan --pane "$BUSY_PANE" --quiet
+tmux select-pane -t "$BUSY_PANE" -T '⢀ working'
+$WORK agent observe "$BUSY_PANE" --apply --quiet
+IDLE_WIN=$(tmux new-window -t "$WORK_SESSION" -P -F '#{window_id}' \
+  'bash -c "exec -a cursor sh -c \"printf \\\">\\\\n\\\"; sleep 300\""')
+sleep 0.3
+IDLE_WIN_PANE=$(tmux list-panes -t "$IDLE_WIN" -F '#{pane_id}' | head -1)
+$WORK scan --pane "$IDLE_WIN_PANE" --quiet
+printf '{"hook_event_name":"stop","conversation_id":"conv-scope-idle"}' \
+  | $WORK agent hook-event --pane "$IDLE_WIN_PANE" --json >/dev/null
+OUT=$($WORK status --session "$WORK_SESSION" --format tmux 2>&1)
+assert_contains "status session scope counts idle window" "–1" "$OUT"
+assert_contains "status session scope counts working window" "⟳" "$OUT"
+tmux kill-session -t "$WORK_SESSION" 2>/dev/null || true
+tmux kill-session -t "$IDLE_SESSION" 2>/dev/null || true
+
 section "Summary"
 echo "Passed: $PASS"
 echo "Failed: $FAIL"
