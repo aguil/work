@@ -34,7 +34,9 @@ export function discoverTreesFromPanes(panes: TmuxPane[]): string[] {
  */
 export function checkoutBaseForDiscovery(ws: WorkspaceState): string | null {
   const configured = getConfigValue("checkout-base");
-  if (configured) return resolve(configured);
+  if (configured && basename(resolve(configured)) === ws.name) {
+    return resolve(configured);
+  }
 
   if (ws.createdByWork) return resolveCheckoutBase(ws);
 

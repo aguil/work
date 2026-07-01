@@ -3,7 +3,6 @@ import { resolveManifestForCli } from "../adapters/loader.js";
 import { buildObservationContext, regionText } from "../adapters/regions.js";
 import { getConfigValue } from "../config/store.js";
 import type { TmuxPane } from "../tmux/client.js";
-import * as tmux from "../tmux/client.js";
 
 export interface DetectedAgent {
   paneId: string;
@@ -40,9 +39,8 @@ function hasAgentScreenEvidence(pane: TmuxPane, cli: string): boolean {
 
 function resolveAgentCli(pane: TmuxPane, cliSet: Set<string>): string | null {
   const cmd = pane.currentCommand.toLowerCase();
-  const registeredCli =
-    tmux.getOption("pane", "@work-agent-cli", pane.id) ?? "agent";
-  const registeredLabel = tmux.getOption("pane", "@work-agent-label", pane.id);
+  const registeredCli = pane.workAgentCli ?? "agent";
+  const registeredLabel = pane.workAgentLabel;
 
   if (cliSet.has(cmd)) {
     if (!registeredLabel) return pane.currentCommand;
@@ -101,7 +99,7 @@ export function detectAgents(
 }
 
 export function isSidebarPane(pane: TmuxPane): boolean {
-  return tmux.getOption("pane", "@work-sidebar", pane.id) === "1";
+  return pane.workSidebar;
 }
 
 export function detectSinglePane(pane: TmuxPane): DetectedAgent | null {

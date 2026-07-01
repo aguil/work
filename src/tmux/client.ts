@@ -43,6 +43,9 @@ export interface TmuxPane {
   width: number;
   height: number;
   active: boolean;
+  workSidebar: boolean;
+  workAgentCli: string | null;
+  workAgentLabel: string | null;
 }
 
 const SESSION_FMT = [
@@ -75,6 +78,9 @@ const PANE_FMT = [
   "#{pane_width}",
   "#{pane_height}",
   "#{window_active}#{pane_active}",
+  "#{@work-sidebar}",
+  "#{@work-agent-cli}",
+  "#{@work-agent-label}",
 ].join("\t");
 
 function parseLines<T>(output: string, parser: (fields: string[]) => T): T[] {
@@ -123,8 +129,17 @@ export function normalizeTmuxTarget(target: string): string {
 
 export function listPanes(target?: string): TmuxPane[] {
   const args = ["list-panes", "-F", PANE_FMT];
-  if (target) args.push("-t", normalizeTmuxTarget(target));
-  else args.push("-a");
+  if (target) {
+    if (
+      !target.startsWith("%") &&
+      !target.startsWith("@") &&
+      !target.startsWith("=") &&
+      !target.includes(":")
+    ) {
+      args.push("-s");
+    }
+    args.push("-t", normalizeTmuxTarget(target));
+  } else args.push("-a");
   const out = tmux(...args);
   return parseLines(out, (f) => ({
     id: f[0],
@@ -139,6 +154,9 @@ export function listPanes(target?: string): TmuxPane[] {
     width: parseInt(f[9], 10),
     height: parseInt(f[10], 10),
     active: f[11] === "11",
+    workSidebar: f[12] === "1",
+    workAgentCli: f[13] || null,
+    workAgentLabel: f[14] || null,
   }));
 }
 
@@ -291,7 +309,7 @@ export function getOption(
   name: string,
   target?: string,
 ): string | null {
-  const args = ["show-option", "-v"];
+  const args = ["show-option", "-qv"];
   switch (scope) {
     case "global":
       args.push("-g");

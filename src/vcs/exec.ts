@@ -1,12 +1,19 @@
 import { execFileSync } from "node:child_process";
 
+const commandExistsCache = new Map<string, boolean>();
+
 export function commandExists(cmd: string): boolean {
+  const cached = commandExistsCache.get(cmd);
+  if (cached != null) return cached;
+
   try {
     execFileSync("sh", ["-c", `command -v ${cmd} >/dev/null 2>&1`], {
       stdio: "ignore",
     });
+    commandExistsCache.set(cmd, true);
     return true;
   } catch {
+    commandExistsCache.set(cmd, false);
     return false;
   }
 }
