@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync } from "node:fs";
+import { chmodSync, cpSync, mkdirSync } from "node:fs";
 import { build, context } from "esbuild";
 
 const shared = {
@@ -32,6 +32,7 @@ if (isWatch) {
 } else {
   for (const entry of entryPoints) {
     await build({ ...shared, ...entry });
+    chmodSync(entry.outfile, 0o755);
   }
   mkdirSync("dist/manifests", { recursive: true });
   cpSync("src/adapters/manifests", "dist/manifests", { recursive: true });
