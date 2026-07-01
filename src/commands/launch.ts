@@ -9,6 +9,7 @@ import {
   type AgentRecord,
 } from "../workspace/state.js";
 import { requireWorkspace } from "../workspace/helpers.js";
+import { shellQuote } from "../shell-quote.js";
 
 function registerAgent(
   wsName: string,
@@ -51,10 +52,6 @@ function launchInPane(
     tmux.sendKeys(paneId, `cd ${shellQuote(cwd)}`, true);
   }
   tmux.sendKeys(paneId, cli, true);
-}
-
-function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 export function registerLaunchCommand(program: Command): void {

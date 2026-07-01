@@ -1,6 +1,7 @@
 import * as tmux from "../tmux/client.js";
 import type { WorkspaceState } from "../workspace/state.js";
 import { enrichTree, treeContextVars } from "../vcs/detect.js";
+import { shellQuote } from "../shell-quote.js";
 import type { ActionDefinition } from "./types.js";
 
 export interface ActionContext {
@@ -61,7 +62,8 @@ export function substituteActionTemplate(
     /\$([A-Z_][A-Z0-9_]*)|\$\{([A-Z_][A-Z0-9_]*)\}/g,
     (_match, a, b) => {
       const key = (a ?? b) as keyof ActionContext;
-      return ctx[key] ?? "";
+      const value = ctx[key] ?? "";
+      return shellQuote(value);
     },
   );
 }
