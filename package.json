@@ -12,6 +12,7 @@
     "dev": "node build.mjs --watch",
     "typecheck": "tsc --noEmit",
     "test": "bash scripts/test-phase1.sh",
+    "pre-commit": "bash scripts/pre-commit.sh",
     "check": "npm run typecheck && npm run build && npm run test"
   },
   "engines": {
