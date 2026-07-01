@@ -37,5 +37,7 @@ if (isWatch) {
   cpSync("src/adapters/manifests", "dist/manifests", { recursive: true });
   mkdirSync("dist/hooks/cursor", { recursive: true });
   cpSync("src/hooks/cursor", "dist/hooks/cursor", { recursive: true });
+  mkdirSync("dist/hooks/claude", { recursive: true });
+  cpSync("src/hooks/claude", "dist/hooks/claude", { recursive: true });
   console.log("Build complete.");
 }
