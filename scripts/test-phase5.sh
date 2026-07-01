@@ -94,7 +94,19 @@ $WORK agent observe "$IDLE_PANE" --apply --quiet
 OUT=$($WORK agent observe "$IDLE_PANE" --apply --json 2>&1)
 assert_contains "debounced idle applies after confirmations" '"status": "idle"' "$OUT"
 
-section "5. Stale restored titles are not agents"
+section "5. Follow-up prompt is idle (not working)"
+FOLLOW_PANE=$(tmux split-window -t "$SESSION" -h -P -F '#{pane_id}' \
+  'bash -c "exec -a cursor sh -c \"printf \\\"Add a follow-up\\\\nctrl+c to stop\\\\n\\\"; sleep 300\""')
+sleep 0.3
+$WORK scan --pane "$FOLLOW_PANE" --quiet
+sleep 1
+HOOK_JSON='{"hook_event_name":"preToolUse","conversation_id":"conv-follow-1","tool_name":"Shell"}'
+printf '%s' "$HOOK_JSON" | $WORK agent hook-event --pane "$FOLLOW_PANE" --json >/dev/null
+$WORK agent observe "$FOLLOW_PANE" --apply --quiet
+OUT=$($WORK agents --json 2>&1)
+assert_contains "follow-up clears explicit working to idle" '"status": "idle"' "$OUT"
+
+section "6. Stale restored titles are not agents"
 STALE_PANE=$(tmux split-window -t "$SESSION" -h -P -F '#{pane_id}' \
   'bash -c "sleep 300"')
 sleep 0.2
@@ -106,7 +118,7 @@ else
   fail "stale agent title without UI is not registered (output: $OUT)"
 fi
 
-section "6. status summary counts"
+section "7. status summary counts"
 OUT=$($WORK status 2>&1)
 assert_contains "status reports working agents" "working" "$OUT"
 

@@ -1,9 +1,10 @@
 import { type Dirent, existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join, resolve } from "node:path";
+import { getConfigValue } from "../config/store.js";
 import { isSidebarPane } from "../scanner/detect.js";
 import type { TmuxPane } from "../tmux/client.js";
 import { detectVcs, resolveTreePath } from "../vcs/detect.js";
-import { resolveCheckoutBase } from "./checkout.js";
+import { inferCheckoutBase, resolveCheckoutBase } from "./checkout.js";
 import type { WorkspaceState } from "./state.js";
 
 function checkoutPathFromCwd(cwd: string): string | null {
@@ -25,6 +26,26 @@ export function discoverTreesFromPanes(panes: TmuxPane[]): string[] {
     if (checkout) paths.add(checkout);
   }
   return [...paths];
+}
+
+/**
+ * Checkout-base sibling scan is for project layouts (e.g. ~/dev/projects/tmuxr/*),
+ * not arbitrary parents like ~/.local/share when a single chezmoi tree is tracked.
+ */
+export function checkoutBaseForDiscovery(ws: WorkspaceState): string | null {
+  const configured = getConfigValue("checkout-base");
+  if (configured) return resolve(configured);
+
+  if (ws.createdByWork) return resolveCheckoutBase(ws);
+
+  if (ws.trees.length < 2) return null;
+
+  const inferred = inferCheckoutBase(ws);
+  if (!inferred) return null;
+
+  if (basename(inferred) === ws.name) return inferred;
+
+  return null;
 }
 
 /** Scan direct children of the workspace checkout base (same layout as window use-repo). */
@@ -64,8 +85,11 @@ export function discoverSessionTreePaths(
   for (const path of discoverTreesFromPanes(panes)) {
     paths.add(path);
   }
-  for (const path of discoverTreesFromCheckoutBase(resolveCheckoutBase(ws))) {
-    paths.add(path);
+  const checkoutBase = checkoutBaseForDiscovery(ws);
+  if (checkoutBase) {
+    for (const path of discoverTreesFromCheckoutBase(checkoutBase)) {
+      paths.add(path);
+    }
   }
   return [...paths].sort();
 }

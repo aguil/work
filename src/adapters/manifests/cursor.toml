@@ -5,6 +5,15 @@ agent = "cursor"
 process_names = ["cursor", "cursor-agent", "agent"]
 
 [[rules]]
+priority = 115
+state = "idle"
+visible_idle = true
+[rules.match]
+region = "bottom_lines"
+lines = 8
+contains = ["add a follow-up"]
+
+[[rules]]
 priority = 110
 state = "blocked"
 visible_blocker = true
@@ -48,13 +57,21 @@ any = [
 ]
 
 [[rules]]
-priority = 90
+priority = 88
+state = "idle"
+visible_idle = true
+[rules.match]
+region = "bottom_lines"
+lines = 6
+contains = ["ctrl+c to stop"]
+
+[[rules]]
+priority = 85
 state = "working"
 [rules.match]
 region = "bottom_lines"
 lines = 6
 any = [
-  { contains = ["ctrl+c to stop"] },
   { contains = ["esc to cancel"] },
   { regex = ['^\s*(⬡|⬢)\s+\w+ing\b'] },
 ]

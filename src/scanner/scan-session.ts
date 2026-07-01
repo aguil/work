@@ -2,6 +2,7 @@ import { getBindingByPane } from "../adapters/conversation-map.js";
 import {
   applyObservation,
   hasExplicitHookStatus,
+  observationOverridesExplicit,
 } from "../adapters/debounce.js";
 import { observePane } from "../adapters/observe.js";
 import * as tmux from "../tmux/client.js";
@@ -31,10 +32,20 @@ function registerDetectedAgent(
       existing.conversationId = binding.conversationId;
       saveWorkspace(ws);
     }
-    if (pane && !hasExplicitHookStatus(existing)) {
+    if (pane) {
       const observed = observePane(pane, detected.cli);
-      if (observed && applyObservation(existing, observed)) {
-        saveWorkspace(ws);
+      if (observed) {
+        const mayObserve =
+          !hasExplicitHookStatus(existing) ||
+          observationOverridesExplicit(observed);
+        if (
+          mayObserve &&
+          applyObservation(existing, observed, {
+            trustIdle: hasExplicitHookStatus(existing),
+          })
+        ) {
+          saveWorkspace(ws);
+        }
       }
     }
     const currentLabel = tmux.getOption(

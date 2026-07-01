@@ -202,6 +202,40 @@ OUT=$($WORK trees --session "$DISCOVER_SESSION" --json 2>&1)
 assert_contains "trees include pane cwd checkout" "$PANE_REPO" "$OUT"
 assert_contains "trees include checkout-base child" "$BASE_REPO" "$OUT"
 
+section "7. Unrelated sibling repos are not auto-discovered"
+SIBLING_ROOT="$TEST_ROOT/share-like"
+REPO_A="$SIBLING_ROOT/repo-a"
+REPO_B="$SIBLING_ROOT/repo-b"
+mkdir -p "$REPO_A" "$REPO_B"
+git -C "$REPO_A" init -b main >/dev/null
+git -C "$REPO_A" config user.email "test@example.com"
+git -C "$REPO_A" config user.name "Test"
+echo a >"$REPO_A/README.md"
+git -C "$REPO_A" add README.md
+git -C "$REPO_A" commit -m "init" >/dev/null
+git -C "$REPO_B" init -b main >/dev/null
+git -C "$REPO_B" config user.email "test@example.com"
+git -C "$REPO_B" config user.name "Test"
+echo b >"$REPO_B/README.md"
+git -C "$REPO_B" add README.md
+git -C "$REPO_B" commit -m "init" >/dev/null
+
+SIBLING_SESSION="${SESSION_PREFIX}-sibling-$$"
+tmux kill-session -t "$SIBLING_SESSION" 2>/dev/null || true
+tmux new-session -d -s "$SIBLING_SESSION" -c "$REPO_A" "sleep 999"
+sleep 0.2
+$WORK config set checkout-base null >/dev/null
+OUT=$($WORK track "$SIBLING_SESSION" 2>&1)
+assert_contains "track sibling session" "Tracking session" "$OUT"
+OUT=$($WORK trees --session "$SIBLING_SESSION" --json 2>&1)
+assert_contains "trees include pane repo" "repo-a" "$OUT"
+if [[ "$OUT" == *"repo-b"* ]]; then
+  fail "trees exclude unrelated sibling repo (found repo-b)"
+else
+  pass "trees exclude unrelated sibling repo"
+fi
+tmux kill-session -t "$SIBLING_SESSION" 2>/dev/null || true
+
 section "Summary"
 TOTAL=$((PASS + FAIL + SKIP))
 echo "Passed: $PASS / $TOTAL"

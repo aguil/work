@@ -35,10 +35,11 @@ assert_contains() {
 section() { echo; echo "== $1 =="; }
 
 cleanup() {
-  tmux kill-session -t "$SESSION" 2>/dev/null || true
-  tmux kill-session -t "${SESSION}-picker" 2>/dev/null || true
-  tmux kill-session -t "${SESSION}-opt-in" 2>/dev/null || true
-  tmux kill-session -t "${SESSION}-run" 2>/dev/null || true
+  local name
+  while IFS= read -r name; do
+    [[ -z "$name" ]] && continue
+    tmux kill-session -t "$name" 2>/dev/null || true
+  done < <(tmux list-sessions -F '#{session_name}' 2>/dev/null | grep "^${SESSION}" || true)
   rm -rf "$TEST_ROOT"
 }
 trap cleanup EXIT
