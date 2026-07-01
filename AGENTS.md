@@ -36,6 +36,9 @@ This repo uses **Jujutsu** colocated with git (`jj git init --colocate`).
   other git write commands in this checkout.
 - Dev workspace checkout: `~/dev/projects/tmuxr/workctl`
 - Canonical store: `~/dev/repos/github.com/aguil/workctl`
+- Commit descriptions use **Conventional Commits** (`type: subject`) and always
+  include a body paragraph after a blank line explaining why the change was made.
+  Set with `jj desc -m` before `jj new`.
 
 ## Conventions
 
