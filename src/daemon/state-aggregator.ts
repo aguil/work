@@ -11,6 +11,7 @@ import {
 } from "../workspace/state.js";
 import type { SessionSnapshot } from "./protocol.js";
 import { enrichTree } from "../vcs/detect.js";
+import { hasExplicitHookStatus } from "../adapters/debounce.js";
 import { observeAgentsInWorkspace } from "../adapters/update-agent.js";
 
 export interface AggregatedState {
@@ -110,7 +111,8 @@ function syncAgentsToWorkspace(
     if (
       agent.paneId &&
       agent.status !== "detached" &&
-      !detectedPaneIds.has(agent.paneId)
+      !detectedPaneIds.has(agent.paneId) &&
+      !hasExplicitHookStatus(agent)
     ) {
       agent.status = "detached";
       agent.detachedAt = new Date().toISOString();
