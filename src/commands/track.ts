@@ -39,6 +39,12 @@ function syncDiscoveredTrees(
   return added;
 }
 
+function setTrackedSessionOptions(ws: WorkspaceState, session: string): void {
+  tmux.setOption("session", "@work-workspace", ws.name, session);
+  tmux.setOption("session", "@work-sidebar-visible", "1", session);
+  tmux.setOption("session", "@work-sidebar-disabled", "0", session);
+}
+
 export function registerTrackCommands(program: Command): void {
   program
     .command("track")
@@ -59,6 +65,7 @@ export function registerTrackCommands(program: Command): void {
 
         const existing = findWorkspaceBySession(session);
         if (existing) {
+          setTrackedSessionOptions(existing, session);
           syncDiscoveredTrees(existing, session, opts);
           if (!opts.quiet)
             console.log(
@@ -71,8 +78,7 @@ export function registerTrackCommands(program: Command): void {
         const ws = archived
           ? unarchiveWorkspace(archived)
           : createWorkspace(session, session, false);
-        tmux.setOption("session", "@work-workspace", ws.name, session);
-        tmux.setOption("session", "@work-sidebar-visible", "1", session);
+        setTrackedSessionOptions(ws, session);
 
         const added = syncDiscoveredTrees(ws, session, opts);
 
