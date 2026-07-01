@@ -1,4 +1,5 @@
 import type { SessionSnapshot } from "../daemon/protocol.js";
+import { isSidebarAgent } from "../workspace/agent-display.js";
 import type { AgentRecord } from "../workspace/state.js";
 import { coloredStatus, colors } from "./icons.js";
 
@@ -19,12 +20,6 @@ function pad(s: string, width: number): string {
 
 function hr(width: number, char = "─"): string {
   return dim + char.repeat(width) + reset;
-}
-
-function isDisplayedAgent(agent: AgentRecord): boolean {
-  if (agent.status === "detached" || !agent.paneId) return false;
-  if (agent.status === "done" || agent.status === "idle") return false;
-  return true;
 }
 
 export function render(
@@ -52,7 +47,7 @@ export function render(
   for (const session of sorted) {
     if (lines.length >= rows - 2) break;
 
-    const agentCount = session.agents.filter(isDisplayedAgent).length;
+    const agentCount = session.agents.filter(isSidebarAgent).length;
     const treeCount = session.trees.length;
     const marker = session.tracked ? `${cyan}▸${reset}` : `${dim}○${reset}`;
     const nameStyle = session.tracked ? bold : dim;
@@ -71,7 +66,7 @@ export function render(
 
     if (session.tracked) {
       for (const agent of session.agents) {
-        if (!isDisplayedAgent(agent)) continue;
+        if (!isSidebarAgent(agent)) continue;
         if (lines.length >= rows - 2) break;
         lines.push(renderAgent(agent, w));
       }
