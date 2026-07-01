@@ -16,10 +16,9 @@ mise install
 npm install
 npm run build
 npm run typecheck
-npm test              # Phase 1 integration tests
-scripts/test-phase2.sh
-scripts/test-phase3.sh
-scripts/test-phase4.sh
+npm test              # Phases 1–6 integration tests (requires tmux)
+scripts/test-phase5.sh
+scripts/test-phase6.sh
 ```
 
 Binaries are written to `dist/work.mjs` and `dist/workd.mjs`.
