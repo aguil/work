@@ -1,19 +1,27 @@
-# workctl — agent instructions
+# work — agent instructions
 
 TypeScript CLI for tmux-native agent workspace tracking. Bundled with esbuild;
-no runtime dependencies beyond Node built-ins and `commander`.
+runtime dependencies: Node built-ins, `commander`, and `smol-toml` (manifest loaders).
 
 ## Repository layout
 
-- `src/cli.ts` — CLI entry (`workctl`)
-- `src/daemon/` — `workctld` server, state aggregator, IPC protocol
+- `src/cli.ts` — CLI entry (`work`)
+- `src/daemon/` — `workd` server, state aggregator, IPC protocol
 - `src/commands/` — commander subcommands
 - `src/tmux/` — thin tmux CLI wrapper
 - `src/config/` — XDG paths and JSON config store
 - `src/workspace/` — per-workspace JSON state
 - `src/scanner/` — agent detection by process name
 - `src/sidebar/` — ANSI TUI client
-- `scripts/test-phase1.sh` — integration test suite
+- `src/vcs/` — git/jj detection, worktree/workspace creation, metadata
+- `src/commands/trees.ts` — add-tree, remove-tree, trees
+- `scripts/test-phase1.sh` — Phase 1 integration test suite
+- `scripts/test-phase2.sh` — Phase 2 tree and VCS integration tests
+- `scripts/test-phase3.sh` — Phase 3 workspace lifecycle tests
+- `scripts/test-phase4.sh` — Phase 4 actions and repo picker tests
+- `scripts/test-phase5.sh` — Phase 5 status adapter tests
+- `scripts/test-phase6.sh` — Phase 6 Cursor hook Tier 1 tests
+- `src/adapters/` — manifest loader, rule evaluation, Cursor adapter, hook events
 
 ## Development
 
@@ -34,8 +42,8 @@ This repo uses **Jujutsu** colocated with git (`jj git init --colocate`).
 
 - Use `jj` for all mutations. Do **not** run `git commit`, `git rebase`, or
   other git write commands in this checkout.
-- Dev workspace checkout: `~/dev/projects/tmuxr/workctl`
-- Canonical store: `~/dev/repos/github.com/aguil/workctl`
+- Dev workspace checkout: `~/dev/projects/tmuxr/work`
+- Canonical store: `~/dev/repos/github.com/aguil/work`
 - Commit descriptions use **Conventional Commits** (`type: subject`) and always
   include a body paragraph after a blank line explaining why the change was made.
   Set with `jj desc -m` before `jj new`.
@@ -43,6 +51,6 @@ This repo uses **Jujutsu** colocated with git (`jj git init --colocate`).
 ## Conventions
 
 - ESM, Node 20+, strict TypeScript
-- Fast CLI startup matters — hooks invoke `workctl` on every pane event
+- Fast CLI startup matters — hooks invoke `work` on every pane event
 - State files use atomic write-to-temp + rename
 - Agent records keyed by `workspace + label`, not pane ID

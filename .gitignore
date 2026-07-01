@@ -141,3 +141,10 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Agent review harness output (local only)
+# Agent review harness output (local only)
+.review-agent/
+.agents-code-review/
+.agents-triage/
+.agents-triage/

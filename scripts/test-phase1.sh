@@ -2,29 +2,29 @@
 # Phase 1 automated tests: build, CLI, tracking, agents, reconcile, daemon.
 #
 # Safety: uses isolated XDG dirs and only creates/destroys its own tmux sessions.
-# It will never kill sessions outside the workctl-autotest-* prefix.
+# It will never kill sessions outside the work-autotest-* prefix.
 
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WORKCTL_DIR="${WORKCTL_DIR:-$ROOT}"
-WORKCTL="node $WORKCTL_DIR/dist/workctl.mjs"
-WORKCTLD="node $WORKCTL_DIR/dist/workctld.mjs"
+WORK_DIR="${WORK_DIR:-$ROOT}"
+WORK="node $WORK_DIR/dist/work.mjs"
+WORKD="node $WORK_DIR/dist/workd.mjs"
 
-SESSION_PREFIX="workctl-autotest"
+SESSION_PREFIX="work-autotest"
 SESSION="${SESSION_PREFIX}-$$"
 SCRATCH="${SESSION_PREFIX}-scratch-$$"
 
-# Isolated XDG dirs — does not touch ~/.config/workctl or the live daemon.
-TEST_ROOT="$(mktemp -d "/tmp/workctl-test-XXXXXX")"
+# Isolated XDG dirs — does not touch ~/.config/work or the live daemon.
+TEST_ROOT="$(mktemp -d "/tmp/work-test-XXXXXX")"
 export XDG_CONFIG_HOME="$TEST_ROOT/config"
 export XDG_STATE_HOME="$TEST_ROOT/state"
 export XDG_RUNTIME_DIR="$TEST_ROOT/runtime"
 mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME" "$XDG_RUNTIME_DIR"
 chmod 700 "$XDG_RUNTIME_DIR"
 
-STATE_DIR="$XDG_STATE_HOME/workctl"
-RUNTIME_DIR="$XDG_RUNTIME_DIR/workctl"
+STATE_DIR="$XDG_STATE_HOME/work"
+RUNTIME_DIR="$XDG_RUNTIME_DIR/work"
 
 # Sessions that must never be touched, even by accident.
 PROTECTED_SESSIONS=(tmuxr)
@@ -162,28 +162,28 @@ echo "  Test session: $SESSION"
 # --- Section 1: Build & CLI smoke ---
 
 section "1. Build & CLI smoke"
-cd "$WORKCTL_DIR"
+cd "$WORK_DIR"
 
 assert_cmd_ok "npm install" npm install
 assert_cmd_ok "npm run typecheck" npm run typecheck
 assert_cmd_ok "npm run build" npm run build
-assert_cmd_ok "workctl --help" $WORKCTL --help
+assert_cmd_ok "work --help" $WORK --help
 
-OUT=$($WORKCTL config list 2>&1)
+OUT=$($WORK config list 2>&1)
 assert_contains "config lists agent-clis" "agent-clis" "$OUT"
 assert_contains "config lists sidebar-width" "sidebar-width" "$OUT"
 
-$WORKCTL config set sidebar-width 35 >/dev/null
-WIDTH=$($WORKCTL config get sidebar-width 2>&1)
+$WORK config set sidebar-width 35 >/dev/null
+WIDTH=$($WORK config get sidebar-width 2>&1)
 assert_eq "config set/get sidebar-width" "35" "$WIDTH"
 
-OUT=$($WORKCTL list 2>&1)
+OUT=$($WORK list 2>&1)
 assert_contains "list on empty isolated state" "No tracked workspaces" "$OUT"
 
-OUT=$($WORKCTL agents 2>&1)
+OUT=$($WORK agents 2>&1)
 assert_contains "agents on empty isolated state" "No agents found" "$OUT"
 
-OUT=$($WORKCTL status 2>&1)
+OUT=$($WORK status 2>&1)
 assert_contains "status on empty isolated state" "No agents" "$OUT"
 
 # --- Section 2: Workspace tracking ---
@@ -193,17 +193,17 @@ require_tmux
 
 create_test_session "$SESSION"
 
-OUT=$($WORKCTL track "$SESSION" 2>&1)
+OUT=$($WORK track "$SESSION" 2>&1)
 assert_contains "track session" "Tracking session" "$OUT"
 assert_file_exists "workspace state file" "$STATE_DIR/workspaces/${SESSION}.json"
 
-WS_OPT=$(tmux show-option -t "$SESSION" -v @workctl-workspace 2>&1)
-assert_eq "session @workctl-workspace option" "$SESSION" "$WS_OPT"
+WS_OPT=$(tmux show-option -t "$SESSION" -v @work-workspace 2>&1)
+assert_eq "session @work-workspace option" "$SESSION" "$WS_OPT"
 
-OUT=$($WORKCTL track "$SESSION" 2>&1)
+OUT=$($WORK track "$SESSION" 2>&1)
 assert_contains "track idempotent" "already tracked" "$OUT"
 
-OUT=$($WORKCTL list --json 2>&1)
+OUT=$($WORK list --json 2>&1)
 assert_contains "list --json includes session" "\"sessionName\": \"$SESSION\"" "$OUT"
 
 # --- Section 3: Agent detection & management ---
@@ -214,26 +214,26 @@ AGENT_PANE=$(tmux split-window -t "$SESSION" -h -P -F '#{pane_id}' \
   'bash -c "exec -a cursor sleep 120"')
 sleep 0.3
 
-OUT=$($WORKCTL scan --session "$SESSION" 2>&1)
+OUT=$($WORK scan --session "$SESSION" 2>&1)
 assert_contains "scan detects agent" "found cursor" "$OUT"
 
-OUT=$($WORKCTL agents 2>&1)
+OUT=$($WORK agents 2>&1)
 assert_contains "agents lists cursor" "cursor" "$OUT"
 
-LABEL_OPT=$(tmux show-option -p -t "$AGENT_PANE" -v @workctl-agent-label 2>&1)
-assert_eq "pane @workctl-agent-label set" "cursor" "$LABEL_OPT"
+LABEL_OPT=$(tmux show-option -p -t "$AGENT_PANE" -v @work-agent-label 2>&1)
+assert_eq "pane @work-agent-label set" "cursor" "$LABEL_OPT"
 
-$WORKCTL agent label "$AGENT_PANE" my-agent >/dev/null
-OUT=$($WORKCTL agents 2>&1)
+$WORK agent label "$AGENT_PANE" my-agent >/dev/null
+OUT=$($WORK agents 2>&1)
 assert_contains "agent label rename" "my-agent" "$OUT"
 
 # Sidebar exclusion: mark a plain bash pane as sidebar (no interactive TUI needed)
 SIDEBAR_PANE=$(tmux split-window -t "$SESSION" -h -l 20 -P -F '#{pane_id}' \
   'sleep 120')
-tmux set-option -p -t "$SIDEBAR_PANE" @workctl-sidebar 1
+tmux set-option -p -t "$SIDEBAR_PANE" @work-sidebar 1
 sleep 0.2
 
-OUT=$($WORKCTL scan --session "$SESSION" 2>&1)
+OUT=$($WORK scan --session "$SESSION" 2>&1)
 AGENT_COUNT=$(echo "$OUT" | grep -c 'found ' || true)
 if [[ "$AGENT_COUNT" -le 1 ]]; then
   pass "sidebar-marked pane not scanned as new agent"
@@ -248,13 +248,13 @@ create_test_session "$SCRATCH"
 tmux split-window -t "$SCRATCH" -h \
   'bash -c "exec -a cursor sleep 60"' >/dev/null
 sleep 0.3
-OUT=$($WORKCTL scan --all 2>&1)
+OUT=$($WORK scan --all 2>&1)
 assert_contains "scan --all reports untracked" "[untracked]" "$OUT"
 kill_test_session "$SCRATCH"
 CREATED_SESSIONS=("${CREATED_SESSIONS[@]/$SCRATCH}")
 
-$WORKCTL agent detach "$AGENT_PANE" >/dev/null
-OUT=$($WORKCTL agents 2>&1)
+$WORK agent detach "$AGENT_PANE" >/dev/null
+OUT=$($WORK agents 2>&1)
 assert_contains "agent detach marks detached" "detached" "$OUT"
 
 tmux kill-pane -t "$AGENT_PANE" 2>/dev/null || true
@@ -267,53 +267,58 @@ section "4. Reconcile & status"
 AGENT_PANE=$(tmux split-window -t "$SESSION" -h -P -F '#{pane_id}' \
   'bash -c "exec -a cursor sleep 120"')
 sleep 0.3
-$WORKCTL scan --session "$SESSION" --quiet
+$WORK scan --session "$SESSION" --quiet
 
 # reconcile --all is safe here: isolated state dir contains only this test workspace
-OUT=$($WORKCTL reconcile --all 2>&1)
+OUT=$($WORK reconcile --all 2>&1)
 assert_contains "reconcile completes" "Reconcile complete" "$OUT"
 
-OUT=$($WORKCTL status 2>&1)
+OUT=$($WORK status 2>&1)
 assert_contains "status shows agents" "agent" "$OUT"
 
-assert_cmd_ok "status --format tmux runs" $WORKCTL status --format tmux
+assert_cmd_ok "status --format tmux runs" $WORK status --format tmux
 
-$WORKCTL agent detach "$AGENT_PANE" --quiet
-OUT=$($WORKCTL reconcile --all 2>&1)
+$WORK agent detach "$AGENT_PANE" --quiet
+OUT=$($WORK reconcile --all 2>&1)
 assert_contains "reconcile re-attaches agent" "re-attached" "$OUT"
 
 # --- Section 5: Daemon lifecycle (isolated runtime) ---
 
 section "5. Daemon lifecycle"
 
-$WORKCTLD >"$RUNTIME_DIR/test-daemon.log" 2>&1 &
+$WORKD >"$RUNTIME_DIR/test-daemon.log" 2>&1 &
 DAEMON_PID=$!
 
 for _ in $(seq 1 20); do
-  [[ -S "$RUNTIME_DIR/workctl.sock" ]] && break
+  [[ -S "$RUNTIME_DIR/work.sock" ]] && break
   sleep 0.1
 done
 
-assert_file_exists "daemon writes PID file" "$RUNTIME_DIR/workctld.pid"
-if [[ -S "$RUNTIME_DIR/workctl.sock" ]]; then
+for _ in $(seq 1 20); do
+  [[ -f "$RUNTIME_DIR/workd.pid" ]] && break
+  sleep 0.1
+done
+
+assert_file_exists "daemon writes PID file" "$RUNTIME_DIR/workd.pid"
+if [[ -S "$RUNTIME_DIR/work.sock" ]]; then
   pass "daemon creates Unix socket"
 else
   fail "daemon creates Unix socket"
 fi
 
-if $WORKCTLD >/dev/null 2>&1; then
+if $WORKD >/dev/null 2>&1; then
   fail "second daemon start rejected"
 else
   pass "second daemon start rejected"
 fi
 
-assert_cmd_ok "CLI works while test daemon running" $WORKCTL list
+assert_cmd_ok "CLI works while test daemon running" $WORK list
 
 kill -TERM "$DAEMON_PID" 2>/dev/null || true
 wait "$DAEMON_PID" 2>/dev/null || true
 DAEMON_PID=""
 
-if [[ ! -f "$RUNTIME_DIR/workctld.pid" ]]; then
+if [[ ! -f "$RUNTIME_DIR/workd.pid" ]]; then
   pass "daemon cleans up PID file on shutdown"
 else
   fail "daemon cleans up PID file on shutdown"
@@ -323,7 +328,7 @@ fi
 
 section "6. Untrack"
 
-OUT=$($WORKCTL untrack "$SESSION" 2>&1)
+OUT=$($WORK untrack "$SESSION" 2>&1)
 assert_contains "untrack workspace" "Untracked" "$OUT"
 
 if [[ ! -f "$STATE_DIR/workspaces/${SESSION}.json" ]]; then
@@ -335,10 +340,10 @@ fi
 # Test --auto archive on a fresh throwaway session
 ARCHIVE_SESSION="${SESSION_PREFIX}-archive-$$"
 create_test_session "$ARCHIVE_SESSION"
-$WORKCTL track "$ARCHIVE_SESSION" --quiet
+$WORK track "$ARCHIVE_SESSION" --quiet
 kill_test_session "$ARCHIVE_SESSION"
 sleep 0.2
-$WORKCTL untrack "$ARCHIVE_SESSION" --auto --quiet
+$WORK untrack "$ARCHIVE_SESSION" --auto --quiet
 
 if [[ -f "$STATE_DIR/workspaces/${ARCHIVE_SESSION}.json" ]]; then
   if grep -q '"archived": true' "$STATE_DIR/workspaces/${ARCHIVE_SESSION}.json"; then

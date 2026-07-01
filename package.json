@@ -1,11 +1,11 @@
 {
-  "name": "workctl",
+  "name": "work",
   "version": "0.1.0",
   "description": "Agent workspace manager for tmux",
   "type": "module",
   "bin": {
-    "workctl": "./dist/workctl.mjs",
-    "workctld": "./dist/workctld.mjs"
+    "work": "./dist/work.mjs",
+    "workd": "./dist/workd.mjs"
   },
   "scripts": {
     "build": "node build.mjs",
@@ -14,7 +14,7 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
-    "test": "bash scripts/test-phase1.sh",
+    "test": "bash scripts/cleanup-test-sessions.sh && bash scripts/test-phase1.sh && bash scripts/test-phase2.sh && bash scripts/test-phase3.sh && bash scripts/test-phase4.sh && bash scripts/test-phase5.sh && bash scripts/test-phase6.sh && bash scripts/cleanup-test-sessions.sh",
     "pre-commit": "bash scripts/pre-commit.sh",
     "check": "npm run typecheck && npm run lint && npm run build && npm run test"
   },
@@ -23,7 +23,8 @@
   },
   "license": "MIT",
   "dependencies": {
-    "commander": "^13.1.0"
+    "commander": "^13.1.0",
+    "smol-toml": "^1.3.1"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.15",

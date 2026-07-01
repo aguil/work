@@ -1,3 +1,4 @@
+import { cpSync, mkdirSync } from "node:fs";
 import { build, context } from "esbuild";
 
 const shared = {
@@ -16,8 +17,8 @@ const shared = {
 };
 
 const entryPoints = [
-  { entryPoints: ["src/cli.ts"], outfile: "dist/workctl.mjs" },
-  { entryPoints: ["src/daemon/index.ts"], outfile: "dist/workctld.mjs" },
+  { entryPoints: ["src/cli.ts"], outfile: "dist/work.mjs" },
+  { entryPoints: ["src/daemon/index.ts"], outfile: "dist/workd.mjs" },
 ];
 
 const isWatch = process.argv.includes("--watch");
@@ -32,5 +33,9 @@ if (isWatch) {
   for (const entry of entryPoints) {
     await build({ ...shared, ...entry });
   }
+  mkdirSync("dist/manifests", { recursive: true });
+  cpSync("src/adapters/manifests", "dist/manifests", { recursive: true });
+  mkdirSync("dist/hooks/cursor", { recursive: true });
+  cpSync("src/hooks/cursor", "dist/hooks/cursor", { recursive: true });
   console.log("Build complete.");
 }
