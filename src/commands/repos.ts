@@ -7,11 +7,7 @@ export function registerReposCommands(program: Command): void {
     .command("repos")
     .description("List repositories from repo-scan-dir")
     .option("--json", "Output as JSON")
-    .option(
-      "--format <type>",
-      "Output format: text, names, tsv, json",
-      "text",
-    )
+    .option("--format <type>", "Output format: text, names, tsv, json", "text")
     .action((opts: { json?: boolean; format?: string }) => {
       const scanDirs = getRepoScanDirs();
       if (scanDirs.length === 0) {

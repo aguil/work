@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { paths } from "./paths.js";
 
@@ -90,12 +90,12 @@ function load(): Config {
   } catch {
     cached = { ...DEFAULTS };
   }
-  return cached!;
+  return cached;
 }
 
 function save(config: Config): void {
   mkdirSync(dirname(paths.configFile), { recursive: true });
-  writeFileSync(paths.configFile, JSON.stringify(config, null, 2) + "\n");
+  writeFileSync(paths.configFile, `${JSON.stringify(config, null, 2)}\n`);
   cached = config;
 }
 
@@ -130,7 +130,10 @@ export function parseConfigValue(
 
   switch (key as ConfigKey) {
     case "agent-clis":
-      return raw.split(",").map((s) => s.trim()).filter(Boolean);
+      return raw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
     case "auto-track":
       return raw === "true";
     case "prompt-repos-on-new-window":

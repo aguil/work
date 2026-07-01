@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from "node:fs";
+import { type Dirent, existsSync, readdirSync } from "node:fs";
 import { basename, join, relative, resolve } from "node:path";
 import { commandExists } from "./exec.js";
 import * as git from "./git.js";
@@ -27,10 +27,7 @@ const SKIP_DIR_NAMES = new Set([
   "vendor",
 ]);
 
-export function scanRepoDirectory(
-  dir: string,
-  maxDepth = 4,
-): ScannedRepo[] {
+export function scanRepoDirectory(dir: string, maxDepth = 4): ScannedRepo[] {
   const absDir = resolve(dir);
   if (!existsSync(absDir)) {
     throw new Error(`Repo scan directory not found: ${dir}`);
@@ -59,7 +56,7 @@ export function scanRepoDirectory(
       return;
     }
 
-    let entries;
+    let entries: Dirent[];
     try {
       entries = readdirSync(current, { withFileTypes: true });
     } catch {

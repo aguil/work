@@ -3,8 +3,8 @@ import { basename, join } from "node:path";
 import TOML from "smol-toml";
 import { paths } from "../config/paths.js";
 import { isPathTrusted } from "../config/trust.js";
-import type { WorkspaceState } from "../workspace/state.js";
 import { enrichTree } from "../vcs/detect.js";
+import type { WorkspaceState } from "../workspace/state.js";
 import type { ActionDefinition } from "./types.js";
 
 const REPO_ACTIONS_DIR = ".work/actions";
@@ -38,8 +38,7 @@ function parseActionFile(
   const fileStem = basename(filePath, ".toml");
   const name = (raw.name?.trim() || fileStem).trim();
   const repoLabel = opts.repoLabel ?? null;
-  const id =
-    scope === "repo" && repoLabel ? `${repoLabel}/${name}` : name;
+  const id = scope === "repo" && repoLabel ? `${repoLabel}/${name}` : name;
 
   return {
     id,
@@ -81,16 +80,13 @@ export function loadRepoActions(
   repoLabel: string,
 ): ActionDefinition[] {
   if (!isPathTrusted(treePath)) return [];
-  return loadTomlDir(
-    join(treePath, REPO_ACTIONS_DIR),
-    "repo",
-    { repoLabel, treePath },
-  );
+  return loadTomlDir(join(treePath, REPO_ACTIONS_DIR), "repo", {
+    repoLabel,
+    treePath,
+  });
 }
 
-export function loadWorkspaceActions(
-  ws: WorkspaceState,
-): ActionDefinition[] {
+export function loadWorkspaceActions(ws: WorkspaceState): ActionDefinition[] {
   const actions = loadGlobalActions();
   const seen = new Set(actions.map((a) => a.id));
 

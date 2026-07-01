@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
-import { commandExists, tryCommand, runCommand } from "./exec.js";
+import { commandExists, runCommand, tryCommand } from "./exec.js";
 
 export function jjRoot(cwd: string): string | null {
   if (!commandExists("jj")) return null;
@@ -81,10 +81,7 @@ export function jjDirty(cwd: string): boolean {
   return /Working copy changes:/m.test(status);
 }
 
-export function createJjWorkspace(
-  repoPath: string,
-  destPath: string,
-): void {
+export function createJjWorkspace(repoPath: string, destPath: string): void {
   if (!commandExists("jj")) {
     throw new Error("jj is not installed");
   }

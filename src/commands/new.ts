@@ -3,14 +3,14 @@ import { join, resolve } from "node:path";
 import type { Command } from "commander";
 import { getRepoScanDirs } from "../config/store.js";
 import { promptLine, promptRepoSelection } from "../prompt/readline.js";
-import * as tmux from "../tmux/client.js";
-import {
-  createCheckout,
-  detectRepoBackend,
-  detectVcs,
-} from "../vcs/detect.js";
-import { resolveRepoPaths, scanRepoDirectories } from "../vcs/scan.js";
 import { scanSession } from "../scanner/scan-session.js";
+import * as tmux from "../tmux/client.js";
+import { createCheckout, detectRepoBackend, detectVcs } from "../vcs/detect.js";
+import {
+  resolveRepoPaths,
+  type ScannedRepo,
+  scanRepoDirectories,
+} from "../vcs/scan.js";
 import {
   createWorkspace,
   loadWorkspace,
@@ -28,14 +28,9 @@ interface CreatedTree {
 export function registerNewCommand(program: Command): void {
   program
     .command("new")
-    .description(
-      "Create a workspace: worktrees, tmux session, and tracking",
-    )
+    .description("Create a workspace: worktrees, tmux session, and tracking")
     .argument("<name>", "Workspace and tmux session name")
-    .option(
-      "--repos <paths>",
-      "Comma-separated repo paths (non-interactive)",
-    )
+    .option("--repos <paths>", "Comma-separated repo paths (non-interactive)")
     .option("--branch <name>", "Branch or bookmark name for git worktrees")
     .option(
       "--dest-base <path>",
@@ -64,7 +59,7 @@ export function registerNewCommand(program: Command): void {
         }
 
         const scanDirs = getRepoScanDirs();
-        let selectedRepos;
+        let selectedRepos: ScannedRepo[];
 
         if (opts.repos) {
           selectedRepos = resolveRepoPaths(opts.repos, scanDirs);
@@ -76,22 +71,16 @@ export function registerNewCommand(program: Command): void {
           }
           const repos = scanRepoDirectories(scanDirs);
           if (repos.length === 0) {
-            throw new Error(
-              `No repositories found in ${scanDirs.join(", ")}`,
-            );
+            throw new Error(`No repositories found in ${scanDirs.join(", ")}`);
           }
 
           if (!opts.quiet) {
-            console.log(
-              `Scanning ${scanDirs.join(", ")} for repositories...`,
-            );
+            console.log(`Scanning ${scanDirs.join(", ")} for repositories...`);
           }
           selectedRepos = await promptRepoSelection(repos);
         }
 
-        const branch =
-          opts.branch ??
-          (await promptLine("Branch name", name));
+        const branch = opts.branch ?? (await promptLine("Branch name", name));
 
         const destBase = resolve(opts.destBase ?? join(process.cwd(), name));
         mkdirSync(destBase, { recursive: true });
@@ -132,17 +121,15 @@ export function registerNewCommand(program: Command): void {
         }
 
         const ws = createWorkspace(name, name, true);
-        ws.trees = createdTrees.map(
-          (tree): TreeRecord => {
-            const meta = detectVcs(tree.checkoutPath);
-            return {
-              path: tree.checkoutPath,
-              vcsType: meta.vcsType,
-              branch: meta.branch ?? branch,
-              createdByWork: true,
-            };
-          },
-        );
+        ws.trees = createdTrees.map((tree): TreeRecord => {
+          const meta = detectVcs(tree.checkoutPath);
+          return {
+            path: tree.checkoutPath,
+            vcsType: meta.vcsType,
+            branch: meta.branch ?? branch,
+            createdByWork: true,
+          };
+        });
         saveWorkspace(ws);
         tmux.setOption("session", "@work-workspace", ws.name, name);
         scanSession(name, { quiet: true });
@@ -150,7 +137,9 @@ export function registerNewCommand(program: Command): void {
         if (!opts.quiet) {
           console.log(`\nCreated tmux session "${name}"`);
           console.log(`Tracking workspace "${name}"`);
-          console.log(`Trees: ${createdTrees.map((t) => t.repoName).join(", ")}`);
+          console.log(
+            `Trees: ${createdTrees.map((t) => t.repoName).join(", ")}`,
+          );
         }
 
         if (opts.attach !== false && process.stdin.isTTY) {

@@ -28,8 +28,7 @@ interface RawMatch extends MatchExpr {
 
 function parseMatch(raw: RawMatch | undefined): ManifestRule["match"] {
   if (!raw) return { region: "bottom_lines", lines: 5 };
-  const region =
-    raw.region === "pane_title" ? "pane_title" : "bottom_lines";
+  const region = raw.region === "pane_title" ? "pane_title" : "bottom_lines";
   return {
     region,
     lines: raw.lines ?? 5,

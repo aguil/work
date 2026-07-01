@@ -1,7 +1,7 @@
-import { existsSync, readdirSync } from "node:fs";
+import { type Dirent, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import type { TmuxPane } from "../tmux/client.js";
 import { isSidebarPane } from "../scanner/detect.js";
+import type { TmuxPane } from "../tmux/client.js";
 import { detectVcs, resolveTreePath } from "../vcs/detect.js";
 import { resolveCheckoutBase } from "./checkout.js";
 import type { WorkspaceState } from "./state.js";
@@ -32,7 +32,7 @@ export function discoverTreesFromCheckoutBase(checkoutBase: string): string[] {
   if (!existsSync(checkoutBase)) return [];
 
   const paths = new Set<string>();
-  let entries;
+  let entries: Dirent[];
   try {
     entries = readdirSync(checkoutBase, { withFileTypes: true });
   } catch {

@@ -1,10 +1,10 @@
+import { resolve } from "node:path";
+import { detectVcs, resolveTreePath } from "../vcs/detect.js";
 import {
   saveWorkspace,
   type TreeRecord,
   type WorkspaceState,
 } from "./state.js";
-import { detectVcs, resolveTreePath } from "../vcs/detect.js";
-import { resolve } from "node:path";
 
 export function treePathsEqual(a: string, b: string): boolean {
   try {

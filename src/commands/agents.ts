@@ -1,14 +1,14 @@
 import type { Command } from "commander";
-import {
-  listWorkspaces,
-  findAgentByPane,
-  saveWorkspace,
-  type AgentRecord,
-} from "../workspace/state.js";
-import { updateAgentFromPane } from "../adapters/update-agent.js";
 import { observeAgentPane } from "../adapters/observe.js";
-import { registerAgentRelaunch } from "./launch.js";
+import { updateAgentFromPane } from "../adapters/update-agent.js";
+import {
+  type AgentRecord,
+  findAgentByPane,
+  listWorkspaces,
+  saveWorkspace,
+} from "../workspace/state.js";
 import { registerAgentHookCommand } from "./agent-hook.js";
+import { registerAgentRelaunch } from "./launch.js";
 
 export function registerAgentsCommands(program: Command): void {
   program
@@ -94,8 +94,7 @@ export function registerAgentsCommands(program: Command): void {
         agent.confidence = "none";
         saveWorkspace(ws);
 
-        if (!opts.quiet)
-          console.log(`Detached ${agent.label} from ${ws.name}`);
+        if (!opts.quiet) console.log(`Detached ${agent.label} from ${ws.name}`);
         return;
       }
 
@@ -133,56 +132,61 @@ export function registerAgentsCommands(program: Command): void {
     .option("--apply", "Apply observation to workspace agent state")
     .option("--json", "Output as JSON")
     .option("-q, --quiet", "Suppress output")
-    .action((paneId: string, opts: { apply?: boolean; json?: boolean; quiet?: boolean }) => {
-      const workspaces = listWorkspaces().filter((w) => !w.archived);
+    .action(
+      (
+        paneId: string,
+        opts: { apply?: boolean; json?: boolean; quiet?: boolean },
+      ) => {
+        const workspaces = listWorkspaces().filter((w) => !w.archived);
 
-      for (const ws of workspaces) {
-        const agent = findAgentByPane(ws, paneId);
-        if (!agent) continue;
+        for (const ws of workspaces) {
+          const agent = findAgentByPane(ws, paneId);
+          if (!agent) continue;
 
-        const observed = observeAgentPane(paneId, agent.cli);
-        if (opts.apply && observed) {
-          if (updateAgentFromPane(agent, paneId)) {
-            saveWorkspace(ws);
+          const observed = observeAgentPane(paneId, agent.cli);
+          if (opts.apply && observed) {
+            if (updateAgentFromPane(agent, paneId)) {
+              saveWorkspace(ws);
+            }
           }
-        }
 
-        if (opts.json) {
-          console.log(
-            JSON.stringify(
-              {
-                workspace: ws.name,
-                label: agent.label,
-                cli: agent.cli,
-                observed,
-                agent: {
-                  status: agent.status,
-                  confidence: agent.confidence,
-                  pendingIdleCount: agent.pendingIdleCount ?? 0,
+          if (opts.json) {
+            console.log(
+              JSON.stringify(
+                {
+                  workspace: ws.name,
+                  label: agent.label,
+                  cli: agent.cli,
+                  observed,
+                  agent: {
+                    status: agent.status,
+                    confidence: agent.confidence,
+                    pendingIdleCount: agent.pendingIdleCount ?? 0,
+                  },
                 },
-              },
-              null,
-              2,
-            ),
-          );
+                null,
+                2,
+              ),
+            );
+            return;
+          }
+
+          if (observed) {
+            if (!opts.quiet) {
+              console.log(
+                `${ws.name}/${agent.label}: ${observed.status} (${observed.confidence}, rule ${observed.rulePriority})`,
+              );
+            }
+          } else if (!opts.quiet) {
+            console.log(`${ws.name}/${agent.label}: no manifest match`);
+          }
           return;
         }
 
-        if (observed) {
-          if (!opts.quiet) {
-            console.log(
-              `${ws.name}/${agent.label}: ${observed.status} (${observed.confidence}, rule ${observed.rulePriority})`,
-            );
-          }
-        } else if (!opts.quiet) {
-          console.log(`${ws.name}/${agent.label}: no manifest match`);
-        }
-        return;
-      }
-
-      if (!opts.quiet) console.error(`No agent found for pane ${paneId}`);
-      process.exit(1);
-    });
+        if (!opts.quiet) console.error(`No agent found for pane ${paneId}`);
+        process.exit(1);
+      },
+    );
 
   registerAgentRelaunch(agent);
   registerAgentHookCommand(agent);

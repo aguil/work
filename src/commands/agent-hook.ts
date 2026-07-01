@@ -1,9 +1,9 @@
-import type { Command } from "commander";
 import { readFileSync } from "node:fs";
+import type { Command } from "commander";
 import { applyHookEvent } from "../adapters/apply-hook-event.js";
 import {
-  parseHookInput,
   type CursorHookInput,
+  parseHookInput,
 } from "../adapters/hook-events.js";
 import type { AgentStatus } from "../workspace/state.js";
 

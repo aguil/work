@@ -1,7 +1,12 @@
-import { createServer, type Server, type Socket } from "node:net";
 import { unlinkSync } from "node:fs";
+import { createServer, type Server, type Socket } from "node:net";
 import { paths } from "../config/paths.js";
-import { encode, decode, type DaemonMessage, type StateSnapshot } from "./protocol.js";
+import {
+  type DaemonMessage,
+  decode,
+  encode,
+  type StateSnapshot,
+} from "./protocol.js";
 import { aggregateState } from "./state-aggregator.js";
 
 type ConnectedClient = {
@@ -68,11 +73,12 @@ export class DaemonServer {
 
     socket.on("data", (data) => {
       client.buffer += data.toString();
-      let newlineIdx: number;
-      while ((newlineIdx = client.buffer.indexOf("\n")) !== -1) {
+      let newlineIdx = client.buffer.indexOf("\n");
+      while (newlineIdx !== -1) {
         const line = client.buffer.slice(0, newlineIdx);
         client.buffer = client.buffer.slice(newlineIdx + 1);
         this.handleMessage(client, line);
+        newlineIdx = client.buffer.indexOf("\n");
       }
     });
 
@@ -110,7 +116,12 @@ export class DaemonServer {
 
   private handleCommand(
     client: ConnectedClient,
-    msg: { type: "command"; id: string; name: string; args: Record<string, unknown> },
+    msg: {
+      type: "command";
+      id: string;
+      name: string;
+      args: Record<string, unknown>;
+    },
   ): void {
     try {
       switch (msg.name) {

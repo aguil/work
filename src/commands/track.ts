@@ -1,17 +1,17 @@
 import type { Command } from "commander";
 import * as tmux from "../tmux/client.js";
 import { enrichTree } from "../vcs/detect.js";
+import { discoverSessionTreePaths } from "../workspace/discover-trees.js";
 import {
   createWorkspace,
-  findWorkspaceBySession,
-  findArchivedWorkspaceBySession,
-  unarchiveWorkspace,
-  saveWorkspace,
-  listWorkspaces,
   deleteWorkspace,
+  findArchivedWorkspaceBySession,
+  findWorkspaceBySession,
+  listWorkspaces,
+  saveWorkspace,
+  unarchiveWorkspace,
   type WorkspaceState,
 } from "../workspace/state.js";
-import { discoverSessionTreePaths } from "../workspace/discover-trees.js";
 import { ensureTreeInWorkspace, findTreeIndex } from "../workspace/trees.js";
 
 function syncDiscoveredTrees(
@@ -52,43 +52,47 @@ export function registerTrackCommands(program: Command): void {
           quiet?: boolean;
         },
       ) => {
-      if (!tmux.hasSession(session)) {
-        if (!opts.quiet) console.error(`Session "${session}" not found`);
-        process.exit(1);
-      }
-
-      const existing = findWorkspaceBySession(session);
-      if (existing) {
-        syncDiscoveredTrees(existing, session, opts);
-        if (!opts.quiet)
-          console.log(`Session "${session}" already tracked as workspace "${existing.name}"`);
-        return;
-      }
-
-      const archived = findArchivedWorkspaceBySession(session);
-      const ws = archived
-        ? unarchiveWorkspace(archived)
-        : createWorkspace(session, session, false);
-      tmux.setOption("session", "@work-workspace", ws.name, session);
-      tmux.setOption("session", "@work-sidebar-visible", "1", session);
-
-      const added = syncDiscoveredTrees(ws, session, opts);
-
-      if (!opts.quiet) {
-        if (archived) {
-          console.log(
-            `Restored workspace "${ws.name}" (${ws.trees.length} trees, ${Object.keys(ws.agents).length} agents)`,
-          );
-        } else {
-          console.log(`Tracking session "${session}" as workspace "${ws.name}"`);
+        if (!tmux.hasSession(session)) {
+          if (!opts.quiet) console.error(`Session "${session}" not found`);
+          process.exit(1);
         }
-        if (added.length === 0 && ws.trees.length === 0) {
-          console.log(
-            "  no git/jj checkouts found in pane paths or checkout-base",
-          );
+
+        const existing = findWorkspaceBySession(session);
+        if (existing) {
+          syncDiscoveredTrees(existing, session, opts);
+          if (!opts.quiet)
+            console.log(
+              `Session "${session}" already tracked as workspace "${existing.name}"`,
+            );
+          return;
         }
-      }
-    },
+
+        const archived = findArchivedWorkspaceBySession(session);
+        const ws = archived
+          ? unarchiveWorkspace(archived)
+          : createWorkspace(session, session, false);
+        tmux.setOption("session", "@work-workspace", ws.name, session);
+        tmux.setOption("session", "@work-sidebar-visible", "1", session);
+
+        const added = syncDiscoveredTrees(ws, session, opts);
+
+        if (!opts.quiet) {
+          if (archived) {
+            console.log(
+              `Restored workspace "${ws.name}" (${ws.trees.length} trees, ${Object.keys(ws.agents).length} agents)`,
+            );
+          } else {
+            console.log(
+              `Tracking session "${session}" as workspace "${ws.name}"`,
+            );
+          }
+          if (added.length === 0 && ws.trees.length === 0) {
+            console.log(
+              "  no git/jj checkouts found in pane paths or checkout-base",
+            );
+          }
+        }
+      },
     );
 
   program
@@ -97,24 +101,22 @@ export function registerTrackCommands(program: Command): void {
     .argument("<session>", "tmux session name")
     .option("--auto", "Hook-triggered: archive silently instead of deleting")
     .option("-q, --quiet", "Suppress output")
-    .action(
-      (session: string, opts: { auto?: boolean; quiet?: boolean }) => {
-        const ws = findWorkspaceBySession(session);
-        if (!ws) {
-          if (!opts.quiet) console.error(`Session "${session}" is not tracked`);
-          return;
-        }
+    .action((session: string, opts: { auto?: boolean; quiet?: boolean }) => {
+      const ws = findWorkspaceBySession(session);
+      if (!ws) {
+        if (!opts.quiet) console.error(`Session "${session}" is not tracked`);
+        return;
+      }
 
-        if (opts.auto) {
-          ws.archived = true;
-          saveWorkspace(ws);
-          if (!opts.quiet) console.log(`Archived workspace "${ws.name}"`);
-        } else {
-          deleteWorkspace(ws.name);
-          if (!opts.quiet) console.log(`Untracked workspace "${ws.name}"`);
-        }
-      },
-    );
+      if (opts.auto) {
+        ws.archived = true;
+        saveWorkspace(ws);
+        if (!opts.quiet) console.log(`Archived workspace "${ws.name}"`);
+      } else {
+        deleteWorkspace(ws.name);
+        if (!opts.quiet) console.log(`Untracked workspace "${ws.name}"`);
+      }
+    });
 
   program
     .command("list")

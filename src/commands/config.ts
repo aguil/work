@@ -1,8 +1,8 @@
 import type { Command } from "commander";
 import {
   getConfig,
-  setConfigValue,
   parseConfigValue,
+  setConfigValue,
 } from "../config/store.js";
 
 export function registerConfigCommands(program: Command): void {
@@ -39,7 +39,10 @@ export function registerConfigCommands(program: Command): void {
         console.error(`Unknown config key: ${key}`);
         process.exit(1);
       }
-      setConfigValue(key as Parameters<typeof setConfigValue>[0], parsed as never);
+      setConfigValue(
+        key as Parameters<typeof setConfigValue>[0],
+        parsed as never,
+      );
       console.log(`${key} = ${raw}`);
       if (key === "auto-track") {
         if (parsed === true) {
@@ -57,7 +60,9 @@ export function registerConfigCommands(program: Command): void {
         if (dirs.length === 0) {
           console.log("Repo scan disabled.");
         } else {
-          console.log(`Scanning ${dirs.length} director${dirs.length === 1 ? "y" : "ies"} for repos.`);
+          console.log(
+            `Scanning ${dirs.length} director${dirs.length === 1 ? "y" : "ies"} for repos.`,
+          );
         }
       }
       if (key === "prompt-repos-on-new-window") {

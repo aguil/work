@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { commandExists, tryCommand, runCommand } from "./exec.js";
+import { commandExists, runCommand, tryCommand } from "./exec.js";
 
 export function gitRoot(cwd: string): string | null {
   if (!commandExists("git")) return null;
@@ -23,9 +23,13 @@ export function gitDirty(cwd: string): boolean {
 export function gitAheadBehind(
   cwd: string,
 ): { ahead: number; behind: number } | null {
-  const upstream = tryCommand("git", ["rev-parse", "--abbrev-ref", "@{upstream}"], {
-    cwd,
-  });
+  const upstream = tryCommand(
+    "git",
+    ["rev-parse", "--abbrev-ref", "@{upstream}"],
+    {
+      cwd,
+    },
+  );
   if (!upstream) return null;
 
   const counts = tryCommand(
@@ -77,11 +81,9 @@ export function createGitWorktree(
 }
 
 export function gitCommitsAheadOf(cwd: string, base: string): number {
-  const count = tryCommand(
-    "git",
-    ["rev-list", "--count", `${base}..HEAD`],
-    { cwd },
-  );
+  const count = tryCommand("git", ["rev-list", "--count", `${base}..HEAD`], {
+    cwd,
+  });
   if (!count) return 0;
   const parsed = parseInt(count, 10);
   return Number.isNaN(parsed) ? 0 : parsed;

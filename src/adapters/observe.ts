@@ -1,12 +1,12 @@
+import type { TmuxPane } from "../tmux/client.js";
 import * as tmux from "../tmux/client.js";
 import type { AgentStatus } from "../workspace/state.js";
-import type { TmuxPane } from "../tmux/client.js";
 import { evaluateMatch } from "./evaluate.js";
 import { resolveManifestForCli } from "./loader.js";
 import {
   buildObservationContext,
-  regionText,
   type ObservationContext,
+  regionText,
 } from "./regions.js";
 import type {
   AgentManifest,
@@ -41,10 +41,7 @@ function confidenceForRegion(
   return region === "pane_title" ? "inferred" : "heuristic";
 }
 
-function evaluateRule(
-  ctx: ObservationContext,
-  rule: ManifestRule,
-): boolean {
+function evaluateRule(ctx: ObservationContext, rule: ManifestRule): boolean {
   const region = rule.match.region ?? "bottom_lines";
   const lines = rule.match.lines ?? 5;
   const text = regionText(ctx, region, lines);

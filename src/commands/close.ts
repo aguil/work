@@ -1,6 +1,6 @@
 import type { Command } from "commander";
-import * as tmux from "../tmux/client.js";
 import { promptConfirm } from "../prompt/readline.js";
+import * as tmux from "../tmux/client.js";
 import { removeCheckout } from "../vcs/detect.js";
 import {
   loadWorkspace,
@@ -18,8 +18,7 @@ async function cleanupTree(
   if (opts.noCleanup) return false;
 
   const shouldRemove =
-    opts.yes ||
-    (await promptConfirm(`Remove checkout ${tree.path}?`, false));
+    opts.yes || (await promptConfirm(`Remove checkout ${tree.path}?`, false));
 
   if (!shouldRemove) return false;
 

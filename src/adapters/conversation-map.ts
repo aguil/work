@@ -1,12 +1,7 @@
-import {
-  readFileSync,
-  writeFileSync,
-  renameSync,
-  mkdirSync,
-} from "node:fs";
-import { dirname, join } from "node:path";
 import { randomBytes } from "node:crypto";
-import { paths, ensureDirs } from "../config/paths.js";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { ensureDirs, paths } from "../config/paths.js";
 
 export interface ConversationBinding {
   conversationId: string;
@@ -35,8 +30,8 @@ function saveAll(map: Record<string, ConversationBinding>): void {
   ensureDirs();
   const target = mapPath();
   mkdirSync(dirname(target), { recursive: true });
-  const tmp = target + "." + randomBytes(4).toString("hex") + ".tmp";
-  writeFileSync(tmp, JSON.stringify(map, null, 2) + "\n");
+  const tmp = `${target}.${randomBytes(4).toString("hex")}.tmp`;
+  writeFileSync(tmp, `${JSON.stringify(map, null, 2)}\n`);
   renameSync(tmp, target);
 }
 

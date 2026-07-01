@@ -1,18 +1,18 @@
-import * as tmux from "../tmux/client.js";
+import { hasExplicitHookStatus } from "../adapters/debounce.js";
+import { observeAgentsInWorkspace } from "../adapters/update-agent.js";
 import { detectAgents, isSidebarPane } from "../scanner/detect.js";
+import * as tmux from "../tmux/client.js";
+import { enrichTree } from "../vcs/detect.js";
 import {
+  type AgentRecord,
+  autoLabel,
+  findAgentByPane,
   listWorkspaces,
   saveWorkspace,
   upsertAgent,
-  autoLabel,
-  findAgentByPane,
   type WorkspaceState,
-  type AgentRecord,
 } from "../workspace/state.js";
 import type { SessionSnapshot } from "./protocol.js";
-import { enrichTree } from "../vcs/detect.js";
-import { hasExplicitHookStatus } from "../adapters/debounce.js";
-import { observeAgentsInWorkspace } from "../adapters/update-agent.js";
 
 export interface AggregatedState {
   sessions: SessionSnapshot[];
@@ -33,9 +33,7 @@ export function aggregateState(): AggregatedState {
 
   for (const session of tmuxSessions) {
     const ws = wsMap.get(session.name);
-    const sessionPanes = allPanes.filter(
-      (p) => p.sessionName === session.name,
-    );
+    const sessionPanes = allPanes.filter((p) => p.sessionName === session.name);
     const detected = detectAgents(sessionPanes, sidebarPaneIds);
 
     let agents: AgentRecord[] = [];

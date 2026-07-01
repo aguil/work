@@ -50,14 +50,14 @@ work config set auto-track true
 
 ## Commands (summary)
 
-| Area | Commands |
-| ---- | -------- |
-| Workspace | `track`, `untrack`, `list`, `new`, `close`, `reconcile` |
-| Agents | `scan`, `agents`, `launch`, `agent relaunch`, `agent hook-event`, `status` |
-| Hooks | `hooks install cursor`, `hooks print-env` |
-| Trees | `add-tree`, `remove-tree`, `trees`, `window use-repo` |
-| Actions | `action list`, `action run`, `trust add/remove` |
-| Config | `config get/set/list`, `repos` |
+| Area      | Commands                                                                   |
+| --------- | -------------------------------------------------------------------------- |
+| Workspace | `track`, `untrack`, `list`, `new`, `close`, `reconcile`                    |
+| Agents    | `scan`, `agents`, `launch`, `agent relaunch`, `agent hook-event`, `status` |
+| Hooks     | `hooks install cursor`, `hooks print-env`                                  |
+| Trees     | `add-tree`, `remove-tree`, `trees`, `window use-repo`                      |
+| Actions   | `action list`, `action run`, `trust add/remove`                            |
+| Config    | `config get/set/list`, `repos`                                             |
 
 `add-tree --open` associates a checkout and opens a new tmux window for it.
 `remove-tree` forgets work-created jj/git checkouts with safety prompts.

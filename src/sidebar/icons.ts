@@ -11,13 +11,13 @@ const STATUS_ICONS: Record<AgentStatus, string> = {
 };
 
 const STATUS_COLORS: Record<AgentStatus, string> = {
-  working: "\x1b[33m",   // yellow
-  blocked: "\x1b[31m",   // red
-  idle: "\x1b[32m",      // green
-  done: "\x1b[32m",      // green
-  error: "\x1b[31m",     // red
-  detached: "\x1b[90m",  // dim
-  unknown: "\x1b[90m",   // dim
+  working: "\x1b[33m", // yellow
+  blocked: "\x1b[31m", // red
+  idle: "\x1b[32m", // green
+  done: "\x1b[32m", // green
+  error: "\x1b[31m", // red
+  detached: "\x1b[90m", // dim
+  unknown: "\x1b[90m", // dim
 };
 
 const RESET = "\x1b[0m";

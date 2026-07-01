@@ -42,7 +42,9 @@ function assessGitRemovalRisk(path: string): CheckoutRemovalRisk {
       );
     }
   } else if (!dirty) {
-    warnings.push("could not determine default branch; review history manually");
+    warnings.push(
+      "could not determine default branch; review history manually",
+    );
   }
 
   return {
@@ -66,12 +68,12 @@ function assessJjRemovalRisk(path: string): CheckoutRemovalRisk {
   if (defaultRef) {
     if (jj.jjHasCommitsNotIn(path, defaultRef)) {
       unpushedToDefault = true;
-      warnings.push(
-        `workspace has commits not merged into ${defaultRef}`,
-      );
+      warnings.push(`workspace has commits not merged into ${defaultRef}`);
     }
   } else if (!dirty) {
-    warnings.push("could not determine default bookmark; review history manually");
+    warnings.push(
+      "could not determine default bookmark; review history manually",
+    );
   }
 
   return {

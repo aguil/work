@@ -25,9 +25,7 @@ function printActions(
 
   if (format === "tsv") {
     for (const action of actions) {
-      console.log(
-        `${action.id}\t${action.scope}\t${action.description}`,
-      );
+      console.log(`${action.id}\t${action.scope}\t${action.description}`);
     }
     return;
   }
@@ -48,31 +46,19 @@ export function registerActionCommands(program: Command): void {
     .description("List available actions")
     .option("-s, --session <name>", "Tracked tmux session")
     .option("--json", "Output as JSON")
-    .option(
-      "--format <type>",
-      "Output format: text, names, tsv, json",
-      "text",
-    )
-    .action(
-      (
-        opts: {
-          session?: string;
-          json?: boolean;
-          format?: string;
-        },
-      ) => {
-        const format = opts.json ? "json" : (opts.format ?? "text");
+    .option("--format <type>", "Output format: text, names, tsv, json", "text")
+    .action((opts: { session?: string; json?: boolean; format?: string }) => {
+      const format = opts.json ? "json" : (opts.format ?? "text");
 
-        if (!opts.session) {
-          const globalActions = loadGlobalActions();
-          printActions(globalActions, format);
-          return;
-        }
+      if (!opts.session) {
+        const globalActions = loadGlobalActions();
+        printActions(globalActions, format);
+        return;
+      }
 
-        const ws = requireWorkspace(opts.session);
-        printActions(loadWorkspaceActions(ws), format);
-      },
-    );
+      const ws = requireWorkspace(opts.session);
+      printActions(loadWorkspaceActions(ws), format);
+    });
 
   action
     .command("run")
@@ -80,22 +66,17 @@ export function registerActionCommands(program: Command): void {
     .argument("<id>", "Action id (e.g. hello or frontend/test)")
     .option("-s, --session <name>", "Tracked tmux session")
     .option("-q, --quiet", "Suppress output")
-    .action(
-      (
-        id: string,
-        opts: { session?: string; quiet?: boolean },
-      ) => {
-        const ws = requireWorkspace(opts.session);
-        const actions = loadWorkspaceActions(ws);
-        const match = findAction(actions, id);
-        if (!match) {
-          throw new Error(`Action not found: ${id}`);
-        }
+    .action((id: string, opts: { session?: string; quiet?: boolean }) => {
+      const ws = requireWorkspace(opts.session);
+      const actions = loadWorkspaceActions(ws);
+      const match = findAction(actions, id);
+      if (!match) {
+        throw new Error(`Action not found: ${id}`);
+      }
 
-        const paneId = runAction(ws, match, ws.sessionName);
-        if (!opts.quiet) {
-          console.log(`${ws.name}: ran ${match.id} in ${paneId}`);
-        }
-      },
-    );
+      const paneId = runAction(ws, match, ws.sessionName);
+      if (!opts.quiet) {
+        console.log(`${ws.name}: ran ${match.id} in ${paneId}`);
+      }
+    });
 }

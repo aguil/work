@@ -1,15 +1,15 @@
 import type { Command } from "commander";
+import { shellQuote } from "../shell-quote.js";
 import * as tmux from "../tmux/client.js";
+import { requireWorkspace } from "../workspace/helpers.js";
 import {
+  type AgentRecord,
   autoLabel,
   findAgentByPane,
   loadWorkspace,
   saveWorkspace,
   upsertAgent,
-  type AgentRecord,
 } from "../workspace/state.js";
-import { requireWorkspace } from "../workspace/helpers.js";
-import { shellQuote } from "../shell-quote.js";
 
 function registerAgent(
   wsName: string,
@@ -43,11 +43,7 @@ function registerAgent(
   return record;
 }
 
-function launchInPane(
-  paneId: string,
-  cli: string,
-  cwd?: string,
-): void {
+function launchInPane(paneId: string, cli: string, cwd?: string): void {
   if (cwd) {
     tmux.sendKeys(paneId, `cd ${shellQuote(cwd)}`, true);
   }
@@ -90,7 +86,9 @@ export function registerLaunchCommand(program: Command): void {
 
         const record = registerAgent(ws.name, paneId, cli, opts.label);
         if (!opts.quiet) {
-          console.log(`${ws.name}: launched ${cli} → ${record.label} (${paneId})`);
+          console.log(
+            `${ws.name}: launched ${cli} → ${record.label} (${paneId})`,
+          );
         }
       },
     );

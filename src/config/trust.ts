@@ -1,12 +1,12 @@
 import {
-  readFileSync,
-  writeFileSync,
-  mkdirSync,
-  realpathSync,
   existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync,
 } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { paths, ensureDirs } from "./paths.js";
+import { ensureDirs, paths } from "./paths.js";
 
 interface TrustStore {
   repos: string[];
@@ -30,7 +30,7 @@ function loadStore(): TrustStore {
 function saveStore(store: TrustStore): void {
   ensureDirs();
   mkdirSync(dirname(trustPath()), { recursive: true });
-  writeFileSync(trustPath(), JSON.stringify(store, null, 2) + "\n");
+  writeFileSync(trustPath(), `${JSON.stringify(store, null, 2)}\n`);
 }
 
 export function normalizeTrustPath(input: string): string {

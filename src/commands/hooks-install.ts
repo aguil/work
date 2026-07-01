@@ -1,4 +1,3 @@
-import type { Command } from "commander";
 import {
   chmodSync,
   existsSync,
@@ -9,6 +8,7 @@ import {
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { Command } from "commander";
 
 const CURSOR_HOOK_EVENTS = [
   "sessionStart",
@@ -39,10 +39,7 @@ function resolveWorkBin(): string {
   return process.argv[1] ?? "work";
 }
 
-function mergeHooksJson(
-  existing: HooksJson,
-  command: string,
-): HooksJson {
+function mergeHooksJson(existing: HooksJson, command: string): HooksJson {
   const hooks = { ...existing.hooks };
   const entry = { command };
 
@@ -96,25 +93,26 @@ export function registerHooksCommands(program: Command): void {
       mkdirSync(hooksDir, { recursive: true });
 
       let script = readFileSync(srcScript, "utf-8");
-      script = script.replace(
-        "__WORK_BIN__",
-        workBin.replace(/'/g, "'\\''"),
-      );
+      script = script.replace("__WORK_BIN__", workBin.replace(/'/g, "'\\''"));
       writeFileSync(destScript, script, { mode: 0o755 });
       chmodSync(destScript, 0o755);
 
       let existing: HooksJson = { version: 1, hooks: {} };
       if (existsSync(hooksJsonPath)) {
         try {
-          existing = JSON.parse(readFileSync(hooksJsonPath, "utf-8")) as HooksJson;
+          existing = JSON.parse(
+            readFileSync(hooksJsonPath, "utf-8"),
+          ) as HooksJson;
         } catch {
-          console.error(`Could not parse ${hooksJsonPath}; refusing to overwrite.`);
+          console.error(
+            `Could not parse ${hooksJsonPath}; refusing to overwrite.`,
+          );
           process.exit(1);
         }
       }
 
       const merged = mergeHooksJson(existing, command);
-      writeFileSync(hooksJsonPath, JSON.stringify(merged, null, 2) + "\n");
+      writeFileSync(hooksJsonPath, `${JSON.stringify(merged, null, 2)}\n`);
 
       console.log(`Installed ${destScript}`);
       console.log(`Updated ${hooksJsonPath}`);

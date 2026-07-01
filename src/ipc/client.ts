@@ -1,12 +1,12 @@
-import { connect, type Socket } from "node:net";
 import { randomBytes } from "node:crypto";
+import { connect, type Socket } from "node:net";
 import { paths } from "../config/paths.js";
 import {
-  encode,
-  decode,
-  type DaemonMessage,
   type ClientMessage,
   type CommandResponse,
+  type DaemonMessage,
+  decode,
+  encode,
   type StateSnapshot,
   type StateUpdate,
 } from "../daemon/protocol.js";
@@ -89,11 +89,12 @@ export class IpcClient {
 
   private handleData(data: Buffer): void {
     this.buffer += data.toString();
-    let newlineIdx: number;
-    while ((newlineIdx = this.buffer.indexOf("\n")) !== -1) {
+    let newlineIdx = this.buffer.indexOf("\n");
+    while (newlineIdx !== -1) {
       const line = this.buffer.slice(0, newlineIdx);
       this.buffer = this.buffer.slice(newlineIdx + 1);
       this.handleLine(line);
+      newlineIdx = this.buffer.indexOf("\n");
     }
   }
 

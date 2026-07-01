@@ -1,5 +1,5 @@
-import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import { createInterface } from "node:readline/promises";
 
 export async function promptLine(
   question: string,
@@ -34,9 +34,9 @@ export async function promptConfirm(
   return answer === "y" || answer === "yes";
 }
 
-export async function promptRepoSelection<T extends { name: string; vcsType: string; path: string }>(
-  repos: T[],
-): Promise<T[]> {
+export async function promptRepoSelection<
+  T extends { name: string; vcsType: string; path: string },
+>(repos: T[]): Promise<T[]> {
   if (repos.length === 0) {
     throw new Error("No repositories found to select");
   }
@@ -47,15 +47,10 @@ export async function promptRepoSelection<T extends { name: string; vcsType: str
 
   console.log("\nSelect repos to include:");
   repos.forEach((repo, index) => {
-    console.log(
-      `  ${index + 1}. ${repo.name} (${repo.vcsType}, ${repo.path})`,
-    );
+    console.log(`  ${index + 1}. ${repo.name} (${repo.vcsType}, ${repo.path})`);
   });
 
-  const answer = await promptLine(
-    "Enter numbers (e.g. 1,2) or 'all'",
-    "all",
-  );
+  const answer = await promptLine("Enter numbers (e.g. 1,2) or 'all'", "all");
 
   if (!answer || answer.toLowerCase() === "all") {
     return repos;

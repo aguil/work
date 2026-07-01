@@ -1,12 +1,12 @@
 import type { Command } from "commander";
-import * as tmux from "../tmux/client.js";
 import { detectAgents } from "../scanner/detect.js";
+import * as tmux from "../tmux/client.js";
 import {
+  autoLabel,
+  findAgentByPane,
   listWorkspaces,
   saveWorkspace,
-  findAgentByPane,
   upsertAgent,
-  autoLabel,
 } from "../workspace/state.js";
 
 export function registerReconcileCommand(program: Command): void {
@@ -88,8 +88,7 @@ export function registerReconcileCommand(program: Command): void {
 
           // Check if any detached agent matches this CLI
           const detachedMatch = Object.values(ws.agents).find(
-            (a) =>
-              a.status === "detached" && a.cli === d.cli && !a.paneId,
+            (a) => a.status === "detached" && a.cli === d.cli && !a.paneId,
           );
 
           if (detachedMatch) {

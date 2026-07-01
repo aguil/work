@@ -1,10 +1,10 @@
-import { writeFileSync, readFileSync, unlinkSync, existsSync } from "node:fs";
-import { paths, ensureDirs } from "../config/paths.js";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { ensureDirs, paths } from "../config/paths.js";
 import { DaemonServer } from "./server.js";
 
 function writePidFile(): void {
   ensureDirs();
-  writeFileSync(paths.pidFile, String(process.pid) + "\n");
+  writeFileSync(paths.pidFile, `${String(process.pid)}\n`);
 }
 
 function removePidFile(): void {
@@ -28,7 +28,7 @@ export function readPidFile(): number | null {
   try {
     const raw = readFileSync(paths.pidFile, "utf-8").trim();
     const pid = parseInt(raw, 10);
-    return isNaN(pid) ? null : pid;
+    return Number.isNaN(pid) ? null : pid;
   } catch {
     return null;
   }

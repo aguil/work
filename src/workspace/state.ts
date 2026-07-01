@@ -1,7 +1,13 @@
-import { readFileSync, writeFileSync, readdirSync, renameSync, unlinkSync } from "node:fs";
-import { join, basename } from "node:path";
 import { randomBytes } from "node:crypto";
-import { paths, ensureDirs } from "../config/paths.js";
+import {
+  readdirSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { basename, join } from "node:path";
+import { ensureDirs, paths } from "../config/paths.js";
 
 export type AgentStatus =
   | "idle"
@@ -59,9 +65,9 @@ export function loadWorkspace(name: string): WorkspaceState | null {
 export function saveWorkspace(state: WorkspaceState): void {
   ensureDirs();
   const target = workspacePath(state.name);
-  const tmp = target + "." + randomBytes(4).toString("hex") + ".tmp";
+  const tmp = `${target}.${randomBytes(4).toString("hex")}.tmp`;
   state.updatedAt = new Date().toISOString();
-  writeFileSync(tmp, JSON.stringify(state, null, 2) + "\n");
+  writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`);
   renameSync(tmp, target);
 }
 
@@ -113,18 +119,14 @@ export function findWorkspaceBySession(
   sessionName: string,
 ): WorkspaceState | null {
   const all = listWorkspaces();
-  return (
-    all.find((w) => !w.archived && w.sessionName === sessionName) ?? null
-  );
+  return all.find((w) => !w.archived && w.sessionName === sessionName) ?? null;
 }
 
 export function findArchivedWorkspaceBySession(
   sessionName: string,
 ): WorkspaceState | null {
   const all = listWorkspaces();
-  return (
-    all.find((w) => w.archived && w.sessionName === sessionName) ?? null
-  );
+  return all.find((w) => w.archived && w.sessionName === sessionName) ?? null;
 }
 
 export function unarchiveWorkspace(ws: WorkspaceState): WorkspaceState {
@@ -169,10 +171,7 @@ function generateLabel(cli: string, existing: string[]): string {
   }
 }
 
-export function autoLabel(
-  cli: string,
-  workspace: WorkspaceState,
-): string {
+export function autoLabel(cli: string, workspace: WorkspaceState): string {
   const existingLabels = Object.keys(workspace.agents);
   return generateLabel(cli, existingLabels);
 }

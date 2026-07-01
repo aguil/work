@@ -6,11 +6,13 @@ const { dim, bold, reset, cyan, green } = colors;
 
 function truncate(s: string, max: number): string {
   if (s.length <= max) return s;
-  return s.slice(0, max - 1) + "…";
+  return `${s.slice(0, max - 1)}…`;
 }
 
+const ANSI_ESCAPE = String.fromCharCode(0x1b);
+
 function pad(s: string, width: number): string {
-  const visible = s.replace(/\x1b\[[0-9;]*m/g, "");
+  const visible = s.replace(new RegExp(`${ANSI_ESCAPE}\\[[0-9;]*m`, "g"), "");
   if (visible.length >= width) return s;
   return s + " ".repeat(width - visible.length);
 }
@@ -56,9 +58,7 @@ export function render(
       countParts.push(`${treeCount}t`);
     }
     const countSuffix =
-      countParts.length > 0
-        ? ` ${dim}(${countParts.join(" · ")})${reset}`
-        : "";
+      countParts.length > 0 ? ` ${dim}(${countParts.join(" · ")})${reset}` : "";
     const attachedMark = session.attached ? `${green}*${reset}` : "";
 
     lines.push(
@@ -80,7 +80,8 @@ export function render(
           tree.ahead != null && tree.behind != null
             ? ` ${dim}↑${tree.ahead}↓${tree.behind}${reset}`
             : "";
-        const vcsTag = tree.vcsType !== "plain" ? `${dim}[${tree.vcsType}]${reset} ` : "";
+        const vcsTag =
+          tree.vcsType !== "plain" ? `${dim}[${tree.vcsType}]${reset} ` : "";
         const name = tree.path.split("/").pop() ?? tree.path;
         lines.push(
           `    ${vcsTag}${truncate(name, w - 16)}${branchInfo}${dirtyMark}${syncInfo}`,
@@ -96,9 +97,7 @@ export function render(
   lines.push(hr(w));
   lines.push(`${dim}^W toggle  ^S track${reset}`);
 
-  return (
-    "\x1b[H\x1b[2J" + lines.map((l) => pad(l, w)).join("\n")
-  );
+  return `\x1b[H\x1b[2J${lines.map((l) => pad(l, w)).join("\n")}`;
 }
 
 function renderAgent(agent: AgentRecord, width: number): string {

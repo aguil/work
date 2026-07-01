@@ -1,5 +1,5 @@
-import { build, context } from "esbuild";
 import { cpSync, mkdirSync } from "node:fs";
+import { build, context } from "esbuild";
 
 const shared = {
   bundle: true,

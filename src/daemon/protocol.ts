@@ -1,5 +1,5 @@
-import type { AgentRecord } from "../workspace/state.js";
 import type { TreeView } from "../vcs/detect.js";
+import type { AgentRecord } from "../workspace/state.js";
 
 export interface SessionSnapshot {
   id: string;
@@ -43,7 +43,7 @@ export type DaemonMessage = StateSnapshot | StateUpdate | CommandResponse;
 export type ClientMessage = CommandRequest | { type: "subscribe" };
 
 export function encode(msg: DaemonMessage | ClientMessage): string {
-  return JSON.stringify(msg) + "\n";
+  return `${JSON.stringify(msg)}\n`;
 }
 
 export function decode(line: string): DaemonMessage | ClientMessage | null {

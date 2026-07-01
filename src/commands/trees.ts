@@ -1,35 +1,26 @@
 import { basename, join } from "node:path";
 import type { Command } from "commander";
+import { promptConfirm } from "../prompt/readline.js";
 import * as tmux from "../tmux/client.js";
 import {
-  listWorkspaces,
-  saveWorkspace,
-} from "../workspace/state.js";
-import {
-  createCheckout,
   canRemoveCheckout,
+  createCheckout,
   detectRepoBackend,
   enrichTree,
   removeCheckout,
   resolveDestPath,
   resolveTreePath,
 } from "../vcs/detect.js";
-import { requireWorkspace } from "../workspace/helpers.js";
-import { promptConfirm } from "../prompt/readline.js";
-import {
-  addTreeToWorkspace,
-  findTreeIndex,
-} from "../workspace/trees.js";
 import { assessCheckoutRemovalRisk } from "../vcs/removal-risk.js";
+import { requireWorkspace } from "../workspace/helpers.js";
+import { listWorkspaces, saveWorkspace } from "../workspace/state.js";
+import { addTreeToWorkspace, findTreeIndex } from "../workspace/trees.js";
 
 export function registerTreeCommands(program: Command): void {
   program
     .command("add-tree")
     .description("Associate a checkout or directory with a tracked workspace")
-    .argument(
-      "[path]",
-      "Existing checkout, or source repo with --new-worktree",
-    )
+    .argument("[path]", "Existing checkout, or source repo with --new-worktree")
     .option("-s, --session <name>", "Tracked tmux session")
     .option(
       "--new-worktree <branch>",
@@ -78,7 +69,7 @@ export function registerTreeCommands(program: Command): void {
           throw new Error("path argument is required");
         }
 
-        const record = addTreeToWorkspace(ws, targetPath!, createdByWork);
+        const record = addTreeToWorkspace(ws, targetPath, createdByWork);
 
         if (opts.open) {
           if (!tmux.hasSession(ws.sessionName)) {
@@ -138,7 +129,11 @@ export function registerTreeCommands(program: Command): void {
         const removed = ws.trees[idx];
         const willCleanup =
           !opts.noCleanup &&
-          canRemoveCheckout(removed.path, removed.vcsType, removed.createdByWork);
+          canRemoveCheckout(
+            removed.path,
+            removed.vcsType,
+            removed.createdByWork,
+          );
 
         if (willCleanup && !opts.force) {
           const risk = assessCheckoutRemovalRisk(removed.path, removed.vcsType);

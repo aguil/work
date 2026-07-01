@@ -1,14 +1,14 @@
 import * as tmux from "../tmux/client.js";
 import {
+  type AgentRecord,
+  type AgentStatus,
+  autoLabel,
+  findAgentByConversation,
+  findAgentByPane,
   findWorkspaceBySession,
   listWorkspaces,
   saveWorkspace,
   upsertAgent,
-  findAgentByPane,
-  findAgentByConversation,
-  autoLabel,
-  type AgentRecord,
-  type AgentStatus,
   type WorkspaceState,
 } from "../workspace/state.js";
 import {
@@ -18,10 +18,10 @@ import {
 } from "./conversation-map.js";
 import { applyHookStatus } from "./debounce.js";
 import {
+  type CursorHookInput,
   mapHookEventToStatus,
   resolveConversationId,
   resolveHookEventName,
-  type CursorHookInput,
 } from "./hook-events.js";
 
 export interface HookEventResult {
@@ -62,10 +62,7 @@ function findAgentByConversationInWorkspaces(
   return null;
 }
 
-function ensureAgentForPane(
-  ws: WorkspaceState,
-  paneId: string,
-): AgentRecord {
+function ensureAgentForPane(ws: WorkspaceState, paneId: string): AgentRecord {
   const existing = findAgentByPane(ws, paneId);
   if (existing) return existing;
 
@@ -124,8 +121,7 @@ export function applyHookEvent(
     removeConversationBinding(conversationId);
   }
 
-  const status =
-    opts?.statusOverride ?? mapHookEventToStatus(event, input);
+  const status = opts?.statusOverride ?? mapHookEventToStatus(event, input);
 
   if (status == null) {
     return {

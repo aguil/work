@@ -1,6 +1,6 @@
+import * as tmux from "../tmux/client.js";
 import type { WorkspaceState } from "./state.js";
 import { findWorkspaceBySession } from "./state.js";
-import * as tmux from "../tmux/client.js";
 
 export function currentSession(): string | null {
   if (!process.env.TMUX) return null;

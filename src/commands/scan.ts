@@ -1,9 +1,7 @@
 import type { Command } from "commander";
-import * as tmux from "../tmux/client.js";
 import { scanPane, scanSession } from "../scanner/scan-session.js";
-import {
-  listWorkspaces,
-} from "../workspace/state.js";
+import * as tmux from "../tmux/client.js";
+import { listWorkspaces } from "../workspace/state.js";
 
 export function registerScanCommand(program: Command): void {
   program
@@ -32,9 +30,7 @@ export function registerScanCommand(program: Command): void {
           return;
         }
 
-        const trackedWorkspaces = listWorkspaces().filter(
-          (w) => !w.archived,
-        );
+        const trackedWorkspaces = listWorkspaces().filter((w) => !w.archived);
         const trackedSessions = new Set(
           trackedWorkspaces.map((w) => w.sessionName),
         );

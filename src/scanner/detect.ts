@@ -1,9 +1,9 @@
-import type { TmuxPane } from "../tmux/client.js";
-import { getConfigValue } from "../config/store.js";
-import * as tmux from "../tmux/client.js";
 import { evaluateMatch } from "../adapters/evaluate.js";
 import { resolveManifestForCli } from "../adapters/loader.js";
 import { buildObservationContext, regionText } from "../adapters/regions.js";
+import { getConfigValue } from "../config/store.js";
+import type { TmuxPane } from "../tmux/client.js";
+import * as tmux from "../tmux/client.js";
 
 export interface DetectedAgent {
   paneId: string;
@@ -44,11 +44,7 @@ function resolveAgentCli(pane: TmuxPane, cliSet: Set<string>): string | null {
 
   const registeredCli =
     tmux.getOption("pane", "@work-agent-cli", pane.id) ?? "agent";
-  const registeredLabel = tmux.getOption(
-    "pane",
-    "@work-agent-label",
-    pane.id,
-  );
+  const registeredLabel = tmux.getOption("pane", "@work-agent-label", pane.id);
 
   if (registeredLabel) {
     if (

@@ -1,5 +1,5 @@
-import type { Command } from "commander";
 import { basename } from "node:path";
+import type { Command } from "commander";
 import * as tmux from "../tmux/client.js";
 import { resolveTreePath } from "../vcs/detect.js";
 import { resolveWindowCheckout } from "../workspace/checkout.js";

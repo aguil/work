@@ -1,13 +1,13 @@
 import { existsSync, mkdirSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
 import { homedir } from "node:os";
+import { basename, dirname, join, resolve } from "node:path";
 import { getConfigValue } from "../config/store.js";
-import type { WorkspaceState } from "./state.js";
 import {
   createCheckout,
   detectRepoBackend,
   resolveTreePath,
 } from "../vcs/detect.js";
+import type { WorkspaceState } from "./state.js";
 import { treePathsEqual } from "./trees.js";
 
 export interface ResolvedCheckout {

@@ -13,8 +13,8 @@ export function applyObservation(
   agent: AgentRecord,
   observed: ObservationResult,
 ): boolean {
-  let nextStatus = observed.status;
-  let nextConfidence = observed.confidence;
+  const nextStatus = observed.status;
+  const nextConfidence = observed.confidence;
 
   if (nextStatus === "idle" && DEBOUNCE_FROM.has(agent.status)) {
     const count = (agent.pendingIdleCount ?? 0) + 1;

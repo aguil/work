@@ -1,7 +1,7 @@
-import * as tmux from "../tmux/client.js";
-import type { WorkspaceState } from "../workspace/state.js";
-import { enrichTree, treeContextVars } from "../vcs/detect.js";
 import { shellQuote } from "../shell-quote.js";
+import * as tmux from "../tmux/client.js";
+import { enrichTree, treeContextVars } from "../vcs/detect.js";
+import type { WorkspaceState } from "../workspace/state.js";
 import type { ActionDefinition } from "./types.js";
 
 export interface ActionContext {
@@ -20,7 +20,8 @@ export function buildActionContext(
   action: ActionDefinition,
   sessionName: string,
 ): ActionContext {
-  const pane = tmux.listPanes(sessionName).find((p) => p.active) ??
+  const pane =
+    tmux.listPanes(sessionName).find((p) => p.active) ??
     tmux.listPanes(sessionName)[0];
 
   let treeRoot = "";

@@ -77,10 +77,7 @@ const PANE_FMT = [
   "#{window_active}#{pane_active}",
 ].join("\t");
 
-function parseLines<T>(
-  output: string,
-  parser: (fields: string[]) => T,
-): T[] {
+function parseLines<T>(output: string, parser: (fields: string[]) => T): T[] {
   if (!output) return [];
   return output.split("\n").map((line) => parser(line.split("\t")));
 }
@@ -198,11 +195,7 @@ export function newWindow(opts: {
   return tmux(...args);
 }
 
-export function sendKeys(
-  target: string,
-  keys: string,
-  enter = false,
-): void {
+export function sendKeys(target: string, keys: string, enter = false): void {
   const args = ["send-keys", "-t", target, keys];
   if (enter) args.push("Enter");
   tmux(...args);
@@ -217,7 +210,13 @@ export function attachSession(name: string): void {
 }
 
 export function activePaneInWindow(windowTarget: string): string {
-  const panes = tmux("list-panes", "-t", windowTarget, "-F", "#{pane_id}\t#{pane_active}");
+  const panes = tmux(
+    "list-panes",
+    "-t",
+    windowTarget,
+    "-F",
+    "#{pane_id}\t#{pane_active}",
+  );
   for (const line of panes.split("\n")) {
     if (!line) continue;
     const [paneId, active] = line.split("\t");
@@ -228,10 +227,7 @@ export function activePaneInWindow(windowTarget: string): string {
   return first;
 }
 
-export function respawnPane(
-  paneId: string,
-  opts?: { cwd?: string },
-): void {
+export function respawnPane(paneId: string, opts?: { cwd?: string }): void {
   const args = ["respawn-pane", "-k", "-t", paneId];
   if (opts?.cwd) args.push("-c", opts.cwd);
   tmux(...args);

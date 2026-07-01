@@ -1,5 +1,5 @@
-import * as tmux from "../tmux/client.js";
 import type { TmuxPane } from "../tmux/client.js";
+import * as tmux from "../tmux/client.js";
 
 export interface ObservationContext {
   paneTitle: string;

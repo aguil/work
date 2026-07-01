@@ -1,7 +1,7 @@
-import { IpcClient } from "../ipc/client.js";
 import { paths } from "../config/paths.js";
-import { render } from "./renderer.js";
 import type { SessionSnapshot } from "../daemon/protocol.js";
+import { IpcClient } from "../ipc/client.js";
+import { render } from "./renderer.js";
 
 let currentSessions: SessionSnapshot[] = [];
 let connected = false;
