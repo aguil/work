@@ -2,12 +2,12 @@ import { readFileSync } from "node:fs";
 import type { Command } from "commander";
 import { applyHookEvent } from "../adapters/apply-hook-event.js";
 import {
-  type CursorHookInput,
+  type AgentHookInput,
   parseHookInput,
 } from "../adapters/hook-events.js";
 import type { AgentStatus } from "../workspace/state.js";
 
-function readHookInput(opts: { file?: string }): CursorHookInput {
+function readHookInput(opts: { file?: string }): AgentHookInput {
   if (opts.file) {
     return parseHookInput(readFileSync(opts.file, "utf-8"));
   }
@@ -19,7 +19,7 @@ export function registerAgentHookCommand(agent: Command): void {
   agent
     .command("hook-event")
     .description(
-      "Apply Tier 1 status from a Cursor hook JSON payload (stdin or --file)",
+      "Apply Tier 1 status from a Cursor or Claude Code hook JSON payload (stdin or --file)",
     )
     .option("-f, --file <path>", "Read hook JSON from a file")
     .option("--pane <id>", "Tmux pane ID (%N) when TMUX is unavailable to hook")
@@ -37,7 +37,7 @@ export function registerAgentHookCommand(agent: Command): void {
         json?: boolean;
         quiet?: boolean;
       }) => {
-        let input: CursorHookInput;
+        let input: AgentHookInput;
         try {
           input = readHookInput(opts);
         } catch (err) {
