@@ -25,8 +25,8 @@ npm run typecheck
 npm test    # requires tmux; uses isolated XDG dirs
 ```
 
-Before committing: `npm run typecheck` and `npm run pre-commit` (works in jj
-workspaces and git clones).
+Before committing: `npm run typecheck`, `npm run lint`, and `npm run pre-commit`
+(works in jj workspaces and git clones).
 
 ## Version control
 
