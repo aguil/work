@@ -1,2 +1,5 @@
+# Repo toolchain for CI. Refresh lockfile after version bumps: mise lock
+# Lock enforcement: CI uses mise.lock via mise-action (see mise-security skill).
 [tools]
-node = "24"
+node = "24.17.0"
+"aqua:tmux/tmux-builds" = "3.6b"
