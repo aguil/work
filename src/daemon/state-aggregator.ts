@@ -2,14 +2,13 @@ import { hasExplicitHookStatus } from "../adapters/debounce.js";
 import { observeAgentsInWorkspace } from "../adapters/update-agent.js";
 import { detectAgents, isSidebarPane } from "../scanner/detect.js";
 import * as tmux from "../tmux/client.js";
-import { enrichTree } from "../vcs/detect.js";
+import type { TreeView } from "../vcs/detect.js";
 import {
   type AgentRecord,
   autoLabel,
   findAgentByPane,
   listWorkspaces,
   saveWorkspace,
-  type TreeRecord,
   upsertAgent,
   type WorkspaceState,
 } from "../workspace/state.js";
@@ -25,7 +24,6 @@ export function aggregateState(): AggregatedState {
   const allPanes = tmux.listPanes();
   const workspaces = listWorkspaces().filter((w) => !w.archived);
   const wsMap = new Map(workspaces.map((w) => [w.sessionName, w]));
-  const treeCache = new Map<string, ReturnType<typeof enrichTree>>();
 
   const sidebarPaneIds = new Set(
     allPanes.filter(isSidebarPane).map((p) => p.id),
@@ -66,7 +64,13 @@ export function aggregateState(): AggregatedState {
       tracked: ws != null,
       workspaceName: ws?.name ?? null,
       agents,
-      trees: (ws?.trees ?? []).map((tree) => enrichTreeCached(tree, treeCache)),
+      trees: (ws?.trees ?? []).map((tree): TreeView => ({
+        ...tree,
+        dirty: false,
+        ahead: null,
+        behind: null,
+        repoRoot: null,
+      })),
     });
   }
 
@@ -74,19 +78,6 @@ export function aggregateState(): AggregatedState {
     sessions,
     timestamp: new Date().toISOString(),
   };
-}
-
-function enrichTreeCached(
-  tree: TreeRecord,
-  cache: Map<string, ReturnType<typeof enrichTree>>,
-): ReturnType<typeof enrichTree> {
-  const key = `${tree.path}\0${tree.vcsType}\0${tree.branch ?? ""}`;
-  const cached = cache.get(key);
-  if (cached) return cached;
-
-  const enriched = enrichTree(tree);
-  cache.set(key, enriched);
-  return enriched;
 }
 
 function syncAgentsToWorkspace(
