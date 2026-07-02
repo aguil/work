@@ -136,8 +136,13 @@ function syncAgentsToWorkspace(
       agent.status !== "detached" &&
       !detectedPaneIds.has(agent.paneId)
     ) {
-      const paneGone = tmux.getPane(agent.paneId) == null;
-      if (paneGone || !hasExplicitHookStatus(agent)) {
+      const pane = tmux.getPane(agent.paneId);
+      const explicitPaneMatch =
+        pane != null &&
+        hasExplicitHookStatus(agent) &&
+        pane.workAgentLabel === agent.label &&
+        (pane.workAgentCli == null || pane.workAgentCli === agent.cli);
+      if (!explicitPaneMatch) {
         agent.status = "detached";
         agent.detachedAt = new Date().toISOString();
         agent.paneId = null;

@@ -50,6 +50,8 @@ export function registerReconcileCommand(program: Command): void {
           (p) => p.sessionName === ws.sessionName,
         );
         const livePaneIds = new Set(sessionPanes.map((p) => p.id));
+        const detected = detectAgents(sessionPanes);
+        const detectedPaneIds = new Set(detected.map((p) => p.paneId));
 
         // Re-map agents whose pane IDs are stale
         for (const agent of Object.values(ws.agents)) {
@@ -63,11 +65,31 @@ export function registerReconcileCommand(program: Command): void {
             continue;
           }
 
+          if (
+            agent.paneId &&
+            livePaneIds.has(agent.paneId) &&
+            agent.status !== "detached" &&
+            !detectedPaneIds.has(agent.paneId)
+          ) {
+            const pane = sessionPanes.find((p) => p.id === agent.paneId);
+            if (
+              pane?.workAgentLabel !== agent.label ||
+              (pane.workAgentCli != null && pane.workAgentCli !== agent.cli)
+            ) {
+              agent.status = "detached";
+              agent.detachedAt = new Date().toISOString();
+              agent.paneId = null;
+              agent.confidence = "none";
+              totalDetached++;
+              if (!opts.quiet)
+                console.log(`${ws.name}: detached ${agent.label}`);
+            }
+          }
+
           if (agent.paneId && !livePaneIds.has(agent.paneId)) {
             // Try to find by tmux user option
             const match = sessionPanes.find((p) => {
-              const label = tmux.getOption("pane", "@work-agent-label", p.id);
-              return label === agent.label;
+              return p.workAgentLabel === agent.label;
             });
 
             if (match) {
@@ -94,8 +116,7 @@ export function registerReconcileCommand(program: Command): void {
           if (agent.status !== "detached" || agent.paneId) continue;
 
           const match = sessionPanes.find((p) => {
-            const label = tmux.getOption("pane", "@work-agent-label", p.id);
-            return label === agent.label;
+            return p.workAgentLabel === agent.label;
           });
 
           if (match) {
@@ -112,7 +133,6 @@ export function registerReconcileCommand(program: Command): void {
         }
 
         // Discover new agents
-        const detected = detectAgents(sessionPanes);
         for (const d of detected) {
           const existing = findAgentByPane(ws, d.paneId);
           if (existing) continue;
