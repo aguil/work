@@ -11,6 +11,12 @@ export interface ScannedRepo {
 }
 
 function isRepoDir(path: string): "git" | "jj" | null {
+  if (existsSync(`${path}/.jj`) && commandExists("jj")) return "jj";
+  if (existsSync(`${path}/.git`)) return "git";
+  return null;
+}
+
+function detectRepoPath(path: string): "git" | "jj" | null {
   if (jj.repoHasJj(path) && commandExists("jj")) return "jj";
   if (git.repoHasGit(path)) return "git";
   return null;
@@ -53,7 +59,6 @@ export function scanRepoDirectory(dir: string, maxDepth = 4): ScannedRepo[] {
     const vcsType = isRepoDir(current);
     if (vcsType) {
       addRepo(current, vcsType);
-      return;
     }
 
     let entries: Dirent[];
@@ -109,7 +114,7 @@ export function resolveRepoPaths(
       throw new Error(`Repository path not found: ${input}`);
     }
 
-    const vcsType = isRepoDir(abs);
+    const vcsType = detectRepoPath(abs);
     if (!vcsType) {
       throw new Error(`No git or jj repository at ${input}`);
     }
