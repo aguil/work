@@ -118,6 +118,18 @@ else
   fail "stale agent title without UI is not registered (output: $OUT)"
 fi
 
+section "6b. Stale labeled shell with agent scrollback is not an agent"
+STALE_LABELED_PANE=$(tmux split-window -t "$SESSION" -h -P -F '#{pane_id}' \
+  'bash -c "printf \"Add a follow-up\\nComposer 2.5\\n\"; sleep 300"')
+sleep 0.2
+tmux set-option -p -t "$STALE_LABELED_PANE" @work-agent-label stale-labeled
+OUT=$($WORK scan --pane "$STALE_LABELED_PANE" 2>&1)
+if [[ "$OUT" != *"found"* ]]; then
+  pass "stale labeled shell without agent process is not registered"
+else
+  fail "stale labeled shell without agent process is not registered (output: $OUT)"
+fi
+
 section "7. status summary counts"
 OUT=$($WORK status 2>&1)
 assert_contains "status reports working agents" "working" "$OUT"

@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { evaluateMatch } from "../adapters/evaluate.js";
 import { resolveManifestForCli } from "../adapters/loader.js";
 import { buildObservationContext, regionText } from "../adapters/regions.js";
@@ -22,6 +23,61 @@ function isActiveAgentTitle(title: string): boolean {
 }
 
 /** True when pane scrollback shows Cursor agent UI, not a stale restored title. */
+/** True when an agent CLI process is running under the pane shell. */
+function hasAgentChildProcess(pane: TmuxPane, cli: string): boolean {
+  const manifest = resolveManifestForCli(cli);
+  if (!manifest || pane.pid <= 0) return false;
+
+  const queue = [pane.pid];
+  const seen = new Set<number>();
+  let depth = 0;
+
+  while (queue.length > 0 && depth < 4) {
+    const levelSize = queue.length;
+    depth++;
+    for (let i = 0; i < levelSize; i++) {
+      const parentPid = queue.shift();
+      if (parentPid == null || seen.has(parentPid)) continue;
+      seen.add(parentPid);
+
+      let childPids: string[];
+      try {
+        childPids = execFileSync("pgrep", ["-P", String(parentPid)], {
+          encoding: "utf-8",
+          stdio: ["ignore", "pipe", "ignore"],
+        })
+          .trim()
+          .split("\n")
+          .filter(Boolean);
+      } catch {
+        continue;
+      }
+
+      for (const childPid of childPids) {
+        let args = "";
+        try {
+          args = execFileSync("ps", ["-p", childPid, "-o", "args="], {
+            encoding: "utf-8",
+            stdio: ["ignore", "pipe", "ignore"],
+          })
+            .trim()
+            .toLowerCase();
+        } catch {
+          continue;
+        }
+
+        for (const name of manifest.processNames) {
+          if (args.includes(name)) return true;
+        }
+
+        queue.push(parseInt(childPid, 10));
+      }
+    }
+  }
+
+  return false;
+}
+
 function hasAgentScreenEvidence(pane: TmuxPane, cli: string): boolean {
   const manifest = resolveManifestForCli(cli);
   if (!manifest) return false;
@@ -54,6 +110,7 @@ function resolveAgentCli(pane: TmuxPane, cliSet: Set<string>): string | null {
   }
 
   if (registeredLabel) {
+    if (!hasAgentChildProcess(pane, registeredCli)) return null;
     if (
       isActiveAgentTitle(pane.title) ||
       hasAgentScreenEvidence(pane, registeredCli)
@@ -64,6 +121,8 @@ function resolveAgentCli(pane: TmuxPane, cliSet: Set<string>): string | null {
   }
 
   if (!CURSOR_AGENT_TITLE.test(pane.title)) return null;
+
+  if (!hasAgentChildProcess(pane, "agent")) return null;
 
   if (isActiveAgentTitle(pane.title)) return "agent";
   if (hasAgentScreenEvidence(pane, "agent")) return "agent";

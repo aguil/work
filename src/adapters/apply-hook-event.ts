@@ -235,6 +235,10 @@ export function applyHookEvent(
     agent.paneId = null;
     agent.detachedAt = new Date().toISOString();
     agent.lastSeen = new Date().toISOString();
+    if (paneId) {
+      tmux.unsetOption("pane", "@work-agent-label", paneId);
+      tmux.unsetOption("pane", "@work-agent-cli", paneId);
+    }
     saveWorkspace(ws);
     return {
       applied: true,
