@@ -22,9 +22,14 @@ function isActiveAgentTitle(title: string): boolean {
   return ACTIVE_AGENT_TITLE.test(title);
 }
 
-/** True when pane scrollback shows Cursor agent UI, not a stale restored title. */
+const agentProcessCache = new Map<string, boolean>();
+
+function agentProcessCacheKey(pane: TmuxPane, cli: string): string {
+  return `${pane.pid}:${cli}`;
+}
+
 /** True when an agent CLI process is running under the pane shell. */
-function hasAgentChildProcess(pane: TmuxPane, cli: string): boolean {
+function hasAgentChildProcessUncached(pane: TmuxPane, cli: string): boolean {
   const manifest = resolveManifestForCli(cli);
   if (!manifest || pane.pid <= 0) return false;
 
@@ -78,6 +83,17 @@ function hasAgentChildProcess(pane: TmuxPane, cli: string): boolean {
   return false;
 }
 
+function hasAgentChildProcess(pane: TmuxPane, cli: string): boolean {
+  const key = agentProcessCacheKey(pane, cli);
+  const cached = agentProcessCache.get(key);
+  if (cached != null) return cached;
+
+  const live = hasAgentChildProcessUncached(pane, cli);
+  agentProcessCache.set(key, live);
+  return live;
+}
+
+/** True when pane scrollback shows Cursor agent UI, not a stale restored title. */
 function hasAgentScreenEvidence(pane: TmuxPane, cli: string): boolean {
   const manifest = resolveManifestForCli(cli);
   if (!manifest) return false;
@@ -133,6 +149,7 @@ export function detectAgents(
   panes: TmuxPane[],
   excludePaneIds?: Set<string>,
 ): DetectedAgent[] {
+  agentProcessCache.clear();
   const agentClis = getConfigValue("agent-clis");
   const cliSet = new Set(agentClis.map((c) => c.toLowerCase()));
   const detected: DetectedAgent[] = [];
@@ -162,6 +179,7 @@ export function isSidebarPane(pane: TmuxPane): boolean {
 }
 
 export function detectSinglePane(pane: TmuxPane): DetectedAgent | null {
+  agentProcessCache.clear();
   const agentClis = getConfigValue("agent-clis");
   const cliSet = new Set(agentClis.map((c) => c.toLowerCase()));
   const cli = resolveAgentCli(pane, cliSet);
