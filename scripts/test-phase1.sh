@@ -269,9 +269,21 @@ AGENT_PANE=$(tmux split-window -t "$SESSION" -h -P -F '#{pane_id}' \
 sleep 0.3
 $WORK scan --session "$SESSION" --quiet
 
+tmux set-option -t "$SESSION" -u @work-workspace 2>/dev/null || true
+if $WORK session hydrate "$SESSION" --quiet 2>/dev/null; then
+  pass "session hydrate restores @work-workspace"
+else
+  fail "session hydrate restores @work-workspace"
+fi
+WS_OPT=$(tmux show-option -t "$SESSION" -v @work-workspace 2>&1)
+assert_eq "hydrated @work-workspace value" "$SESSION" "$WS_OPT"
+
 # reconcile --all is safe here: isolated state dir contains only this test workspace
+tmux set-option -t "$SESSION" -u @work-workspace 2>/dev/null || true
 OUT=$($WORK reconcile --all 2>&1)
 assert_contains "reconcile completes" "Reconcile complete" "$OUT"
+WS_OPT=$(tmux show-option -t "$SESSION" -v @work-workspace 2>&1)
+assert_eq "reconcile restores @work-workspace" "$SESSION" "$WS_OPT"
 
 OUT=$($WORK status 2>&1)
 assert_contains "status shows agents" "agent" "$OUT"

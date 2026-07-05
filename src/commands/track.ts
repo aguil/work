@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import * as tmux from "../tmux/client.js";
 import { enrichTree } from "../vcs/detect.js";
 import { discoverSessionTreePaths } from "../workspace/discover-trees.js";
+import { hydrateTrackedSessionOption } from "../workspace/session-options.js";
 import {
   createWorkspace,
   deleteWorkspace,
@@ -40,7 +41,7 @@ function syncDiscoveredTrees(
 }
 
 function setTrackedSessionOptions(ws: WorkspaceState, session: string): void {
-  tmux.setOption("session", "@work-workspace", ws.name, session);
+  hydrateTrackedSessionOption(ws, session);
   tmux.setOption("session", "@work-sidebar-visible", "1", session);
   tmux.setOption("session", "@work-sidebar-disabled", "0", session);
 }
