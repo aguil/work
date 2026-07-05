@@ -1,6 +1,7 @@
 import type { Command } from "commander";
-import { detectAgents } from "../scanner/detect.js";
+import { detectAgents, detectSinglePane } from "../scanner/detect.js";
 import * as tmux from "../tmux/client.js";
+import { hydrateTrackedSessionOption } from "../workspace/session-options.js";
 import {
   autoLabel,
   findAgentByPane,
@@ -46,6 +47,8 @@ export function registerReconcileCommand(program: Command): void {
           continue;
         }
 
+        hydrateTrackedSessionOption(ws, ws.sessionName);
+
         const sessionPanes = allPanes.filter(
           (p) => p.sessionName === ws.sessionName,
         );
@@ -71,25 +74,21 @@ export function registerReconcileCommand(program: Command): void {
             agent.status !== "detached" &&
             !detectedPaneIds.has(agent.paneId)
           ) {
-            const pane = sessionPanes.find((p) => p.id === agent.paneId);
-            if (
-              pane?.workAgentLabel !== agent.label ||
-              (pane.workAgentCli != null && pane.workAgentCli !== agent.cli)
-            ) {
-              agent.status = "detached";
-              agent.detachedAt = new Date().toISOString();
-              agent.paneId = null;
-              agent.confidence = "none";
-              totalDetached++;
-              if (!opts.quiet)
-                console.log(`${ws.name}: detached ${agent.label}`);
-            }
+            agent.status = "detached";
+            agent.detachedAt = new Date().toISOString();
+            agent.paneId = null;
+            agent.confidence = "none";
+            totalDetached++;
+            if (!opts.quiet)
+              console.log(`${ws.name}: detached ${agent.label}`);
           }
 
           if (agent.paneId && !livePaneIds.has(agent.paneId)) {
             // Try to find by tmux user option
             const match = sessionPanes.find((p) => {
-              return p.workAgentLabel === agent.label;
+              return (
+                p.workAgentLabel === agent.label && detectSinglePane(p) != null
+              );
             });
 
             if (match) {
@@ -116,7 +115,7 @@ export function registerReconcileCommand(program: Command): void {
           if (agent.status !== "detached" || agent.paneId) continue;
 
           const match = sessionPanes.find((p) => {
-            return p.workAgentLabel === agent.label;
+            return p.workAgentLabel === agent.label && detectSinglePane(p);
           });
 
           if (match) {

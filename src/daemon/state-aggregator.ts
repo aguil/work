@@ -1,4 +1,3 @@
-import { hasExplicitHookStatus } from "../adapters/debounce.js";
 import { observeAgentsInWorkspace } from "../adapters/update-agent.js";
 import { detectAgents, isSidebarPane } from "../scanner/detect.js";
 import * as tmux from "../tmux/client.js";
@@ -64,13 +63,15 @@ export function aggregateState(): AggregatedState {
       tracked: ws != null,
       workspaceName: ws?.name ?? null,
       agents,
-      trees: (ws?.trees ?? []).map((tree): TreeView => ({
-        ...tree,
-        dirty: false,
-        ahead: null,
-        behind: null,
-        repoRoot: null,
-      })),
+      trees: (ws?.trees ?? []).map(
+        (tree): TreeView => ({
+          ...tree,
+          dirty: false,
+          ahead: null,
+          behind: null,
+          repoRoot: null,
+        }),
+      ),
     });
   }
 
@@ -127,19 +128,11 @@ function syncAgentsToWorkspace(
       agent.status !== "detached" &&
       !detectedPaneIds.has(agent.paneId)
     ) {
-      const pane = tmux.getPane(agent.paneId);
-      const explicitPaneMatch =
-        pane != null &&
-        hasExplicitHookStatus(agent) &&
-        pane.workAgentLabel === agent.label &&
-        (pane.workAgentCli == null || pane.workAgentCli === agent.cli);
-      if (!explicitPaneMatch) {
-        agent.status = "detached";
-        agent.detachedAt = new Date().toISOString();
-        agent.paneId = null;
-        agent.confidence = "none";
-        changed = true;
-      }
+      agent.status = "detached";
+      agent.detachedAt = new Date().toISOString();
+      agent.paneId = null;
+      agent.confidence = "none";
+      changed = true;
     }
   }
 
