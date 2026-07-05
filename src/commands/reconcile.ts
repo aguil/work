@@ -1,14 +1,26 @@
 import type { Command } from "commander";
+import { getConfigValue } from "../config/store.js";
 import { detectAgents, detectSinglePane } from "../scanner/detect.js";
+import type { TmuxPane } from "../tmux/client.js";
 import * as tmux from "../tmux/client.js";
 import { hydrateTrackedSessionOption } from "../workspace/session-options.js";
 import {
+  type AgentRecord,
   autoLabel,
   findAgentByPane,
   listWorkspaces,
   saveWorkspace,
   upsertAgent,
 } from "../workspace/state.js";
+
+function paneMatchesDetachedAgent(pane: TmuxPane, agent: AgentRecord): boolean {
+  if (pane.workAgentLabel !== agent.label) return false;
+  if (detectSinglePane(pane)) return true;
+  const cliSet = new Set(
+    getConfigValue("agent-clis").map((c) => c.toLowerCase()),
+  );
+  return cliSet.has(pane.currentCommand.toLowerCase());
+}
 
 export function registerReconcileCommand(program: Command): void {
   program
@@ -79,17 +91,14 @@ export function registerReconcileCommand(program: Command): void {
             agent.paneId = null;
             agent.confidence = "none";
             totalDetached++;
-            if (!opts.quiet)
-              console.log(`${ws.name}: detached ${agent.label}`);
+            if (!opts.quiet) console.log(`${ws.name}: detached ${agent.label}`);
           }
 
           if (agent.paneId && !livePaneIds.has(agent.paneId)) {
             // Try to find by tmux user option
-            const match = sessionPanes.find((p) => {
-              return (
-                p.workAgentLabel === agent.label && detectSinglePane(p) != null
-              );
-            });
+            const match = sessionPanes.find((p) =>
+              paneMatchesDetachedAgent(p, agent),
+            );
 
             if (match) {
               agent.paneId = match.id;
@@ -114,9 +123,9 @@ export function registerReconcileCommand(program: Command): void {
         for (const agent of Object.values(ws.agents)) {
           if (agent.status !== "detached" || agent.paneId) continue;
 
-          const match = sessionPanes.find((p) => {
-            return p.workAgentLabel === agent.label && detectSinglePane(p);
-          });
+          const match = sessionPanes.find((p) =>
+            paneMatchesDetachedAgent(p, agent),
+          );
 
           if (match) {
             agent.paneId = match.id;
