@@ -14,6 +14,8 @@ TEST_ROOT="$(mktemp -d "/tmp/work-test-phase5-XXXXXX")"
 export XDG_CONFIG_HOME="$TEST_ROOT/config"
 export XDG_STATE_HOME="$TEST_ROOT/state"
 export XDG_RUNTIME_DIR="$TEST_ROOT/runtime"
+# Keep tests hermetic: never auto-detect a locally installed herdr binary.
+export WORK_HERDR_BIN="off"
 mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME" "$XDG_RUNTIME_DIR"
 chmod 700 "$XDG_RUNTIME_DIR"
 
@@ -187,6 +189,59 @@ assert_contains "status session scope counts idle window" "– 1" "$OUT"
 assert_contains "status session scope counts working window" "⟳" "$OUT"
 tmux kill-session -t "$WORK_SESSION" 2>/dev/null || true
 tmux kill-session -t "$IDLE_SESSION" 2>/dev/null || true
+
+section "8. herdr detection backend"
+HERDR_STUB="$TEST_ROOT/herdr-stub"
+cat > "$HERDR_STUB" <<'STUB'
+#!/usr/bin/env bash
+# Minimal stand-in for `herdr agent explain --file F --agent L --json`.
+file=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --file) file="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+content=$(cat "$file" 2>/dev/null || true)
+if [[ "$content" == *"HERDR-SKIP"* ]]; then
+  echo '{"state":"unknown","skip_state_update":true,"fallback_reason":null,"matched_rule":{"id":"viewer","priority":1000,"state":"unknown"}}'
+elif [[ "$content" == *"HERDR-BLOCKED"* ]]; then
+  echo '{"state":"blocked","skip_state_update":false,"fallback_reason":null,"matched_rule":{"id":"prompt","priority":850,"state":"blocked"}}'
+else
+  echo '{"state":"idle","skip_state_update":false,"fallback_reason":"default_known_agent_idle_fallback","matched_rule":null}'
+fi
+STUB
+chmod +x "$HERDR_STUB"
+
+HERDR_PANE=$(tmux new-window -t "$SESSION" -P -F '#{pane_id}' \
+  'bash -c "exec -a cursor sh -c \"printf \\\"HERDR-BLOCKED\\\\n\\\"; sleep 300\""')
+sleep 0.3
+$WORK scan --pane "$HERDR_PANE" --quiet
+
+OUT=$(WORK_HERDR_BIN="$HERDR_STUB" $WORK agent observe "$HERDR_PANE" --json 2>&1)
+assert_contains "herdr match wins over manifests" '"status": "blocked"' "$OUT"
+assert_contains "herdr result tagged with source" '"source": "herdr"' "$OUT"
+assert_contains "herdr rule priority propagated" '"rulePriority": 850' "$OUT"
+
+SKIP_PANE=$(tmux new-window -t "$SESSION" -P -F '#{pane_id}' \
+  'bash -c "exec -a cursor sh -c \"printf \\\"run this command? HERDR-SKIP\\\\n\\\"; sleep 300\""')
+sleep 0.3
+$WORK scan --pane "$SKIP_PANE" --quiet
+
+OUT=$(WORK_HERDR_BIN="$HERDR_STUB" $WORK agent observe "$SKIP_PANE" --json 2>&1)
+assert_contains "herdr skip_state_update suppresses observation" '"observed": null' "$OUT"
+
+FALLBACK_PANE=$(tmux new-window -t "$SESSION" -P -F '#{pane_id}' \
+  'bash -c "exec -a cursor sh -c \"printf \\\"run this command?\\\\n\\\"; sleep 300\""')
+sleep 0.3
+$WORK scan --pane "$FALLBACK_PANE" --quiet
+
+OUT=$(WORK_HERDR_BIN="$HERDR_STUB" $WORK agent observe "$FALLBACK_PANE" --json 2>&1)
+assert_contains "herdr silence falls back to manifests" '"source": "manifest"' "$OUT"
+assert_contains "manifest fallback still detects blocked" '"status": "blocked"' "$OUT"
+
+OUT=$(WORK_HERDR_BIN=off $WORK agent observe "$FALLBACK_PANE" --json 2>&1)
+assert_contains "WORK_HERDR_BIN=off disables backend" '"source": "manifest"' "$OUT"
 
 section "Summary"
 echo "Passed: $PASS"
