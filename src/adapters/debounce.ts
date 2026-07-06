@@ -63,6 +63,17 @@ export function resetObservation(agent: AgentRecord): void {
   agent.pendingIdleCount = 0;
 }
 
+/**
+ * Screen-derived metadata is only valid for a live observed pane. Detach
+ * paths must clear it so snapshots don't claim blocker chrome is visible
+ * on a pane that no longer exists.
+ */
+export function clearScreenMetadata(agent: AgentRecord): void {
+  agent.statusReason = null;
+  agent.statusEvidence = null;
+  agent.visibleBlocker = false;
+}
+
 export function hasExplicitHookStatus(agent: AgentRecord): boolean {
   return agent.confidence === "explicit";
 }
@@ -82,9 +93,7 @@ export function applyHookStatus(
   agent.confidence = "explicit";
   agent.hookEvent = eventName;
   // Screen-derived metadata no longer describes the (explicit) status.
-  agent.statusReason = null;
-  agent.statusEvidence = null;
-  agent.visibleBlocker = false;
+  clearScreenMetadata(agent);
   agent.lastSeen = new Date().toISOString();
   return changed;
 }

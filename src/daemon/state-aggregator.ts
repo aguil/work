@@ -1,4 +1,7 @@
-import { hasExplicitHookStatus } from "../adapters/debounce.js";
+import {
+  clearScreenMetadata,
+  hasExplicitHookStatus,
+} from "../adapters/debounce.js";
 import { observeAgentsInWorkspace } from "../adapters/update-agent.js";
 import { getConfigValue } from "../config/store.js";
 import { detectAgents, isSidebarPane } from "../scanner/detect.js";
@@ -143,6 +146,7 @@ function syncAgentsToWorkspace(
         agent.detachedAt = new Date().toISOString();
       }
       agent.confidence = "none";
+      clearScreenMetadata(agent);
       changed = true;
       continue;
     }
@@ -167,6 +171,7 @@ function syncAgentsToWorkspace(
       agent.detachedAt = new Date().toISOString();
       agent.paneId = null;
       agent.confidence = "none";
+      clearScreenMetadata(agent);
       changed = true;
     }
   }

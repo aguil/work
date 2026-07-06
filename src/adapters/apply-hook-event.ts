@@ -16,7 +16,7 @@ import {
   removeConversationBinding,
   upsertConversationBinding,
 } from "./conversation-map.js";
-import { applyHookStatus } from "./debounce.js";
+import { applyHookStatus, clearScreenMetadata } from "./debounce.js";
 import {
   type AgentHookInput,
   isTransientSessionEnd,
@@ -235,6 +235,7 @@ export function applyHookEvent(
     agent.paneId = null;
     agent.detachedAt = new Date().toISOString();
     agent.lastSeen = new Date().toISOString();
+    clearScreenMetadata(agent);
     if (paneId) {
       tmux.unsetOption("pane", "@work-agent-label", paneId);
       tmux.unsetOption("pane", "@work-agent-cli", paneId);

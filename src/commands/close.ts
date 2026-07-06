@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import { clearScreenMetadata } from "../adapters/debounce.js";
 import { promptConfirm } from "../prompt/readline.js";
 import * as tmux from "../tmux/client.js";
 import { removeCheckout } from "../vcs/detect.js";
@@ -66,6 +67,7 @@ export function registerCloseCommand(program: Command): void {
           agent.status = "detached";
           agent.detachedAt = new Date().toISOString();
           agent.paneId = null;
+          clearScreenMetadata(agent);
         }
 
         archiveWorkspace(ws);
