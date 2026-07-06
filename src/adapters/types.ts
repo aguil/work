@@ -44,4 +44,6 @@ export interface ObservationResult {
   confidence: "inferred" | "heuristic" | "none";
   manifestState: ManifestState;
   rulePriority: number;
+  /** Which detection backend produced this result. */
+  source?: "manifest" | "herdr";
 }

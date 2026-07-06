@@ -2,6 +2,7 @@ import type { TmuxPane } from "../tmux/client.js";
 import * as tmux from "../tmux/client.js";
 import type { AgentStatus } from "../workspace/state.js";
 import { evaluateMatch } from "./evaluate.js";
+import { observePaneWithHerdr } from "./herdr.js";
 import { resolveManifestForCli } from "./loader.js";
 import {
   buildObservationContext,
@@ -59,6 +60,7 @@ export function observeWithManifest(
       confidence: confidenceForRegion(rule.match.region ?? "bottom_lines"),
       manifestState: rule.state,
       rulePriority: rule.priority,
+      source: "manifest",
     };
   }
   return null;
@@ -68,6 +70,12 @@ export function observePane(
   pane: TmuxPane,
   cli: string,
 ): ObservationResult | null {
+  // Prefer the herdr backend when installed: a match wins, an explicit
+  // "don't trust this screen" verdict suppresses the update, and silence
+  // falls through to the bundled manifests below.
+  const herdrResult = observePaneWithHerdr(pane, cli);
+  if (herdrResult !== undefined) return herdrResult;
+
   const manifest = resolveManifestForCli(cli);
   if (!manifest) return null;
   return observeWithManifest(buildObservationContext(pane), manifest);
