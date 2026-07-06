@@ -23,6 +23,7 @@ runtime dependencies: Node built-ins, `commander`, and `smol-toml` (manifest loa
 - `scripts/test-phase6.sh` — Phase 6 Cursor hook Tier 1 tests
 - `scripts/test-phase7.sh` — Phase 7 Claude Code hook Tier 1 tests
 - `src/adapters/` — manifest loader, rule evaluation, hook events, Cursor/Claude adapters
+- `src/adapters/herdr.ts` — optional herdr-backed Tier 2 detection (WORK_HERDR_BIN)
 
 ## Development
 
