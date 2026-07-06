@@ -1,9 +1,9 @@
+import { execFileSync } from "node:child_process";
 import { evaluateMatch } from "../adapters/evaluate.js";
 import { resolveManifestForCli } from "../adapters/loader.js";
 import { buildObservationContext, regionText } from "../adapters/regions.js";
 import { getConfigValue } from "../config/store.js";
 import type { TmuxPane } from "../tmux/client.js";
-import * as tmux from "../tmux/client.js";
 
 export interface DetectedAgent {
   paneId: string;
@@ -20,6 +20,77 @@ const ACTIVE_AGENT_TITLE = /working|⏳|[\u2800-\u28FF]/i;
 
 function isActiveAgentTitle(title: string): boolean {
   return ACTIVE_AGENT_TITLE.test(title);
+}
+
+const agentProcessCache = new Map<string, boolean>();
+
+function agentProcessCacheKey(pane: TmuxPane, cli: string): string {
+  return `${pane.pid}:${cli}`;
+}
+
+/** True when an agent CLI process is running under the pane shell. */
+function hasAgentChildProcessUncached(pane: TmuxPane, cli: string): boolean {
+  const manifest = resolveManifestForCli(cli);
+  if (!manifest || pane.pid <= 0) return false;
+
+  const queue = [pane.pid];
+  const seen = new Set<number>();
+  let depth = 0;
+
+  while (queue.length > 0 && depth < 4) {
+    const levelSize = queue.length;
+    depth++;
+    for (let i = 0; i < levelSize; i++) {
+      const parentPid = queue.shift();
+      if (parentPid == null || seen.has(parentPid)) continue;
+      seen.add(parentPid);
+
+      let childPids: string[];
+      try {
+        childPids = execFileSync("pgrep", ["-P", String(parentPid)], {
+          encoding: "utf-8",
+          stdio: ["ignore", "pipe", "ignore"],
+        })
+          .trim()
+          .split("\n")
+          .filter(Boolean);
+      } catch {
+        continue;
+      }
+
+      for (const childPid of childPids) {
+        let args = "";
+        try {
+          args = execFileSync("ps", ["-p", childPid, "-o", "args="], {
+            encoding: "utf-8",
+            stdio: ["ignore", "pipe", "ignore"],
+          })
+            .trim()
+            .toLowerCase();
+        } catch {
+          continue;
+        }
+
+        for (const name of manifest.processNames) {
+          if (args.includes(name)) return true;
+        }
+
+        queue.push(parseInt(childPid, 10));
+      }
+    }
+  }
+
+  return false;
+}
+
+function hasAgentChildProcess(pane: TmuxPane, cli: string): boolean {
+  const key = agentProcessCacheKey(pane, cli);
+  const cached = agentProcessCache.get(key);
+  if (cached != null) return cached;
+
+  const live = hasAgentChildProcessUncached(pane, cli);
+  agentProcessCache.set(key, live);
+  return live;
 }
 
 /** True when pane scrollback shows Cursor agent UI, not a stale restored title. */
@@ -40,9 +111,8 @@ function hasAgentScreenEvidence(pane: TmuxPane, cli: string): boolean {
 
 function resolveAgentCli(pane: TmuxPane, cliSet: Set<string>): string | null {
   const cmd = pane.currentCommand.toLowerCase();
-  const registeredCli =
-    tmux.getOption("pane", "@work-agent-cli", pane.id) ?? "agent";
-  const registeredLabel = tmux.getOption("pane", "@work-agent-label", pane.id);
+  const registeredCli = pane.workAgentCli ?? "agent";
+  const registeredLabel = pane.workAgentLabel;
 
   if (cliSet.has(cmd)) {
     if (!registeredLabel) return pane.currentCommand;
@@ -56,6 +126,7 @@ function resolveAgentCli(pane: TmuxPane, cliSet: Set<string>): string | null {
   }
 
   if (registeredLabel) {
+    if (!hasAgentChildProcess(pane, registeredCli)) return null;
     if (
       isActiveAgentTitle(pane.title) ||
       hasAgentScreenEvidence(pane, registeredCli)
@@ -67,6 +138,8 @@ function resolveAgentCli(pane: TmuxPane, cliSet: Set<string>): string | null {
 
   if (!CURSOR_AGENT_TITLE.test(pane.title)) return null;
 
+  if (!hasAgentChildProcess(pane, "agent")) return null;
+
   if (isActiveAgentTitle(pane.title)) return "agent";
   if (hasAgentScreenEvidence(pane, "agent")) return "agent";
   return null;
@@ -76,6 +149,7 @@ export function detectAgents(
   panes: TmuxPane[],
   excludePaneIds?: Set<string>,
 ): DetectedAgent[] {
+  agentProcessCache.clear();
   const agentClis = getConfigValue("agent-clis");
   const cliSet = new Set(agentClis.map((c) => c.toLowerCase()));
   const detected: DetectedAgent[] = [];
@@ -101,10 +175,11 @@ export function detectAgents(
 }
 
 export function isSidebarPane(pane: TmuxPane): boolean {
-  return tmux.getOption("pane", "@work-sidebar", pane.id) === "1";
+  return pane.workSidebar;
 }
 
 export function detectSinglePane(pane: TmuxPane): DetectedAgent | null {
+  agentProcessCache.clear();
   const agentClis = getConfigValue("agent-clis");
   const cliSet = new Set(agentClis.map((c) => c.toLowerCase()));
   const cli = resolveAgentCli(pane, cliSet);

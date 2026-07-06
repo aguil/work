@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Cursor hook adapter for work Tier 1 agent status.
-# Installed to ~/.cursor/hooks/work-event.sh by: work hooks install cursor
+# Claude Code hook adapter for work Tier 1 agent status.
+# Installed to ~/.claude/hooks/work-event.sh by: work hooks install claude
 
 set -euo pipefail
 

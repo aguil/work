@@ -1,13 +1,26 @@
 import type { Command } from "commander";
-import { detectAgents } from "../scanner/detect.js";
+import { getConfigValue } from "../config/store.js";
+import { detectAgents, detectSinglePane } from "../scanner/detect.js";
+import type { TmuxPane } from "../tmux/client.js";
 import * as tmux from "../tmux/client.js";
+import { hydrateTrackedSessionOption } from "../workspace/session-options.js";
 import {
+  type AgentRecord,
   autoLabel,
   findAgentByPane,
   listWorkspaces,
   saveWorkspace,
   upsertAgent,
 } from "../workspace/state.js";
+
+function paneMatchesDetachedAgent(pane: TmuxPane, agent: AgentRecord): boolean {
+  if (pane.workAgentLabel !== agent.label) return false;
+  if (detectSinglePane(pane)) return true;
+  const cliSet = new Set(
+    getConfigValue("agent-clis").map((c) => c.toLowerCase()),
+  );
+  return cliSet.has(pane.currentCommand.toLowerCase());
+}
 
 export function registerReconcileCommand(program: Command): void {
   program
@@ -46,10 +59,14 @@ export function registerReconcileCommand(program: Command): void {
           continue;
         }
 
+        hydrateTrackedSessionOption(ws, ws.sessionName);
+
         const sessionPanes = allPanes.filter(
           (p) => p.sessionName === ws.sessionName,
         );
         const livePaneIds = new Set(sessionPanes.map((p) => p.id));
+        const detected = detectAgents(sessionPanes);
+        const detectedPaneIds = new Set(detected.map((p) => p.paneId));
 
         // Re-map agents whose pane IDs are stale
         for (const agent of Object.values(ws.agents)) {
@@ -63,12 +80,25 @@ export function registerReconcileCommand(program: Command): void {
             continue;
           }
 
+          if (
+            agent.paneId &&
+            livePaneIds.has(agent.paneId) &&
+            agent.status !== "detached" &&
+            !detectedPaneIds.has(agent.paneId)
+          ) {
+            agent.status = "detached";
+            agent.detachedAt = new Date().toISOString();
+            agent.paneId = null;
+            agent.confidence = "none";
+            totalDetached++;
+            if (!opts.quiet) console.log(`${ws.name}: detached ${agent.label}`);
+          }
+
           if (agent.paneId && !livePaneIds.has(agent.paneId)) {
             // Try to find by tmux user option
-            const match = sessionPanes.find((p) => {
-              const label = tmux.getOption("pane", "@work-agent-label", p.id);
-              return label === agent.label;
-            });
+            const match = sessionPanes.find((p) =>
+              paneMatchesDetachedAgent(p, agent),
+            );
 
             if (match) {
               agent.paneId = match.id;
@@ -93,10 +123,9 @@ export function registerReconcileCommand(program: Command): void {
         for (const agent of Object.values(ws.agents)) {
           if (agent.status !== "detached" || agent.paneId) continue;
 
-          const match = sessionPanes.find((p) => {
-            const label = tmux.getOption("pane", "@work-agent-label", p.id);
-            return label === agent.label;
-          });
+          const match = sessionPanes.find((p) =>
+            paneMatchesDetachedAgent(p, agent),
+          );
 
           if (match) {
             agent.paneId = match.id;
@@ -112,7 +141,6 @@ export function registerReconcileCommand(program: Command): void {
         }
 
         // Discover new agents
-        const detected = detectAgents(sessionPanes);
         for (const d of detected) {
           const existing = findAgentByPane(ws, d.paneId);
           if (existing) continue;

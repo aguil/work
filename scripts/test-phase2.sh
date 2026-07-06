@@ -46,7 +46,7 @@ assert_contains() {
 section() { echo; echo "== $1 =="; }
 
 DISCOVER_SESSION="${SESSION_PREFIX}-discover-$$"
-CHECKOUT_BASE="$TEST_ROOT/projects/workspace"
+CHECKOUT_BASE="$TEST_ROOT/projects/$DISCOVER_SESSION"
 PANE_REPO="$TEST_ROOT/pane-repo"
 BASE_REPO="$CHECKOUT_BASE/from-base"
 

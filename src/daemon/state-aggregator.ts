@@ -1,8 +1,9 @@
 import { hasExplicitHookStatus } from "../adapters/debounce.js";
 import { observeAgentsInWorkspace } from "../adapters/update-agent.js";
+import { getConfigValue } from "../config/store.js";
 import { detectAgents, isSidebarPane } from "../scanner/detect.js";
 import * as tmux from "../tmux/client.js";
-import { enrichTree } from "../vcs/detect.js";
+import type { TreeView } from "../vcs/detect.js";
 import {
   type AgentRecord,
   autoLabel,
@@ -64,7 +65,15 @@ export function aggregateState(): AggregatedState {
       tracked: ws != null,
       workspaceName: ws?.name ?? null,
       agents,
-      trees: (ws?.trees ?? []).map(enrichTree),
+      trees: (ws?.trees ?? []).map(
+        (tree): TreeView => ({
+          ...tree,
+          dirty: false,
+          ahead: null,
+          behind: null,
+          repoRoot: null,
+        }),
+      ),
     });
   }
 
@@ -91,17 +100,39 @@ function syncAgentsToWorkspace(
         changed = true;
       }
     } else {
-      const label = autoLabel(d.cli, ws);
-      upsertAgent(ws, {
-        label,
-        cli: d.cli,
-        paneId: d.paneId,
-        status: "unknown",
-        confidence: "none",
-        detachedAt: null,
-        lastSeen: new Date().toISOString(),
-      });
-      changed = true;
+      let detachedMatch = Object.values(ws.agents).find(
+        (a) => a.status === "detached" && a.cli === d.cli && !a.paneId,
+      );
+      if (!detachedMatch) {
+        const pane = tmux.getPane(d.paneId);
+        if (pane?.workAgentLabel) {
+          detachedMatch = Object.values(ws.agents).find(
+            (a) =>
+              a.status === "detached" &&
+              !a.paneId &&
+              a.label === pane.workAgentLabel,
+          );
+        }
+      }
+      if (detachedMatch) {
+        detachedMatch.paneId = d.paneId;
+        detachedMatch.status = "unknown";
+        detachedMatch.detachedAt = null;
+        detachedMatch.lastSeen = new Date().toISOString();
+        changed = true;
+      } else {
+        const label = autoLabel(d.cli, ws);
+        upsertAgent(ws, {
+          label,
+          cli: d.cli,
+          paneId: d.paneId,
+          status: "unknown",
+          confidence: "none",
+          detachedAt: null,
+          lastSeen: new Date().toISOString(),
+        });
+        changed = true;
+      }
     }
   }
 
@@ -121,14 +152,22 @@ function syncAgentsToWorkspace(
       agent.status !== "detached" &&
       !detectedPaneIds.has(agent.paneId)
     ) {
-      const paneGone = tmux.getPane(agent.paneId) == null;
-      if (paneGone || !hasExplicitHookStatus(agent)) {
-        agent.status = "detached";
-        agent.detachedAt = new Date().toISOString();
-        agent.paneId = null;
-        agent.confidence = "none";
-        changed = true;
+      const pane = tmux.getPane(agent.paneId);
+      const cliSet = new Set(
+        getConfigValue("agent-clis").map((c) => c.toLowerCase()),
+      );
+      if (
+        pane &&
+        hasExplicitHookStatus(agent) &&
+        cliSet.has(pane.currentCommand.toLowerCase())
+      ) {
+        continue;
       }
+      agent.status = "detached";
+      agent.detachedAt = new Date().toISOString();
+      agent.paneId = null;
+      agent.confidence = "none";
+      changed = true;
     }
   }
 

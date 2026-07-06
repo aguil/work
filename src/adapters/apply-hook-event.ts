@@ -18,7 +18,8 @@ import {
 } from "./conversation-map.js";
 import { applyHookStatus } from "./debounce.js";
 import {
-  type CursorHookInput,
+  type AgentHookInput,
+  isTransientSessionEnd,
   mapHookEventToStatus,
   resolveConversationId,
   resolveHookEventName,
@@ -99,7 +100,7 @@ function bindConversation(
 }
 
 export function applyHookEvent(
-  input: CursorHookInput,
+  input: AgentHookInput,
   opts?: { paneId?: string; statusOverride?: AgentStatus },
 ): HookEventResult {
   const event = resolveHookEventName(input);
@@ -117,7 +118,11 @@ export function applyHookEvent(
     bindConversation(conversationId, paneId, cwd);
   }
 
-  if (event === "sessionEnd" && conversationId) {
+  if (
+    event === "sessionEnd" &&
+    conversationId &&
+    !isTransientSessionEnd(input)
+  ) {
     removeConversationBinding(conversationId);
   }
 
@@ -230,6 +235,10 @@ export function applyHookEvent(
     agent.paneId = null;
     agent.detachedAt = new Date().toISOString();
     agent.lastSeen = new Date().toISOString();
+    if (paneId) {
+      tmux.unsetOption("pane", "@work-agent-label", paneId);
+      tmux.unsetOption("pane", "@work-agent-cli", paneId);
+    }
     saveWorkspace(ws);
     return {
       applied: true,

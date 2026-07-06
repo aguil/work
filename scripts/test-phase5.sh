@@ -118,6 +118,18 @@ else
   fail "stale agent title without UI is not registered (output: $OUT)"
 fi
 
+section "6b. Stale labeled shell with agent scrollback is not an agent"
+STALE_LABELED_PANE=$(tmux split-window -t "$SESSION" -h -P -F '#{pane_id}' \
+  'bash -c "printf \"Add a follow-up\\nComposer 2.5\\n\"; sleep 300"')
+sleep 0.2
+tmux set-option -p -t "$STALE_LABELED_PANE" @work-agent-label stale-labeled
+OUT=$($WORK scan --pane "$STALE_LABELED_PANE" 2>&1)
+if [[ "$OUT" != *"found"* ]]; then
+  pass "stale labeled shell without agent process is not registered"
+else
+  fail "stale labeled shell without agent process is not registered (output: $OUT)"
+fi
+
 section "7. status summary counts"
 OUT=$($WORK status 2>&1)
 assert_contains "status reports working agents" "working" "$OUT"
@@ -151,7 +163,7 @@ printf '{"hook_event_name":"stop","conversation_id":"conv-idle-status"}' \
   | $WORK agent hook-event --pane "$IDLE_PANE" --json >/dev/null
 WINDOW_ID=$(tmux list-panes -t "$IDLE_PANE" -F '#{window_id}' | head -1)
 OUT=$($WORK status --session "$IDLE_SESSION" --format tmux 2>&1)
-assert_contains "status reports idle agents" "–1" "$OUT"
+assert_contains "status reports idle agents" "– 1" "$OUT"
 
 WORK_SESSION="${SESSION_PREFIX}-session-scope-$$"
 tmux kill-session -t "$WORK_SESSION" 2>/dev/null || true
@@ -171,7 +183,7 @@ $WORK scan --pane "$IDLE_WIN_PANE" --quiet
 printf '{"hook_event_name":"stop","conversation_id":"conv-scope-idle"}' \
   | $WORK agent hook-event --pane "$IDLE_WIN_PANE" --json >/dev/null
 OUT=$($WORK status --session "$WORK_SESSION" --format tmux 2>&1)
-assert_contains "status session scope counts idle window" "–1" "$OUT"
+assert_contains "status session scope counts idle window" "– 1" "$OUT"
 assert_contains "status session scope counts working window" "⟳" "$OUT"
 tmux kill-session -t "$WORK_SESSION" 2>/dev/null || true
 tmux kill-session -t "$IDLE_SESSION" 2>/dev/null || true

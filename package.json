@@ -14,7 +14,7 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
-    "test": "bash scripts/cleanup-test-sessions.sh && bash scripts/test-phase1.sh && bash scripts/test-phase2.sh && bash scripts/test-phase3.sh && bash scripts/test-phase4.sh && bash scripts/test-phase5.sh && bash scripts/test-phase6.sh && bash scripts/cleanup-test-sessions.sh",
+    "test": "bash scripts/cleanup-test-sessions.sh && bash scripts/test-phase1.sh && bash scripts/test-phase2.sh && bash scripts/test-phase3.sh && bash scripts/test-phase4.sh && bash scripts/test-phase5.sh && bash scripts/test-phase6.sh && bash scripts/test-phase7.sh && bash scripts/cleanup-test-sessions.sh",
     "pre-commit": "bash scripts/pre-commit.sh",
     "check": "npm run typecheck && npm run lint && npm run build && npm run test"
   },

@@ -16,9 +16,10 @@ mise install
 npm install
 npm run build
 npm run typecheck
-npm test              # Phases 1–6 integration tests (requires tmux)
+npm test              # Phases 1–7 integration tests (requires tmux)
 scripts/test-phase5.sh
 scripts/test-phase6.sh
+scripts/test-phase7.sh
 ```
 
 Binaries are written to `dist/work.mjs` and `dist/workd.mjs`.
@@ -54,7 +55,7 @@ work config set auto-track true
 | --------- | -------------------------------------------------------------------------- |
 | Workspace | `track`, `untrack`, `list`, `new`, `close`, `reconcile`                    |
 | Agents    | `scan`, `agents`, `launch`, `agent relaunch`, `agent hook-event`, `status` |
-| Hooks     | `hooks install cursor`, `hooks print-env`                                  |
+| Hooks     | `hooks install cursor`, `hooks install claude`, `hooks print-env`          |
 | Trees     | `add-tree`, `remove-tree`, `trees`, `window use-repo`                      |
 | Actions   | `action list`, `action run`, `trust add/remove`                            |
 | Config    | `config get/set/list`, `repos`                                             |
@@ -65,20 +66,24 @@ work config set auto-track true
 Agent hooks use a single-pane scan fast path (`scan --pane`) so large sessions
 stay responsive.
 
-### Cursor hooks (Tier 1 status)
+### Agent hooks (Tier 1 status)
 
-For accurate `working` / `blocked` / `idle` on interactive Cursor agents, install
+For accurate `working` / `blocked` / `idle` on interactive agents, install
 user-level hooks that call `work agent hook-event`:
 
 ```bash
 npm run build
-node dist/work.mjs hooks install cursor
+node dist/work.mjs hooks install cursor   # Cursor CLI
+node dist/work.mjs hooks install claude   # Claude Code
 # optional: add to shell profile for tmux-launched agents
 eval "$(node dist/work.mjs hooks print-env)"
 ```
 
 Hooks write **explicit** status (overriding manifest/title heuristics until
-`sessionEnd`). Reload Cursor after install. See [Cursor hooks](https://cursor.com/docs/hooks).
+`sessionEnd` / `SessionEnd`). Reload the agent after install.
+
+- Cursor: [Cursor hooks](https://cursor.com/docs/hooks)
+- Claude Code: [Claude Code hooks](https://code.claude.com/docs/en/hooks)
 
 ## tmux integration
 

@@ -55,9 +55,9 @@ export function registerStatusCommand(program: Command): void {
 
       if (opts.format === "tmux") {
         const parts: string[] = [];
-        if (working > 0) parts.push(`#[fg=yellow]⟳${working}#[default]`);
-        if (blocked > 0) parts.push(`#[fg=red]⏸${blocked}#[default]`);
-        if (idle > 0) parts.push(`#[fg=green]–${idle}#[default]`);
+        if (working > 0) parts.push(`#[fg=yellow]⟳ ${working}#[default]`);
+        if (blocked > 0) parts.push(`#[fg=red]⏸ ${blocked}#[default]`);
+        if (idle > 0) parts.push(`#[fg=green]– ${idle}#[default]`);
         console.log(parts.length > 0 ? parts.join(" ") : "");
         return;
       }
