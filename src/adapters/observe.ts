@@ -61,6 +61,8 @@ export function observeWithManifest(
       manifestState: rule.state,
       rulePriority: rule.priority,
       source: "manifest",
+      visibleBlocker: rule.visibleBlocker || undefined,
+      visibleIdle: rule.visibleIdle || undefined,
     };
   }
   return null;

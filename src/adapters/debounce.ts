@@ -45,10 +45,16 @@ export function applyObservation(
   }
 
   const changed =
-    agent.status !== nextStatus || agent.confidence !== nextConfidence;
+    agent.status !== nextStatus ||
+    agent.confidence !== nextConfidence ||
+    agent.statusReason !== (observed.ruleId ?? null) ||
+    agent.visibleBlocker !== (observed.visibleBlocker ?? false);
 
   agent.status = nextStatus;
   agent.confidence = nextConfidence;
+  agent.statusReason = observed.ruleId ?? null;
+  agent.statusEvidence = observed.evidence ?? null;
+  agent.visibleBlocker = observed.visibleBlocker ?? false;
   agent.lastSeen = new Date().toISOString();
   return changed;
 }
@@ -75,6 +81,10 @@ export function applyHookStatus(
   agent.status = status;
   agent.confidence = "explicit";
   agent.hookEvent = eventName;
+  // Screen-derived metadata no longer describes the (explicit) status.
+  agent.statusReason = null;
+  agent.statusEvidence = null;
+  agent.visibleBlocker = false;
   agent.lastSeen = new Date().toISOString();
   return changed;
 }

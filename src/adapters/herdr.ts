@@ -16,7 +16,13 @@ import type { ObservationResult } from "./types.js";
  * WORK_HERDR_BIN=/path/to/herdr, or disable with WORK_HERDR_BIN=off.
  */
 
-const EXPLAIN_TIMEOUT_MS = 2000;
+// Keep well under workd's 2s poll interval: explain calls are synchronous
+// and a slow herdr binary must not stall the daemon for a whole tick.
+const EXPLAIN_TIMEOUT_MS = 500;
+
+// After a failure, pause the backend instead of disabling it permanently.
+// Long-lived processes (workd) recover from transient hiccups this way.
+const FAILURE_RETRY_MS = 30_000;
 
 /** Map work agent CLI names to herdr agent labels. */
 const CLI_TO_HERDR_LABEL: Record<string, string> = {
@@ -25,12 +31,17 @@ const CLI_TO_HERDR_LABEL: Record<string, string> = {
 
 export interface HerdrExplainResult {
   state: string;
+  matchedRuleId: string | null;
   matchedRulePriority: number | null;
   skipStateUpdate: boolean;
   unknownAgent: boolean;
+  visibleBlocker: boolean;
+  visibleIdle: boolean;
+  evidence: string | null;
 }
 
 let cachedBin: string | null | undefined;
+let failedUntil = 0;
 const unsupportedLabels = new Set<string>();
 
 function isDisabledValue(value: string): boolean {
@@ -72,6 +83,7 @@ export function resolveHerdrBin(): string | null {
 
 export function resetHerdrCache(): void {
   cachedBin = undefined;
+  failedUntil = 0;
   unsupportedLabels.clear();
 }
 
@@ -104,17 +116,32 @@ function runExplain(
       state?: string;
       skip_state_update?: boolean;
       fallback_reason?: string | null;
-      matched_rule?: { priority?: number } | null;
+      matched_rule?: { id?: string; priority?: number } | null;
+      visible_blocker?: boolean;
+      visible_idle?: boolean;
+      evaluated_rules?: Array<{
+        id?: string;
+        evidence?: { region_preview?: string };
+      }>;
     };
+    failedUntil = 0;
+    const matchedId = parsed.matched_rule?.id ?? null;
     return {
       state: typeof parsed.state === "string" ? parsed.state : "unknown",
+      matchedRuleId: matchedId,
       matchedRulePriority: parsed.matched_rule?.priority ?? null,
       skipStateUpdate: parsed.skip_state_update === true,
       unknownAgent: parsed.fallback_reason === "unknown_agent",
+      visibleBlocker: parsed.visible_blocker === true,
+      visibleIdle: parsed.visible_idle === true,
+      evidence: matchedId
+        ? evidenceSnippet(parsed.evaluated_rules, matchedId)
+        : null,
     };
   } catch {
-    // herdr missing, incompatible, or timed out — disable for this process.
-    cachedBin = null;
+    // herdr missing, incompatible, or timed out — pause and retry later so a
+    // transient hiccup doesn't disable the backend for a long-lived daemon.
+    failedUntil = Date.now() + FAILURE_RETRY_MS;
     return null;
   } finally {
     try {
@@ -123,6 +150,28 @@ function runExplain(
       // best effort
     }
   }
+}
+
+const EVIDENCE_MAX_CHARS = 160;
+
+/** First non-empty line of the matched rule's region preview, bounded. */
+function evidenceSnippet(
+  evaluatedRules:
+    | Array<{ id?: string; evidence?: { region_preview?: string } }>
+    | undefined,
+  matchedRuleId: string,
+): string | null {
+  const entry = evaluatedRules?.find((rule) => rule.id === matchedRuleId);
+  const preview = entry?.evidence?.region_preview;
+  if (!preview) return null;
+  const line = preview
+    .split("\n")
+    .map((l) => l.trim())
+    .find((l) => l.length > 0);
+  if (!line) return null;
+  return line.length > EVIDENCE_MAX_CHARS
+    ? `${line.slice(0, EVIDENCE_MAX_CHARS)}…`
+    : line;
 }
 
 type HerdrUsableState = "idle" | "working" | "blocked";
@@ -154,6 +203,7 @@ export function observePaneWithHerdr(
 ): ObservationResult | null | undefined {
   const bin = resolveHerdrBin();
   if (!bin) return undefined;
+  if (failedUntil > Date.now()) return undefined;
 
   const label = herdrAgentLabel(cli);
   if (unsupportedLabels.has(label)) return undefined;
@@ -179,5 +229,9 @@ export function observePaneWithHerdr(
     manifestState: status,
     rulePriority: result.matchedRulePriority,
     source: "herdr",
+    ruleId: result.matchedRuleId ?? undefined,
+    visibleBlocker: result.visibleBlocker || undefined,
+    visibleIdle: result.visibleIdle || undefined,
+    evidence: result.evidence ?? undefined,
   };
 }
