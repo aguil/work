@@ -206,7 +206,7 @@ content=$(cat "$file" 2>/dev/null || true)
 if [[ "$content" == *"HERDR-SKIP"* ]]; then
   echo '{"state":"unknown","skip_state_update":true,"fallback_reason":null,"matched_rule":{"id":"viewer","priority":1000,"state":"unknown"}}'
 elif [[ "$content" == *"HERDR-BLOCKED"* ]]; then
-  echo '{"state":"blocked","skip_state_update":false,"fallback_reason":null,"matched_rule":{"id":"prompt","priority":850,"state":"blocked"}}'
+  echo '{"state":"blocked","skip_state_update":false,"fallback_reason":null,"matched_rule":{"id":"bash_permission_prompt","priority":850,"state":"blocked"},"visible_blocker":true,"visible_idle":false,"evaluated_rules":[{"id":"bash_permission_prompt","evidence":{"region_preview":"\nHERDR-BLOCKED rm -rf build/\n"}}]}'
 else
   echo '{"state":"idle","skip_state_update":false,"fallback_reason":"default_known_agent_idle_fallback","matched_rule":null}'
 fi
@@ -222,6 +222,14 @@ OUT=$(WORK_HERDR_BIN="$HERDR_STUB" $WORK agent observe "$HERDR_PANE" --json 2>&1
 assert_contains "herdr match wins over manifests" '"status": "blocked"' "$OUT"
 assert_contains "herdr result tagged with source" '"source": "herdr"' "$OUT"
 assert_contains "herdr rule priority propagated" '"rulePriority": 850' "$OUT"
+assert_contains "herdr rule id propagated" '"ruleId": "bash_permission_prompt"' "$OUT"
+assert_contains "herdr visible blocker propagated" '"visibleBlocker": true' "$OUT"
+assert_contains "herdr evidence snippet propagated" '"evidence": "HERDR-BLOCKED rm -rf build/"' "$OUT"
+
+WORK_HERDR_BIN="$HERDR_STUB" $WORK agent observe "$HERDR_PANE" --apply --quiet
+OUT=$($WORK agents --json 2>&1)
+assert_contains "agent record stores status reason" '"statusReason": "bash_permission_prompt"' "$OUT"
+assert_contains "agent record stores visible blocker" '"visibleBlocker": true' "$OUT"
 
 SKIP_PANE=$(tmux new-window -t "$SESSION" -P -F '#{pane_id}' \
   'bash -c "exec -a cursor sh -c \"printf \\\"run this command? HERDR-SKIP\\\\n\\\"; sleep 300\""')
@@ -239,9 +247,13 @@ $WORK scan --pane "$FALLBACK_PANE" --quiet
 OUT=$(WORK_HERDR_BIN="$HERDR_STUB" $WORK agent observe "$FALLBACK_PANE" --json 2>&1)
 assert_contains "herdr silence falls back to manifests" '"source": "manifest"' "$OUT"
 assert_contains "manifest fallback still detects blocked" '"status": "blocked"' "$OUT"
+assert_contains "manifest rules propagate visible blocker" '"visibleBlocker": true' "$OUT"
 
 OUT=$(WORK_HERDR_BIN=off $WORK agent observe "$FALLBACK_PANE" --json 2>&1)
 assert_contains "WORK_HERDR_BIN=off disables backend" '"source": "manifest"' "$OUT"
+
+OUT=$(WORK_HERDR_BIN=/nonexistent/herdr $WORK agent observe "$FALLBACK_PANE" --json 2>&1)
+assert_contains "broken herdr binary falls back to manifests" '"source": "manifest"' "$OUT"
 
 section "Summary"
 echo "Passed: $PASS"
