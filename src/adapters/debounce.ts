@@ -48,6 +48,7 @@ export function applyObservation(
     agent.status !== nextStatus ||
     agent.confidence !== nextConfidence ||
     agent.statusReason !== (observed.ruleId ?? null) ||
+    agent.statusEvidence !== (observed.evidence ?? null) ||
     agent.visibleBlocker !== (observed.visibleBlocker ?? false);
 
   agent.status = nextStatus;
