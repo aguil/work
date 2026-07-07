@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { chmodSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -49,6 +49,9 @@ export function ensureDirs(): void {
   mkdirSync(paths.config, { recursive: true });
   mkdirSync(paths.actionsDir, { recursive: true });
   mkdirSync(paths.manifestsDir, { recursive: true });
-  mkdirSync(paths.workspacesDir, { recursive: true });
+  // Workspace state stores pane-derived text (e.g. status evidence), so it
+  // must not be readable by other users. chmod also fixes existing installs.
+  mkdirSync(paths.workspacesDir, { recursive: true, mode: 0o700 });
+  chmodSync(paths.workspacesDir, 0o700);
   mkdirSync(paths.runtime, { recursive: true, mode: 0o700 });
 }

@@ -76,7 +76,8 @@ export function saveWorkspace(state: WorkspaceState): void {
   const target = workspacePath(state.name);
   const tmp = `${target}.${randomBytes(4).toString("hex")}.tmp`;
   state.updatedAt = new Date().toISOString();
-  writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`);
+  // Owner-only: agent records carry pane-derived text (status evidence).
+  writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
   renameSync(tmp, target);
 }
 
