@@ -100,6 +100,12 @@ maintained (and remotely updated) detection manifests for ~18 agent CLIs.
   to its bundled manifests, so behavior without herdr is unchanged.
 - Transient herdr failures pause the backend for 30s and then retry, so a
   long-running `workd` recovers without a restart.
+- Unchanged pane screens reuse the last herdr verdict within a long-lived
+  process (keyed by pane id and content hash), so `workd` polls avoid
+  spawning `herdr` on every tick when the screen is static.
+- Agent pane detection (`scan`) also consults herdr for screen evidence and
+  process-name matching when no bundled manifest exists, so agents like
+  codex/opencode stay registered across calm titles and detach edges.
 
 Observations also carry detection metadata, persisted on the agent record
 and exposed via `work agents --json` and daemon snapshots for UIs:
