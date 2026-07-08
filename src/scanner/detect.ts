@@ -33,9 +33,15 @@ function agentProcessCacheKey(pane: TmuxPane, cli: string): string {
   return `${pane.pid}:${cli}`;
 }
 
+function processNamesForDetection(cli: string): string[] {
+  const manifest = resolveManifestForCli(cli);
+  if (manifest) return manifest.processNames;
+  return agentProcessNames(cli);
+}
+
 /** True when an agent CLI process is running under the pane shell. */
 function hasAgentChildProcessUncached(pane: TmuxPane, cli: string): boolean {
-  const names = agentProcessNames(cli);
+  const names = processNamesForDetection(cli);
   if (names.length === 0 || pane.pid <= 0) return false;
 
   const queue = [pane.pid];
