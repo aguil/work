@@ -29,6 +29,11 @@ assert_contains() {
   if [[ "$haystack" == *"$needle"* ]]; then pass "$desc"
   else fail "$desc (missing '$needle')"; fi
 }
+assert_eq() {
+  local desc="$1" expected="$2" actual="$3"
+  if [[ "$actual" == "$expected" ]]; then pass "$desc"
+  else fail "$desc (expected '$expected', got '$actual')"; fi
+}
 
 section() { echo; echo "== $1 =="; }
 
@@ -203,6 +208,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 content=$(cat "$file" 2>/dev/null || true)
+[[ -n "${HERDR_CALLS:-}" ]] && echo called >>"$HERDR_CALLS"
 if [[ "$content" == *"HERDR-SKIP"* ]]; then
   echo '{"state":"unknown","skip_state_update":true,"fallback_reason":null,"matched_rule":{"id":"viewer","priority":1000,"state":"unknown"}}'
 elif [[ "$content" == *"HERDR-BLOCKED"* ]]; then
@@ -254,6 +260,15 @@ assert_contains "WORK_HERDR_BIN=off disables backend" '"source": "manifest"' "$O
 
 OUT=$(WORK_HERDR_BIN=/nonexistent/herdr $WORK agent observe "$FALLBACK_PANE" --json 2>&1)
 assert_contains "broken herdr binary falls back to manifests" '"source": "manifest"' "$OUT"
+
+section "9. herdr scanner detection for agents without bundled manifests"
+CODEX_PANE=$(tmux new-window -t "$SESSION" -P -F '#{pane_id}' \
+  'bash -c "exec -a codex sh -c \"printf \\\"HERDR-BLOCKED\\\\n\\\"; sleep 300\""')
+sleep 0.3
+tmux select-pane -t "$CODEX_PANE" -T 'ready'
+tmux set-option -p -t "$CODEX_PANE" @work-agent-label codex-labeled
+OUT=$(WORK_HERDR_BIN="$HERDR_STUB" $WORK scan --pane "$CODEX_PANE" 2>&1)
+assert_contains "herdr screen evidence registers labeled codex pane" "found codex" "$OUT"
 
 section "Summary"
 echo "Passed: $PASS"

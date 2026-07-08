@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { accessSync, constants, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
@@ -44,6 +45,32 @@ let cachedBin: string | null | undefined;
 let failedUntil = 0;
 const unsupportedLabels = new Set<string>();
 
+interface ExplainCacheEntry {
+  screenHash: string;
+  result: HerdrExplainResult;
+}
+
+/** Per-pane explain cache keyed by pane id + herdr agent label. */
+const explainCache = new Map<string, ExplainCacheEntry>();
+
+function normalizedScreen(screen: string): string {
+  return screen
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .join("\n");
+}
+
+function screenHash(screen: string): string {
+  return createHash("sha256")
+    .update(normalizedScreen(screen))
+    .digest("hex")
+    .slice(0, 16);
+}
+
+function explainCacheKey(paneId: string, label: string): string {
+  return `${paneId}:${label}`;
+}
+
 function isDisabledValue(value: string): boolean {
   const normalized = value.trim().toLowerCase();
   return (
@@ -85,6 +112,26 @@ export function resetHerdrCache(): void {
   cachedBin = undefined;
   failedUntil = 0;
   unsupportedLabels.clear();
+  explainCache.clear();
+}
+
+/** Process names to search when resolving agent child processes. */
+export function agentProcessNames(cli: string): string[] {
+  const normalized = cli.trim().toLowerCase();
+  const names = new Set<string>([normalized, herdrAgentLabel(normalized)]);
+  if (
+    normalized === "agent" ||
+    normalized === "cursor" ||
+    normalized === "cursor-agent"
+  ) {
+    names.add("agent");
+    names.add("cursor");
+    names.add("cursor-agent");
+  }
+  if (normalized === "claude") {
+    names.add("claude-code");
+  }
+  return [...names];
 }
 
 export function herdrAgentLabel(cli: string): string {
@@ -187,36 +234,9 @@ function mapHerdrState(state: string): HerdrUsableState | null {
   }
 }
 
-/**
- * Evaluate a pane snapshot with herdr.
- *
- * Returns:
- * - an ObservationResult when a herdr rule matched with a usable state,
- * - null when herdr matched but the screen must not drive a state update
- *   (e.g. an agent-owned transcript viewer is showing stale prompts),
- * - undefined when herdr is unavailable or silent, so the caller should
- *   fall back to work's bundled manifests.
- */
-export function observePaneWithHerdr(
-  pane: TmuxPane,
-  cli: string,
+function toObservationResult(
+  result: HerdrExplainResult,
 ): ObservationResult | null | undefined {
-  const bin = resolveHerdrBin();
-  if (!bin) return undefined;
-  if (failedUntil > Date.now()) return undefined;
-
-  const label = herdrAgentLabel(cli);
-  if (unsupportedLabels.has(label)) return undefined;
-
-  const screen = tmux.capturePane(pane.id);
-  const result = runExplain(bin, screen, label);
-  if (!result) return undefined;
-
-  if (result.unknownAgent) {
-    unsupportedLabels.add(label);
-    return undefined;
-  }
-
   if (result.skipStateUpdate) return null;
   if (result.matchedRulePriority == null) return undefined;
 
@@ -234,4 +254,67 @@ export function observePaneWithHerdr(
     visibleIdle: result.visibleIdle || undefined,
     evidence: result.evidence ?? undefined,
   };
+}
+
+/**
+ * Run herdr explain for a screen snapshot, reusing the last verdict when the
+ * pane content is unchanged. Returns undefined when herdr is unavailable.
+ */
+function explainScreenCached(
+  paneId: string,
+  screen: string,
+  cli: string,
+): HerdrExplainResult | null | undefined {
+  const bin = resolveHerdrBin();
+  if (!bin) return undefined;
+  if (failedUntil > Date.now()) return undefined;
+
+  const label = herdrAgentLabel(cli);
+  if (unsupportedLabels.has(label)) return undefined;
+
+  const hash = screenHash(screen);
+  const cacheKey = explainCacheKey(paneId, label);
+  const cached = explainCache.get(cacheKey);
+  if (cached?.screenHash === hash) {
+    return cached.result;
+  }
+
+  const result = runExplain(bin, screen, label);
+  if (!result) return undefined;
+
+  if (result.unknownAgent) {
+    unsupportedLabels.add(label);
+    return undefined;
+  }
+
+  explainCache.set(cacheKey, { screenHash: hash, result });
+  return result;
+}
+
+/** True when herdr sees agent-owned UI on the pane (rule match or viewer). */
+export function hasHerdrScreenEvidence(pane: TmuxPane, cli: string): boolean {
+  const screen = tmux.capturePane(pane.id);
+  const result = explainScreenCached(pane.id, screen, cli);
+  if (!result) return false;
+  return result.matchedRulePriority != null || result.skipStateUpdate;
+}
+
+/**
+ * Evaluate a pane snapshot with herdr.
+ *
+ * Returns:
+ * - an ObservationResult when a herdr rule matched with a usable state,
+ * - null when herdr matched but the screen must not drive a state update
+ *   (e.g. an agent-owned transcript viewer is showing stale prompts),
+ * - undefined when herdr is unavailable or silent, so the caller should
+ *   fall back to work's bundled manifests.
+ */
+export function observePaneWithHerdr(
+  pane: TmuxPane,
+  cli: string,
+): ObservationResult | null | undefined {
+  const screen = tmux.capturePane(pane.id);
+  const result = explainScreenCached(pane.id, screen, cli);
+  if (!result) return undefined;
+  return toObservationResult(result);
 }
