@@ -85,6 +85,36 @@ Hooks write **explicit** status (overriding manifest/title heuristics until
 - Cursor: [Cursor hooks](https://cursor.com/docs/hooks)
 - Claude Code: [Claude Code hooks](https://code.claude.com/docs/en/hooks)
 
+### herdr detection backend (Tier 2 status, optional)
+
+Screen heuristics normally use the bundled TOML manifests in
+`src/adapters/manifests/`. When a [herdr](https://herdr.dev) binary is
+installed, `work` instead pipes each pane snapshot through
+`herdr agent explain --file --agent <label> --json`, which evaluates herdr's
+maintained (and remotely updated) detection manifests for ~18 agent CLIs.
+
+- A herdr rule match wins; when herdr reports the screen should not drive a
+  state update (e.g. a transcript viewer showing stale prompts), the
+  observation is suppressed.
+- When herdr matches nothing (or doesn't know the agent), `work` falls back
+  to its bundled manifests, so behavior without herdr is unchanged.
+- Transient herdr failures pause the backend for 30s and then retry, so a
+  long-running `workd` recovers without a restart.
+
+Observations also carry detection metadata, persisted on the agent record
+and exposed via `work agents --json` and daemon snapshots for UIs:
+`statusReason` (matched rule ID, e.g. `bash_permission_prompt`),
+`visibleBlocker` (blocker chrome is on screen right now, not inferred from
+scrollback), and `statusEvidence` (a one-line snippet of the matched region,
+e.g. the pending approval prompt).
+
+Configuration via environment (e.g. `tmux set-environment -g`):
+
+```bash
+WORK_HERDR_BIN=/path/to/herdr   # explicit binary (default: auto-detect on PATH)
+WORK_HERDR_BIN=off              # disable the backend
+```
+
 ## tmux integration
 
 Load via [tmux-tmuxr](../tmux-tmuxr). Keybindings:

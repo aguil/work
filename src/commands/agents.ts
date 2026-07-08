@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import { clearScreenMetadata } from "../adapters/debounce.js";
 import { observeAgentPane } from "../adapters/observe.js";
 import { updateAgentFromPane } from "../adapters/update-agent.js";
 import {
@@ -92,6 +93,7 @@ export function registerAgentsCommands(program: Command): void {
         agent.paneId = null;
         agent.pendingIdleCount = 0;
         agent.confidence = "none";
+        clearScreenMetadata(agent);
         saveWorkspace(ws);
 
         if (!opts.quiet) console.log(`Detached ${agent.label} from ${ws.name}`);

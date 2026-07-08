@@ -20,6 +20,8 @@ TEST_ROOT="$(mktemp -d "/tmp/work-test-XXXXXX")"
 export XDG_CONFIG_HOME="$TEST_ROOT/config"
 export XDG_STATE_HOME="$TEST_ROOT/state"
 export XDG_RUNTIME_DIR="$TEST_ROOT/runtime"
+# Keep tests hermetic: never auto-detect a locally installed herdr binary.
+export WORK_HERDR_BIN="off"
 mkdir -p "$XDG_CONFIG_HOME" "$XDG_STATE_HOME" "$XDG_RUNTIME_DIR"
 chmod 700 "$XDG_RUNTIME_DIR"
 

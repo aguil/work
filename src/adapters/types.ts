@@ -44,4 +44,14 @@ export interface ObservationResult {
   confidence: "inferred" | "heuristic" | "none";
   manifestState: ManifestState;
   rulePriority: number;
+  /** Which detection backend produced this result. */
+  source?: "manifest" | "herdr";
+  /** Semantic ID of the matched rule (e.g. "bash_permission_prompt"). */
+  ruleId?: string;
+  /** Blocker chrome is on screen right now (needs input, not inferred). */
+  visibleBlocker?: boolean;
+  /** Idle prompt chrome is on screen right now. */
+  visibleIdle?: boolean;
+  /** Short snippet of the matched screen region (e.g. the pending prompt). */
+  evidence?: string;
 }

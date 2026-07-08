@@ -29,6 +29,15 @@ export interface AgentRecord {
   pendingIdleCount?: number;
   conversationId?: string | null;
   hookEvent?: string | null;
+  // Screen-derived metadata below is only meaningful while `status` came
+  // from observation (confidence inferred/heuristic); explicit hook status
+  // clears it and detached agents should be rendered from `status` alone.
+  /** Semantic reason for the current screen-derived status (rule ID). */
+  statusReason?: string | null;
+  /** Snippet of the screen region behind the current status (e.g. prompt). */
+  statusEvidence?: string | null;
+  /** Blocker chrome is visibly on screen (needs input right now). */
+  visibleBlocker?: boolean;
 }
 
 export interface TreeRecord {
@@ -67,7 +76,8 @@ export function saveWorkspace(state: WorkspaceState): void {
   const target = workspacePath(state.name);
   const tmp = `${target}.${randomBytes(4).toString("hex")}.tmp`;
   state.updatedAt = new Date().toISOString();
-  writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`);
+  // Owner-only: agent records carry pane-derived text (status evidence).
+  writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
   renameSync(tmp, target);
 }
 

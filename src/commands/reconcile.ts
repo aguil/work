@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import { clearScreenMetadata } from "../adapters/debounce.js";
 import { getConfigValue } from "../config/store.js";
 import { detectAgents, detectSinglePane } from "../scanner/detect.js";
 import type { TmuxPane } from "../tmux/client.js";
@@ -47,6 +48,7 @@ export function registerReconcileCommand(program: Command): void {
               agent.status = "detached";
               agent.detachedAt = new Date().toISOString();
               agent.paneId = null;
+              clearScreenMetadata(agent);
               totalDetached++;
               changed = true;
             }
@@ -76,6 +78,7 @@ export function registerReconcileCommand(program: Command): void {
               agent.detachedAt = new Date().toISOString();
             }
             agent.confidence = "none";
+            clearScreenMetadata(agent);
             totalDetached++;
             continue;
           }
@@ -90,6 +93,7 @@ export function registerReconcileCommand(program: Command): void {
             agent.detachedAt = new Date().toISOString();
             agent.paneId = null;
             agent.confidence = "none";
+            clearScreenMetadata(agent);
             totalDetached++;
             if (!opts.quiet) console.log(`${ws.name}: detached ${agent.label}`);
           }
@@ -113,6 +117,7 @@ export function registerReconcileCommand(program: Command): void {
               agent.status = "detached";
               agent.detachedAt = new Date().toISOString();
               agent.paneId = null;
+              clearScreenMetadata(agent);
               totalDetached++;
               if (!opts.quiet)
                 console.log(`${ws.name}: detached ${agent.label}`);
