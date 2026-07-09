@@ -85,11 +85,17 @@ function renderAgentsHeader(
   }
   if (counts.working > 0) {
     parts.push(
-      renderCountBadge(TMUX_STATUS_ICONS.working, counts.working, colors.yellow),
+      renderCountBadge(
+        TMUX_STATUS_ICONS.working,
+        counts.working,
+        colors.yellow,
+      ),
     );
   }
   if (counts.idle > 0) {
-    parts.push(renderCountBadge(TMUX_STATUS_ICONS.idle, counts.idle, colors.green));
+    parts.push(
+      renderCountBadge(TMUX_STATUS_ICONS.idle, counts.idle, colors.green),
+    );
   }
   const line = parts.join("  ");
   return visibleLength(line) > width ? truncate(line, width) : line;
