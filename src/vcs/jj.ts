@@ -62,6 +62,47 @@ export function jjWorkingCopyClean(cwd: string): boolean {
   return /The working copy has no changes\./m.test(status);
 }
 
+export function jjChangeIdParts(
+  cwd: string,
+  rev = "@",
+): { prefix: string; rest: string } | null {
+  const raw = tryCommand(
+    "jj",
+    [
+      "log",
+      "-r",
+      rev,
+      "-T",
+      'change_id.shortest().prefix() ++ "\\t" ++ change_id.shortest().rest()',
+      "--no-graph",
+      "--ignore-working-copy",
+    ],
+    { cwd },
+  );
+  if (!raw) return null;
+  const tab = raw.indexOf("\t");
+  if (tab === -1) {
+    return { prefix: raw, rest: "" };
+  }
+  return { prefix: raw.slice(0, tab), rest: raw.slice(tab + 1) };
+}
+
+export function isJjChangeIdLabel(label: string): boolean {
+  return /^[a-z][a-z0-9]{6,15}$/.test(label);
+}
+
+export function jjRevisionKind(
+  cwd: string,
+  branchLabel?: string | null,
+): "bookmark" | "change" | null {
+  const bookmark = jjBookmark(cwd);
+  if (bookmark) return "bookmark";
+  if (branchLabel && !isJjChangeIdLabel(branchLabel)) return "bookmark";
+  const parts = jjChangeIdParts(cwd);
+  if (parts && (parts.prefix || parts.rest)) return "change";
+  return null;
+}
+
 export function jjBranchLabel(cwd: string): string | null {
   const bookmark = jjBookmark(cwd);
   if (bookmark) return bookmark;

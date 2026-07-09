@@ -1,3 +1,4 @@
+import { TMUX_STATUS_ICONS } from "../sidebar/icons.js";
 import type { AgentRecord } from "./state.js";
 
 /** Agent is bound to a live tmux pane and not detached. */
@@ -52,8 +53,14 @@ export function countStatusLineAgents(
 
 /** Single tmux status-color icon for a window tab (blocked > working > idle). */
 export function formatIconForTmux(counts: StatusLineCounts): string {
-  if (counts.blocked > 0) return "#[fg=red]⏸#[default]";
-  if (counts.working > 0) return "#[fg=yellow]⟳#[default]";
-  if (counts.idle > 0) return "#[fg=green]–#[default]";
+  if (counts.blocked > 0) {
+    return `#[fg=red]${TMUX_STATUS_ICONS.blocked}#[default]`;
+  }
+  if (counts.working > 0) {
+    return `#[fg=yellow]${TMUX_STATUS_ICONS.working}#[default]`;
+  }
+  if (counts.idle > 0) {
+    return `#[fg=green]${TMUX_STATUS_ICONS.idle}#[default]`;
+  }
   return "";
 }

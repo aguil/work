@@ -1,14 +1,23 @@
 import type { TreeView } from "../vcs/detect.js";
 import type { AgentRecord } from "../workspace/state.js";
 
+/** Agent row for sidebar / daemon snapshots (pane location included). */
+export interface AgentView extends AgentRecord {
+  sessionIndex: number;
+  sessionName: string;
+  windowIndex: number;
+  windowName: string;
+}
+
 export interface SessionSnapshot {
   id: string;
   name: string;
+  index: number;
   windowCount: number;
   attached: boolean;
   tracked: boolean;
   workspaceName: string | null;
-  agents: AgentRecord[];
+  agents: AgentView[];
   trees: TreeView[];
 }
 

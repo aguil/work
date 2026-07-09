@@ -13,9 +13,31 @@ function tmux(...args: string[]): string {
   }
 }
 
+export function tmuxSessionIndex(sessionId: string): number {
+  const match = /^\$(\d+)$/.exec(sessionId);
+  return match ? Number.parseInt(match[1], 10) : 0;
+}
+
+/** Match tmux choose-session / choose-tree shortcut labels (0-9, then a-z). */
+const TMUX_CHOOSE_KEYS = "0123456789abcdefghijklmnopqrstuvwxyz";
+
+/** 0-based choose-session list position → shortcut label. */
+export function formatTmuxSessionKey(chooseIndex: number): string {
+  if (!Number.isFinite(chooseIndex) || chooseIndex < 0) return "?";
+  const key = TMUX_CHOOSE_KEYS[chooseIndex];
+  if (key !== undefined) return key;
+  return String(chooseIndex);
+}
+
+/** tmux session id number ($N → N) → choose-session shortcut (0-based). */
+export function formatTmuxSessionKeyFromId(sessionIdNumber: number): string {
+  return formatTmuxSessionKey(sessionIdNumber - 1);
+}
+
 export interface TmuxSession {
   id: string;
   name: string;
+  index: number;
   windowCount: number;
   attached: boolean;
   created: number;
@@ -35,6 +57,7 @@ export interface TmuxPane {
   sessionName: string;
   windowId: string;
   windowIndex: number;
+  windowName: string;
   index: number;
   pid: number;
   currentCommand: string;
@@ -70,6 +93,7 @@ const PANE_FMT = [
   "#{session_name}",
   "#{window_id}",
   "#{window_index}",
+  "#{window_name}",
   "#{pane_index}",
   "#{pane_pid}",
   "#{pane_current_command}",
@@ -93,6 +117,7 @@ export function listSessions(): TmuxSession[] {
   return parseLines(out, (f) => ({
     id: f[0],
     name: f[1],
+    index: tmuxSessionIndex(f[0]),
     windowCount: parseInt(f[2], 10),
     attached: f[3] === "1",
     created: parseInt(f[4], 10),
@@ -146,17 +171,18 @@ export function listPanes(target?: string): TmuxPane[] {
     sessionName: f[1],
     windowId: f[2],
     windowIndex: parseInt(f[3], 10),
-    index: parseInt(f[4], 10),
-    pid: parseInt(f[5], 10),
-    currentCommand: f[6],
-    currentPath: f[7],
-    title: f[8],
-    width: parseInt(f[9], 10),
-    height: parseInt(f[10], 10),
-    active: f[11] === "11",
-    workSidebar: f[12] === "1",
-    workAgentCli: f[13] || null,
-    workAgentLabel: f[14] || null,
+    windowName: f[4],
+    index: parseInt(f[5], 10),
+    pid: parseInt(f[6], 10),
+    currentCommand: f[7],
+    currentPath: f[8],
+    title: f[9],
+    width: parseInt(f[10], 10),
+    height: parseInt(f[11], 10),
+    active: f[12] === "11",
+    workSidebar: f[13] === "1",
+    workAgentCli: f[14] || null,
+    workAgentLabel: f[15] || null,
   }));
 }
 

@@ -5,10 +5,10 @@ import {
 import { observeAgentsInWorkspace } from "../adapters/update-agent.js";
 import { getConfigValue } from "../config/store.js";
 import { detectAgents, isSidebarPane } from "../scanner/detect.js";
+import { enrichAgentView } from "../sidebar/enrich.js";
 import * as tmux from "../tmux/client.js";
-import type { TreeView } from "../vcs/detect.js";
+import { enrichTree } from "../vcs/detect.js";
 import {
-  type AgentRecord,
   autoLabel,
   findAgentByPane,
   listWorkspaces,
@@ -32,6 +32,7 @@ export function aggregateState(): AggregatedState {
   const sidebarPaneIds = new Set(
     allPanes.filter(isSidebarPane).map((p) => p.id),
   );
+  const paneById = new Map(allPanes.map((p) => [p.id, p]));
 
   const sessions: SessionSnapshot[] = [];
 
@@ -40,43 +41,44 @@ export function aggregateState(): AggregatedState {
     const sessionPanes = allPanes.filter((p) => p.sessionName === session.name);
     const detected = detectAgents(sessionPanes, sidebarPaneIds);
 
-    let agents: AgentRecord[] = [];
+    let agents: SessionSnapshot["agents"] = [];
 
     if (ws) {
       syncAgentsToWorkspace(ws, detected);
       if (observeAgentsInWorkspace(Object.values(ws.agents))) {
         saveWorkspace(ws);
       }
-      agents = Object.values(ws.agents);
+      agents = Object.values(ws.agents).map((a) =>
+        enrichAgentView(a, session, paneById),
+      );
     } else {
-      agents = detected.map((d) => ({
-        label: d.cli,
-        cli: d.cli,
-        paneId: d.paneId,
-        status: "unknown" as const,
-        confidence: "none" as const,
-        detachedAt: null,
-        lastSeen: new Date().toISOString(),
-      }));
+      agents = detected.map((d) =>
+        enrichAgentView(
+          {
+            label: d.cli,
+            cli: d.cli,
+            paneId: d.paneId,
+            status: "unknown",
+            confidence: "none",
+            detachedAt: null,
+            lastSeen: new Date().toISOString(),
+          },
+          session,
+          paneById,
+        ),
+      );
     }
 
     sessions.push({
       id: session.id,
       name: session.name,
+      index: session.index,
       windowCount: session.windowCount,
       attached: session.attached,
       tracked: ws != null,
       workspaceName: ws?.name ?? null,
       agents,
-      trees: (ws?.trees ?? []).map(
-        (tree): TreeView => ({
-          ...tree,
-          dirty: false,
-          ahead: null,
-          behind: null,
-          repoRoot: null,
-        }),
-      ),
+      trees: (ws?.trees ?? []).map((tree) => enrichTree(tree)),
     });
   }
 
