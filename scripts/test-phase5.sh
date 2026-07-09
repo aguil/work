@@ -7,6 +7,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK_DIR="${WORK_DIR:-$ROOT}"
 WORK="node $WORK_DIR/dist/work.mjs"
 
+# Match TMUX_STATUS_ICONS in src/sidebar/icons.ts
+STATUS_IDLE_ICON=$(node -e 'console.log("\u{f05e1}")')
+STATUS_WORKING_ICON=$(node -e 'console.log("\u{f0772}")')
+
 SESSION_PREFIX="work-autotest-status"
 SESSION="${SESSION_PREFIX}-$$"
 
@@ -170,7 +174,7 @@ printf '{"hook_event_name":"stop","conversation_id":"conv-idle-status"}' \
   | $WORK agent hook-event --pane "$IDLE_PANE" --json >/dev/null
 WINDOW_ID=$(tmux list-panes -t "$IDLE_PANE" -F '#{window_id}' | head -1)
 OUT=$($WORK status --session "$IDLE_SESSION" --format tmux 2>&1)
-assert_contains "status reports idle agents" "– 1" "$OUT"
+assert_contains "status reports idle agents" "${STATUS_IDLE_ICON} 1" "$OUT"
 
 WORK_SESSION="${SESSION_PREFIX}-session-scope-$$"
 tmux kill-session -t "$WORK_SESSION" 2>/dev/null || true
@@ -190,8 +194,8 @@ $WORK scan --pane "$IDLE_WIN_PANE" --quiet
 printf '{"hook_event_name":"stop","conversation_id":"conv-scope-idle"}' \
   | $WORK agent hook-event --pane "$IDLE_WIN_PANE" --json >/dev/null
 OUT=$($WORK status --session "$WORK_SESSION" --format tmux 2>&1)
-assert_contains "status session scope counts idle window" "– 1" "$OUT"
-assert_contains "status session scope counts working window" "⟳" "$OUT"
+assert_contains "status session scope counts idle window" "${STATUS_IDLE_ICON} 1" "$OUT"
+assert_contains "status session scope counts working window" "${STATUS_WORKING_ICON}" "$OUT"
 tmux kill-session -t "$WORK_SESSION" 2>/dev/null || true
 tmux kill-session -t "$IDLE_SESSION" 2>/dev/null || true
 
