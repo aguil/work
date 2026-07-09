@@ -20,11 +20,30 @@ const { dim, bold, reset, green } = colors;
 const ANSI_ESCAPE = String.fromCharCode(0x1b);
 const FOOTER_LINES = 2;
 
-function truncate(s: string, max: number): string {
-  if (max <= 0) return "";
-  if (s.length <= max) return s;
-  if (max <= 1) return "…";
-  return `${s.slice(0, max - 1)}…`;
+function truncateVisible(s: string, maxVisible: number): string {
+  if (maxVisible <= 0) return "";
+  if (visibleLength(s) <= maxVisible) return s;
+  if (maxVisible <= 1) return "…";
+
+  let visible = 0;
+  let i = 0;
+  let out = "";
+  const target = maxVisible - 1;
+
+  while (i < s.length && visible < target) {
+    if (s.startsWith(ANSI_ESCAPE, i)) {
+      const match = s.slice(i).match(new RegExp(`^${ANSI_ESCAPE}\\[[0-9;]*m`));
+      if (match) {
+        out += match[0];
+        i += match[0].length;
+        continue;
+      }
+    }
+    out += s[i];
+    visible++;
+    i++;
+  }
+  return `${out}…${reset}`;
 }
 
 function visibleLength(s: string): number {
@@ -55,7 +74,7 @@ function renderAgentRow(
     0,
     width - iconLen - gap.length - minLocation - gap.length,
   );
-  const label = truncate(agent.label, maxLabel);
+  const label = truncateVisible(agent.label, maxLabel);
   let loc = location;
   const used =
     iconLen + gap.length + visibleLength(label) + gap.length + loc.length;
@@ -64,7 +83,7 @@ function renderAgentRow(
       minLocation,
       width - iconLen - gap.length - visibleLength(label) - gap.length,
     );
-    loc = truncate(location, locBudget);
+    loc = truncateVisible(location, locBudget);
   }
   return `${icon}${gap}${label}${gap}${dim}${loc}${reset}`;
 }
@@ -98,7 +117,7 @@ function renderAgentsHeader(
     );
   }
   const line = parts.join("  ");
-  return visibleLength(line) > width ? truncate(line, width) : line;
+  return visibleLength(line) > width ? truncateVisible(line, width) : line;
 }
 
 function renderRepoChip(tree: TreeView, trees: TreeView[]): string {
@@ -116,7 +135,7 @@ function renderRepoLine(
   width: number,
 ): string {
   const chip = renderRepoChip(tree, trees);
-  return visibleLength(chip) > width ? truncate(chip, width) : chip;
+  return visibleLength(chip) > width ? truncateVisible(chip, width) : chip;
 }
 
 function renderSessionTopRule(session: SessionSnapshot, width: number): string {
