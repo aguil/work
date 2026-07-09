@@ -21,6 +21,10 @@ export interface TreeView extends TreeRecord {
   ahead: number | null;
   behind: number | null;
   repoRoot: string | null;
+  /** jj bookmark vs change-id label (for sidebar coloring). */
+  revisionKind?: "bookmark" | "change" | null;
+  jjChangePrefix?: string | null;
+  jjChangeRest?: string | null;
 }
 
 export function resolveTreePath(input: string): string {
@@ -76,7 +80,7 @@ export function detectVcs(path: string): VcsMetadata {
 export function enrichTree(tree: TreeRecord): TreeView {
   try {
     const meta = detectVcs(tree.path);
-    return {
+    const base: TreeView = {
       ...tree,
       vcsType: meta.vcsType,
       branch: meta.branch,
@@ -84,7 +88,25 @@ export function enrichTree(tree: TreeRecord): TreeView {
       ahead: meta.ahead,
       behind: meta.behind,
       repoRoot: meta.repoRoot,
+      revisionKind: null,
+      jjChangePrefix: null,
+      jjChangeRest: null,
     };
+    if (meta.vcsType === "jj") {
+      const kind = jj.jjRevisionKind(tree.path, meta.branch);
+      base.revisionKind = kind;
+      if (kind === "change") {
+        const parts = jj.jjChangeIdParts(tree.path);
+        if (parts) {
+          base.jjChangePrefix = parts.prefix;
+          base.jjChangeRest = parts.rest;
+        } else if (meta.branch && jj.isJjChangeIdLabel(meta.branch)) {
+          base.jjChangePrefix = meta.branch.slice(0, 3);
+          base.jjChangeRest = meta.branch.slice(3);
+        }
+      }
+    }
+    return base;
   } catch {
     return {
       ...tree,
@@ -92,6 +114,9 @@ export function enrichTree(tree: TreeRecord): TreeView {
       ahead: null,
       behind: null,
       repoRoot: null,
+      revisionKind: null,
+      jjChangePrefix: null,
+      jjChangeRest: null,
     };
   }
 }
