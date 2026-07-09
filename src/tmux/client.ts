@@ -18,6 +18,22 @@ export function tmuxSessionIndex(sessionId: string): number {
   return match ? Number.parseInt(match[1], 10) : 0;
 }
 
+/** Match tmux choose-session / choose-tree shortcut labels (0-9, then a-z). */
+const TMUX_CHOOSE_KEYS = "0123456789abcdefghijklmnopqrstuvwxyz";
+
+/** 0-based choose-session list position → shortcut label. */
+export function formatTmuxSessionKey(chooseIndex: number): string {
+  if (!Number.isFinite(chooseIndex) || chooseIndex < 0) return "?";
+  const key = TMUX_CHOOSE_KEYS[chooseIndex];
+  if (key !== undefined) return key;
+  return String(chooseIndex);
+}
+
+/** tmux session id number ($N → N) → choose-session shortcut (0-based). */
+export function formatTmuxSessionKeyFromId(sessionIdNumber: number): string {
+  return formatTmuxSessionKey(sessionIdNumber - 1);
+}
+
 export interface TmuxSession {
   id: string;
   name: string;

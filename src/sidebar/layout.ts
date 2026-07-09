@@ -1,4 +1,5 @@
 import type { AgentView, SessionSnapshot } from "../daemon/protocol.js";
+import { formatTmuxSessionKeyFromId } from "../tmux/client.js";
 import type { TreeView } from "../vcs/detect.js";
 import { isSidebarAgent } from "../workspace/agent-display.js";
 import type { AgentStatus } from "../workspace/state.js";
@@ -78,13 +79,13 @@ export function formatWindowLocation(
   const sessionName = agent.sessionName?.trim() || session?.name || "?";
   const windowIndex = (agent.windowIndex ?? 0) + 1;
   const windowName = agent.windowName?.trim() || "?";
-  return `${sessionIndex}:${sessionName} · ${windowIndex}:${windowName}`;
+  return `${formatTmuxSessionKeyFromId(sessionIndex)}:${sessionName} · ${windowIndex}:${windowName}`;
 }
 
 export function formatSessionTitle(session: SessionSnapshot): string {
   const attached = session.attached ? " *" : "";
   const untracked = session.tracked ? "" : " ○";
-  return `${resolveSessionIndex(session)}:${session.name}${attached}${untracked}`;
+  return `${formatTmuxSessionKeyFromId(resolveSessionIndex(session))}:${session.name}${attached}${untracked}`;
 }
 
 export function repoBasename(tree: TreeView): string {
