@@ -132,14 +132,7 @@ function resolveAgentCli(pane: TmuxPane, cliSet: Set<string>): string | null {
   const registeredLabel = pane.workAgentLabel;
 
   if (cliSet.has(cmd)) {
-    if (!registeredLabel) return pane.currentCommand;
-    if (
-      isActiveAgentTitle(pane.title) ||
-      hasAgentScreenEvidence(pane, trackedCli)
-    ) {
-      return trackedCli;
-    }
-    return null;
+    return trackedCli;
   }
 
   if (registeredLabel) {

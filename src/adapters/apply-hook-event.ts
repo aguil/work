@@ -193,6 +193,11 @@ export function applyHookEvent(
 
   const { ws, agent } = target;
 
+  if (paneId) {
+    tmux.setOption("pane", "@work-agent-label", agent.label, paneId);
+    tmux.setOption("pane", "@work-agent-cli", agent.cli, paneId);
+  }
+
   if (conversationId) {
     for (const other of Object.values(ws.agents)) {
       if (

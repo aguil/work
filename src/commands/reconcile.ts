@@ -1,5 +1,8 @@
 import type { Command } from "commander";
-import { clearScreenMetadata } from "../adapters/debounce.js";
+import {
+  clearScreenMetadata,
+  hasExplicitHookStatus,
+} from "../adapters/debounce.js";
 import { getConfigValue } from "../config/store.js";
 import { detectAgents, detectSinglePane } from "../scanner/detect.js";
 import type { TmuxPane } from "../tmux/client.js";
@@ -16,6 +19,7 @@ import {
 
 function paneMatchesDetachedAgent(pane: TmuxPane, agent: AgentRecord): boolean {
   if (pane.workAgentLabel !== agent.label) return false;
+  if (pane.workAgentCli === agent.cli) return true;
   if (detectSinglePane(pane)) return true;
   const cliSet = new Set(
     getConfigValue("agent-clis").map((c) => c.toLowerCase()),
@@ -66,6 +70,7 @@ export function registerReconcileCommand(program: Command): void {
         const sessionPanes = allPanes.filter(
           (p) => p.sessionName === ws.sessionName,
         );
+        const paneById = new Map(sessionPanes.map((p) => [p.id, p]));
         const livePaneIds = new Set(sessionPanes.map((p) => p.id));
         const detected = detectAgents(sessionPanes);
         const detectedPaneIds = new Set(detected.map((p) => p.paneId));
@@ -89,6 +94,22 @@ export function registerReconcileCommand(program: Command): void {
             agent.status !== "detached" &&
             !detectedPaneIds.has(agent.paneId)
           ) {
+            const pane = paneById.get(agent.paneId);
+            if (pane && hasExplicitHookStatus(agent)) {
+              if (pane.workAgentLabel !== agent.label) {
+                tmux.setOption(
+                  "pane",
+                  "@work-agent-label",
+                  agent.label,
+                  pane.id,
+                );
+              }
+              if (pane.workAgentCli !== agent.cli) {
+                tmux.setOption("pane", "@work-agent-cli", agent.cli, pane.id);
+              }
+              continue;
+            }
+
             agent.status = "detached";
             agent.detachedAt = new Date().toISOString();
             agent.paneId = null;

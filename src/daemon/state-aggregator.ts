@@ -3,7 +3,6 @@ import {
   hasExplicitHookStatus,
 } from "../adapters/debounce.js";
 import { observeAgentsInWorkspace } from "../adapters/update-agent.js";
-import { getConfigValue } from "../config/store.js";
 import { detectAgents, isSidebarPane } from "../scanner/detect.js";
 import { enrichAgentView } from "../sidebar/enrich.js";
 import * as tmux from "../tmux/client.js";
@@ -159,14 +158,16 @@ function syncAgentsToWorkspace(
       !detectedPaneIds.has(agent.paneId)
     ) {
       const pane = tmux.getPane(agent.paneId);
-      const cliSet = new Set(
-        getConfigValue("agent-clis").map((c) => c.toLowerCase()),
-      );
       if (
         pane &&
-        hasExplicitHookStatus(agent) &&
-        cliSet.has(pane.currentCommand.toLowerCase())
+        hasExplicitHookStatus(agent)
       ) {
+        if (pane.workAgentLabel !== agent.label) {
+          tmux.setOption("pane", "@work-agent-label", agent.label, pane.id);
+        }
+        if (pane.workAgentCli !== agent.cli) {
+          tmux.setOption("pane", "@work-agent-cli", agent.cli, pane.id);
+        }
         continue;
       }
       agent.status = "detached";
