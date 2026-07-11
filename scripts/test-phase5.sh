@@ -25,6 +25,7 @@ chmod 700 "$XDG_RUNTIME_DIR"
 
 PASS=0
 FAIL=0
+DETECT_SESSIONS=()
 
 pass() { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
@@ -41,7 +42,33 @@ assert_eq() {
 
 section() { echo; echo "== $1 =="; }
 
+# Isolated session + single pane — avoids split/window limits on the main autotest session.
+begin_detect_pane() {
+  local tag="$1"
+  shift
+  local name="${SESSION_PREFIX}-${tag}-$$"
+  tmux kill-session -t "$name" 2>/dev/null || true
+  if ! tmux new-session -d -s "$name" -- "$@"; then
+    echo ""
+    return
+  fi
+  sleep 0.1
+  $WORK track "$name" --quiet
+  DETECT_SESSIONS+=("$name")
+  tmux list-panes -t "$name" -F '#{pane_id}' 2>/dev/null | head -1
+}
+
+assert_pane_id() {
+  local desc="$1" pane="$2"
+  if [[ "$pane" == %* ]]; then return 0; fi
+  fail "$desc (could not create pane: ${pane:-empty})"
+  return 1
+}
+
 cleanup() {
+  for detect_session in "${DETECT_SESSIONS[@]}"; do
+    tmux kill-session -t "$detect_session" 2>/dev/null || true
+  done
   tmux kill-session -t "$SESSION" 2>/dev/null || true
   rm -rf "$TEST_ROOT"
 }
@@ -130,55 +157,60 @@ else
 fi
 
 section "6b. Stale labeled shell with agent scrollback is not an agent"
-STALE_LABELED_PANE=$(tmux split-window -t "$SESSION" -h -P -F '#{pane_id}' \
-  'bash -c "printf \"Add a follow-up\\nComposer 2.5\\n\"; sleep 300"')
+STALE_LABELED_PANE=$(begin_detect_pane "6b" bash -c \
+  'printf "Add a follow-up\nComposer 2.5\n"; sleep 300')
 sleep 0.2
-tmux set-option -p -t "$STALE_LABELED_PANE" @work-agent-label stale-labeled
-OUT=$($WORK scan --pane "$STALE_LABELED_PANE" 2>&1)
-if [[ "$OUT" != *"found"* ]]; then
-  pass "stale labeled shell without agent process is not registered"
-else
-  fail "stale labeled shell without agent process is not registered (output: $OUT)"
+if assert_pane_id "stale labeled shell without agent process is not registered" "$STALE_LABELED_PANE"; then
+  tmux set-option -p -t "$STALE_LABELED_PANE" @work-agent-label stale-labeled
+  OUT=$($WORK scan --pane "$STALE_LABELED_PANE" 2>&1)
+  if [[ "$OUT" != *"found"* ]]; then
+    pass "stale labeled shell without agent process is not registered"
+  else
+    fail "stale labeled shell without agent process is not registered (output: $OUT)"
+  fi
 fi
 
 section "6c. Labeled idle agent with live process is detected"
-LABELED_IDLE_PANE=$(tmux split-window -t "$SESSION" -h -P -F '#{pane_id}' \
-  'bash -c "exec -a cursor sleep 300"')
+LABELED_IDLE_PANE=$(begin_detect_pane "6c" bash -c 'exec -a cursor sleep 300')
 sleep 0.3
-tmux set-option -p -t "$LABELED_IDLE_PANE" @work-agent-label labeled-idle
-tmux set-option -p -t "$LABELED_IDLE_PANE" @work-agent-cli cursor
-tmux select-pane -t "$LABELED_IDLE_PANE" -T 'ready'
-OUT=$($WORK scan --pane "$LABELED_IDLE_PANE" 2>&1)
-assert_contains "labeled idle agent with live process is detected" "found" "$OUT"
+if assert_pane_id "labeled idle agent with live process is detected" "$LABELED_IDLE_PANE"; then
+  tmux set-option -p -t "$LABELED_IDLE_PANE" @work-agent-label labeled-idle
+  tmux set-option -p -t "$LABELED_IDLE_PANE" @work-agent-cli cursor
+  tmux select-pane -t "$LABELED_IDLE_PANE" -T 'ready'
+  OUT=$($WORK scan --pane "$LABELED_IDLE_PANE" 2>&1)
+  assert_contains "labeled idle agent with live process is detected" "found" "$OUT"
+fi
 
 section "6d. Explicit hook agent without live process is detached on reconcile"
-GHOST_PANE=$(tmux split-window -t "$SESSION" -h -P -F '#{pane_id}' \
-  'bash -c "exec -a cursor sleep 300"')
+GHOST_PANE=$(begin_detect_pane "6d" bash -c 'exec -a cursor sleep 300')
 sleep 0.3
-$WORK scan --pane "$GHOST_PANE" --quiet
-printf '{"hook_event_name":"preToolUse","conversation_id":"conv-ghost-1","tool_name":"Shell"}' \
-  | $WORK agent hook-event --pane "$GHOST_PANE" --json >/dev/null
-tmux send-keys -t "$GHOST_PANE" C-c
-sleep 0.3
-tmux send-keys -t "$GHOST_PANE" "sleep 300" Enter
-sleep 0.3
-$WORK reconcile --quiet
-OUT=$($WORK agents --json 2>&1)
-if [[ "$OUT" == *"\"paneId\": \"$GHOST_PANE\""* ]]; then
-  fail "explicit hook agent without live process is detached on reconcile (still bound to $GHOST_PANE)"
-else
-  pass "explicit hook agent without live process is detached on reconcile"
+if assert_pane_id "explicit hook agent without live process is detached on reconcile" "$GHOST_PANE"; then
+  $WORK scan --pane "$GHOST_PANE" --quiet
+  printf '{"hook_event_name":"preToolUse","conversation_id":"conv-ghost-1","tool_name":"Shell"}' \
+    | $WORK agent hook-event --pane "$GHOST_PANE" --json >/dev/null
+  tmux send-keys -t "$GHOST_PANE" C-c
+  sleep 0.3
+  tmux send-keys -t "$GHOST_PANE" "sleep 300" Enter
+  sleep 0.3
+  $WORK reconcile --quiet
+  OUT=$($WORK agents --json 2>&1)
+  if [[ "$OUT" == *"\"paneId\": \"$GHOST_PANE\""* ]]; then
+    fail "explicit hook agent without live process is detached on reconcile (still bound to $GHOST_PANE)"
+  else
+    pass "explicit hook agent without live process is detached on reconcile"
+  fi
 fi
 
 section "6e. Labeled pane with agent child process is detected while typing"
-TYPING_PANE=$(tmux split-window -t "$SESSION" -h -P -F '#{pane_id}' \
-  'bash -c "exec -a cursor sleep 300 & sleep 300"')
+TYPING_PANE=$(begin_detect_pane "6e" bash -c 'exec -a cursor sleep 300 & sleep 300')
 sleep 0.3
-tmux set-option -p -t "$TYPING_PANE" @work-agent-label typing-agent
-tmux set-option -p -t "$TYPING_PANE" @work-agent-cli cursor
-tmux select-pane -t "$TYPING_PANE" -T 'bash'
-OUT=$($WORK scan --pane "$TYPING_PANE" 2>&1)
-assert_contains "labeled pane with agent child is detected without title evidence" "found" "$OUT"
+if assert_pane_id "labeled pane with agent child is detected without title evidence" "$TYPING_PANE"; then
+  tmux set-option -p -t "$TYPING_PANE" @work-agent-label typing-agent
+  tmux set-option -p -t "$TYPING_PANE" @work-agent-cli cursor
+  tmux select-pane -t "$TYPING_PANE" -T 'bash'
+  OUT=$($WORK scan --pane "$TYPING_PANE" 2>&1)
+  assert_contains "labeled pane with agent child is detected without title evidence" "found" "$OUT"
+fi
 
 section "7. status summary counts"
 OUT=$($WORK status 2>&1)
