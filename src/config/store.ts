@@ -12,6 +12,8 @@ export interface Config {
   "sidebar-position": "left" | "right";
   /** tmux choose-session / choose-tree shortcut labels (0-based index → char). */
   "session-shortcut-keys": string;
+  /** id: $N-1 (default). choose-order: position in choose-tree -s list (-O index). */
+  "session-shortcut-index": "id" | "choose-order";
 }
 
 const DEFAULTS: Config = {
@@ -30,6 +32,7 @@ const DEFAULTS: Config = {
   "sidebar-width": 40,
   "sidebar-position": "right",
   "session-shortcut-keys": "0123456789abcdefghijklmnopqrstuvwxyz",
+  "session-shortcut-index": "id",
 };
 
 type ConfigKey = keyof Config;
