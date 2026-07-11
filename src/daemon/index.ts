@@ -24,6 +24,15 @@ function isProcessRunning(pid: number): boolean {
   }
 }
 
+async function waitForSocketFile(timeoutMs = 1000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() <= deadline) {
+    if (existsSync(paths.socketPath)) return true;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  return existsSync(paths.socketPath);
+}
+
 export function readPidFile(): number | null {
   try {
     const raw = readFileSync(paths.pidFile, "utf-8").trim();
@@ -73,7 +82,7 @@ async function main(): Promise<void> {
   try {
     await server.start();
     writePidFile();
-    if (!existsSync(paths.socketPath)) {
+    if (!(await waitForSocketFile())) {
       console.error("Socket file not created");
       process.exit(1);
     }

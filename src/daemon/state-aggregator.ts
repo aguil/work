@@ -3,11 +3,10 @@ import {
   hasExplicitHookStatus,
 } from "../adapters/debounce.js";
 import { observeAgentsInWorkspace } from "../adapters/update-agent.js";
-import { getConfigValue } from "../config/store.js";
 import { detectAgents, isSidebarPane } from "../scanner/detect.js";
 import { enrichAgentView } from "../sidebar/enrich.js";
 import * as tmux from "../tmux/client.js";
-import { enrichTree } from "../vcs/detect.js";
+import { enrichTree, type TreeView } from "../vcs/detect.js";
 import {
   autoLabel,
   findAgentByPane,
@@ -23,7 +22,90 @@ export interface AggregatedState {
   timestamp: string;
 }
 
+const TREE_REFRESH_MS = 30_000;
+const TREE_REFRESHES_PER_POLL = 1;
+let treeRefreshesThisPoll = 0;
+
+type TreeCacheEntry = {
+  source: WorkspaceState["trees"][number];
+  view: TreeView;
+  refreshedAt: number;
+};
+
+const treeCache = new Map<string, TreeCacheEntry>();
+
+function treeCacheKey(
+  workspaceName: string,
+  tree: WorkspaceState["trees"][number],
+): string {
+  return `${workspaceName}\0${tree.path}`;
+}
+
+function sameTreeSource(
+  a: WorkspaceState["trees"][number],
+  b: WorkspaceState["trees"][number],
+): boolean {
+  return (
+    a.path === b.path &&
+    a.vcsType === b.vcsType &&
+    a.branch === b.branch &&
+    a.createdByWork === b.createdByWork
+  );
+}
+
+function enrichTreesCached(ws: WorkspaceState, now: number): TreeView[] {
+  const liveKeys = new Set<string>();
+  const views: TreeView[] = [];
+
+  for (const tree of ws.trees) {
+    const key = treeCacheKey(ws.name, tree);
+    liveKeys.add(key);
+    const cached = treeCache.get(key);
+    if (
+      cached &&
+      now - cached.refreshedAt < TREE_REFRESH_MS &&
+      sameTreeSource(cached.source, tree)
+    ) {
+      views.push(cached.view);
+      continue;
+    }
+
+    if (treeRefreshesThisPoll >= TREE_REFRESHES_PER_POLL) {
+      views.push(cached?.view ?? fallbackTreeView(tree));
+      continue;
+    }
+
+    const view = enrichTree(tree);
+    treeRefreshesThisPoll++;
+    treeCache.set(key, { source: { ...tree }, view, refreshedAt: now });
+    views.push(view);
+  }
+
+  for (const key of treeCache.keys()) {
+    if (key.startsWith(`${ws.name}\0`) && !liveKeys.has(key)) {
+      treeCache.delete(key);
+    }
+  }
+
+  return views;
+}
+
+function fallbackTreeView(tree: WorkspaceState["trees"][number]): TreeView {
+  return {
+    ...tree,
+    dirty: false,
+    ahead: null,
+    behind: null,
+    repoRoot: null,
+    revisionKind: null,
+    jjChangePrefix: null,
+    jjChangeRest: null,
+  };
+}
+
 export function aggregateState(): AggregatedState {
+  const now = Date.now();
+  treeRefreshesThisPoll = 0;
   const tmuxSessions = tmux.listSessions();
   const allPanes = tmux.listPanes();
   const workspaces = listWorkspaces().filter((w) => !w.archived);
@@ -78,7 +160,7 @@ export function aggregateState(): AggregatedState {
       tracked: ws != null,
       workspaceName: ws?.name ?? null,
       agents,
-      trees: (ws?.trees ?? []).map((tree) => enrichTree(tree)),
+      trees: ws ? enrichTreesCached(ws, now) : [],
     });
   }
 
@@ -159,14 +241,13 @@ function syncAgentsToWorkspace(
       !detectedPaneIds.has(agent.paneId)
     ) {
       const pane = tmux.getPane(agent.paneId);
-      const cliSet = new Set(
-        getConfigValue("agent-clis").map((c) => c.toLowerCase()),
-      );
-      if (
-        pane &&
-        hasExplicitHookStatus(agent) &&
-        cliSet.has(pane.currentCommand.toLowerCase())
-      ) {
+      if (pane && hasExplicitHookStatus(agent)) {
+        if (pane.workAgentLabel !== agent.label) {
+          tmux.setOption("pane", "@work-agent-label", agent.label, pane.id);
+        }
+        if (pane.workAgentCli !== agent.cli) {
+          tmux.setOption("pane", "@work-agent-cli", agent.cli, pane.id);
+        }
         continue;
       }
       agent.status = "detached";
