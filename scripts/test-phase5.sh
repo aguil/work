@@ -289,6 +289,15 @@ OUT=$(WORK_HERDR_BIN="$HERDR_STUB" $WORK agent observe "$TITLE_OVERRIDE_PANE" --
 assert_contains "herdr blocked rejected when title shows working" '"status": "working"' "$OUT"
 assert_contains "active title falls back to manifest" '"source": "manifest"' "$OUT"
 
+IDLE_OVERRIDE_PANE=$(tmux new-window -t "$SESSION" -P -F '#{pane_id}' \
+  'bash -c "exec -a cursor sh -c \"printf \\\"HERDR-BLOCKED agent reply\\\\n→ Add a follow-up\\\\n\\\"; sleep 300\""')
+sleep 0.3
+$WORK scan --pane "$IDLE_OVERRIDE_PANE" --quiet
+tmux select-pane -t "$IDLE_OVERRIDE_PANE" -T 'Tmuxr Session Shortcut - ✅ Ready'
+OUT=$(WORK_HERDR_BIN="$HERDR_STUB" $WORK agent observe "$IDLE_OVERRIDE_PANE" --json 2>&1)
+assert_contains "herdr blocked rejected when idle prompt visible" '"status": "idle"' "$OUT"
+assert_contains "idle prompt falls back to manifest" '"source": "manifest"' "$OUT"
+
 SKIP_PANE=$(tmux new-window -t "$SESSION" -P -F '#{pane_id}' \
   'bash -c "exec -a cursor sh -c \"printf \\\"run this command? HERDR-SKIP\\\\n\\\"; sleep 300\""')
 sleep 0.3

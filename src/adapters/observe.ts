@@ -69,16 +69,29 @@ export function observeWithManifest(
   return null;
 }
 
-/** Herdr can false-positive blocked on user chat in scrollback during a turn. */
+/** Herdr can false-positive blocked on scrollback while the live UI is idle. */
 function shouldRejectHerdrBlocked(
   pane: TmuxPane,
+  cli: string,
   result: ObservationResult,
 ): boolean {
+  if (
+    result.source !== "herdr" ||
+    result.status !== "blocked" ||
+    !result.visibleBlocker
+  ) {
+    return false;
+  }
+  if (isActiveAgentTitle(pane.title)) return true;
+
+  const manifest = resolveManifestForCli(cli);
+  if (!manifest) return false;
+  const manifestResult = observeWithManifest(
+    buildObservationContext(pane),
+    manifest,
+  );
   return (
-    result.source === "herdr" &&
-    result.status === "blocked" &&
-    result.visibleBlocker === true &&
-    isActiveAgentTitle(pane.title)
+    manifestResult?.status === "idle" && manifestResult.visibleIdle === true
   );
 }
 
@@ -92,7 +105,7 @@ export function observePane(
   const herdrResult = observePaneWithHerdr(pane, cli);
   if (herdrResult !== undefined) {
     if (herdrResult === null) return null;
-    if (!shouldRejectHerdrBlocked(pane, herdrResult)) return herdrResult;
+    if (!shouldRejectHerdrBlocked(pane, cli, herdrResult)) return herdrResult;
   }
 
   const manifest = resolveManifestForCli(cli);
