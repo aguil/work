@@ -18,6 +18,7 @@ import { resolveWorkspaceForSession } from "../workspace/resolve-session.js";
 import {
   autoLabel,
   findAgentByPane,
+  listWorkspaces,
   saveWorkspace,
   upsertAgent,
   type WorkspaceState,
@@ -115,6 +116,7 @@ export function aggregateState(): AggregatedState {
   treeRefreshesThisPoll = 0;
   const tmuxSessions = tmux.listSessions();
   const allPanes = tmux.listPanes();
+  const allWorkspaces = listWorkspaces();
 
   const sidebarPaneIds = new Set(
     allPanes.filter(isSidebarPane).map((p) => p.id),
@@ -124,7 +126,7 @@ export function aggregateState(): AggregatedState {
   const sessions: SessionSnapshot[] = [];
 
   for (const session of tmuxSessions) {
-    const ws = resolveWorkspaceForSession(session.name);
+    const ws = resolveWorkspaceForSession(session.name, allWorkspaces);
     const sessionPanes = allPanes.filter((p) => p.sessionName === session.name);
     const detected = detectAgents(sessionPanes, sidebarPaneIds);
 

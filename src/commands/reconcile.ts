@@ -40,10 +40,11 @@ export function registerReconcileCommand(program: Command): void {
     .action((opts: { all?: boolean; quiet?: boolean }) => {
       const sessions = tmux.listSessions();
       const sessionNames = new Set(sessions.map((s) => s.name));
+      const allWorkspaces = listWorkspaces();
       for (const session of sessions) {
-        resolveWorkspaceForSession(session.name);
+        resolveWorkspaceForSession(session.name, allWorkspaces);
       }
-      const workspaces = listWorkspaces().filter((w) => !w.archived);
+      const workspaces = allWorkspaces.filter((w) => !w.archived);
       const allPanes = tmux.listPanes();
 
       let totalFixed = 0;
