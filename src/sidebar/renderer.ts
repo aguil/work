@@ -64,9 +64,10 @@ function renderAgentRow(
   agent: AgentView,
   width: number,
   session?: SessionSnapshot,
+  allSessions?: SessionSnapshot[],
 ): string {
   const icon = coloredStatus(agent.status);
-  const location = formatWindowLocation(agent, session);
+  const location = formatWindowLocation(agent, session, allSessions);
   const iconLen = 1;
   const minLocation = 8;
   const gap = "  ";
@@ -138,8 +139,12 @@ function renderRepoLine(
   return visibleLength(chip) > width ? truncateVisible(chip, width) : chip;
 }
 
-function renderSessionTopRule(session: SessionSnapshot, width: number): string {
-  const title = formatSessionTitle(session);
+function renderSessionTopRule(
+  session: SessionSnapshot,
+  width: number,
+  allSessions: SessionSnapshot[],
+): string {
+  const title = formatSessionTitle(session, allSessions);
   const live = session.agents.filter(isSidebarAgent);
   let accent: string = dim;
   if (live.some((a) => a.status === "blocked")) accent = colors.red;
@@ -151,8 +156,12 @@ function renderSessionTopRule(session: SessionSnapshot, width: number): string {
   return `${accent}${prefix}${"─".repeat(ruleLen)}${reset}`;
 }
 
-function renderSessionCard(session: SessionSnapshot, width: number): string[] {
-  const lines: string[] = [renderSessionTopRule(session, width)];
+function renderSessionCard(
+  session: SessionSnapshot,
+  width: number,
+  allSessions: SessionSnapshot[],
+): string[] {
+  const lines: string[] = [renderSessionTopRule(session, width, allSessions)];
   if (session.tracked && session.trees.length > 0) {
     for (const tree of session.trees) {
       lines.push(renderRepoLine(tree, session.trees, width));
@@ -194,7 +203,7 @@ export function render(
       continue;
     }
     const session = sessionByName.get(agent.sessionName);
-    lines.push(renderAgentRow(agent, w, session));
+    lines.push(renderAgentRow(agent, w, session, normalized));
   }
   if (agentsTruncated > 0 && lines.length < maxBody) {
     lines.push(`${dim}… +${agentsTruncated} agents${reset}`);
@@ -210,7 +219,7 @@ export function render(
   const sortedSessions = sortSessions(normalized);
   let sessionsTruncated = 0;
   for (const session of sortedSessions) {
-    const cardLines = renderSessionCard(session, w);
+    const cardLines = renderSessionCard(session, w, normalized);
     if (lines.length + cardLines.length > maxBody) {
       sessionsTruncated++;
       continue;
