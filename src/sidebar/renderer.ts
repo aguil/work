@@ -187,6 +187,20 @@ export function render(
 
   const sessionByName = new Map(normalized.map((s) => [s.name, s]));
 
+  const findAgentSession = (agent: AgentView): SessionSnapshot | undefined => {
+    const byName = agent.sessionName?.trim();
+    if (byName) {
+      const match = sessionByName.get(byName);
+      if (match) return match;
+    }
+    if (agent.paneId) {
+      return normalized.find((s) =>
+        s.agents.some((a) => a.paneId === agent.paneId),
+      );
+    }
+    return undefined;
+  };
+
   const statusDot = daemonConnected
     ? `${green}●${reset}`
     : `${colors.red}●${reset}`;
@@ -206,7 +220,7 @@ export function render(
       agentsTruncated++;
       continue;
     }
-    const session = sessionByName.get(agent.sessionName);
+    const session = findAgentSession(agent);
     lines.push(renderAgentRow(agent, w, session, shortcutContext));
   }
   if (agentsTruncated > 0 && lines.length < maxBody) {

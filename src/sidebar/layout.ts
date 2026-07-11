@@ -69,14 +69,14 @@ export function sortSessions(sessions: SessionSnapshot[]): SessionSnapshot[] {
   });
 }
 
-/** tmux window_index is 0-based; display 1-based to match tab labels. */
+/** tmux #{window_index} already reflects base-index (0 → first window is 0). */
 export function formatWindowLocation(
   agent: AgentView,
   session?: SessionSnapshot,
   shortcutContext?: SessionShortcutContext,
 ): string {
   const sessionName = agent.sessionName?.trim() || session?.name || "?";
-  const windowIndex = (agent.windowIndex ?? 0) + 1;
+  const windowIndex = agent.windowIndex ?? 0;
   const windowName = agent.windowName?.trim() || "?";
 
   const resolvedSession =
