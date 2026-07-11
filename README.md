@@ -61,9 +61,9 @@ binding.
 **Stock tmux** (`choose-tree -s`, no custom `-K`) assigns keys by **0-based list
 position** (`#{line}`), sorted by session id by default (`-O index`):
 
-| List position | Key |
-| ------------- | --- |
-| 0–9           | `0`–`9` |
+| List position | Key                             |
+| ------------- | ------------------------------- |
+| 0–9           | `0`–`9`                         |
 | 10–35         | `M-a`–`M-z` (Meta/Alt + letter) |
 
 Many configs override `prefix + s` with a custom `-K` format (plain `a`–`z`,
