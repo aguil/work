@@ -141,6 +141,45 @@ else
   fail "stale labeled shell without agent process is not registered (output: $OUT)"
 fi
 
+section "6c. Labeled idle agent with live process is detected"
+LABELED_IDLE_PANE=$(tmux split-window -t "$SESSION" -h -P -F '#{pane_id}' \
+  'bash -c "exec -a cursor sleep 300"')
+sleep 0.3
+tmux set-option -p -t "$LABELED_IDLE_PANE" @work-agent-label labeled-idle
+tmux set-option -p -t "$LABELED_IDLE_PANE" @work-agent-cli cursor
+tmux select-pane -t "$LABELED_IDLE_PANE" -T 'ready'
+OUT=$($WORK scan --pane "$LABELED_IDLE_PANE" 2>&1)
+assert_contains "labeled idle agent with live process is detected" "found" "$OUT"
+
+section "6d. Explicit hook agent without live process is detached on reconcile"
+GHOST_PANE=$(tmux split-window -t "$SESSION" -h -P -F '#{pane_id}' \
+  'bash -c "exec -a cursor sleep 300"')
+sleep 0.3
+$WORK scan --pane "$GHOST_PANE" --quiet
+printf '{"hook_event_name":"preToolUse","conversation_id":"conv-ghost-1","tool_name":"Shell"}' \
+  | $WORK agent hook-event --pane "$GHOST_PANE" --json >/dev/null
+tmux send-keys -t "$GHOST_PANE" C-c
+sleep 0.3
+tmux send-keys -t "$GHOST_PANE" "sleep 300" Enter
+sleep 0.3
+$WORK reconcile --quiet
+OUT=$($WORK agents --json 2>&1)
+if [[ "$OUT" == *"\"paneId\": \"$GHOST_PANE\""* ]]; then
+  fail "explicit hook agent without live process is detached on reconcile (still bound to $GHOST_PANE)"
+else
+  pass "explicit hook agent without live process is detached on reconcile"
+fi
+
+section "6e. Labeled pane with agent child process is detected while typing"
+TYPING_PANE=$(tmux split-window -t "$SESSION" -h -P -F '#{pane_id}' \
+  'bash -c "exec -a cursor sleep 300 & sleep 300"')
+sleep 0.3
+tmux set-option -p -t "$TYPING_PANE" @work-agent-label typing-agent
+tmux set-option -p -t "$TYPING_PANE" @work-agent-cli cursor
+tmux select-pane -t "$TYPING_PANE" -T 'bash'
+OUT=$($WORK scan --pane "$TYPING_PANE" 2>&1)
+assert_contains "labeled pane with agent child is detected without title evidence" "found" "$OUT"
+
 section "7. status summary counts"
 OUT=$($WORK status 2>&1)
 assert_contains "status reports working agents" "working" "$OUT"
@@ -240,6 +279,15 @@ WORK_HERDR_BIN="$HERDR_STUB" $WORK agent observe "$HERDR_PANE" --apply --quiet
 OUT=$($WORK agents --json 2>&1)
 assert_contains "agent record stores status reason" '"statusReason": "bash_permission_prompt"' "$OUT"
 assert_contains "agent record stores visible blocker" '"visibleBlocker": true' "$OUT"
+
+TITLE_OVERRIDE_PANE=$(tmux new-window -t "$SESSION" -P -F '#{pane_id}' \
+  'bash -c "exec -a cursor sh -c \"printf \\\"HERDR-BLOCKED\\\\n\\\"; sleep 300\""')
+sleep 0.3
+$WORK scan --pane "$TITLE_OVERRIDE_PANE" --quiet
+tmux select-pane -t "$TITLE_OVERRIDE_PANE" -T '⢀ working'
+OUT=$(WORK_HERDR_BIN="$HERDR_STUB" $WORK agent observe "$TITLE_OVERRIDE_PANE" --json 2>&1)
+assert_contains "herdr blocked rejected when title shows working" '"status": "working"' "$OUT"
+assert_contains "active title falls back to manifest" '"source": "manifest"' "$OUT"
 
 SKIP_PANE=$(tmux new-window -t "$SESSION" -P -F '#{pane_id}' \
   'bash -c "exec -a cursor sh -c \"printf \\\"run this command? HERDR-SKIP\\\\n\\\"; sleep 300\""')
