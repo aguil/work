@@ -232,5 +232,5 @@ export function render(
   lines.push(hr(w));
   lines.push(`${dim}^W toggle  ^S track${reset}`);
 
-  return `\x1b[H\x1b[2J${lines.map((l) => pad(l, w)).join("\n")}`;
+  return `\x1b[H${lines.map((l) => pad(l, w)).join("\n")}\x1b[J`;
 }

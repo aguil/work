@@ -51,6 +51,11 @@ export interface CommandResponse {
 export type DaemonMessage = StateSnapshot | StateUpdate | CommandResponse;
 export type ClientMessage = CommandRequest | { type: "subscribe" };
 
+/** Stable key for comparing sidebar-visible daemon snapshots. */
+export function snapshotFingerprint(sessions: SessionSnapshot[]): string {
+  return JSON.stringify(sessions);
+}
+
 export function encode(msg: DaemonMessage | ClientMessage): string {
   return `${JSON.stringify(msg)}\n`;
 }

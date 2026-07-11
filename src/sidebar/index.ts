@@ -7,6 +7,7 @@ let currentSessions: SessionSnapshot[] = [];
 let connected = false;
 let cols = 40;
 let rows = 24;
+let lastRenderedOutput = "";
 
 function updateSize(): void {
   cols = process.stdout.columns ?? 40;
@@ -16,6 +17,8 @@ function updateSize(): void {
 function redraw(): void {
   updateSize();
   const output = render(currentSessions, cols, rows, connected);
+  if (output === lastRenderedOutput) return;
+  lastRenderedOutput = output;
   process.stdout.write(output);
 }
 

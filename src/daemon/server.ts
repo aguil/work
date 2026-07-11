@@ -6,6 +6,7 @@ import {
   decode,
   encode,
   type StateSnapshot,
+  snapshotFingerprint,
 } from "./protocol.js";
 import { aggregateState } from "./state-aggregator.js";
 
@@ -20,6 +21,7 @@ export class DaemonServer {
   private clients: Set<ConnectedClient> = new Set();
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private lastState: ReturnType<typeof aggregateState> | null = null;
+  private lastBroadcastFingerprint: string | null = null;
   private pollIntervalMs: number;
 
   constructor(pollIntervalMs = 2000) {
@@ -189,6 +191,10 @@ export class DaemonServer {
     try {
       const state = aggregateState();
       this.lastState = state;
+      const fingerprint = snapshotFingerprint(state.sessions);
+      if (fingerprint === this.lastBroadcastFingerprint) return;
+
+      this.lastBroadcastFingerprint = fingerprint;
       this.broadcast({
         type: "update",
         sessions: state.sessions,

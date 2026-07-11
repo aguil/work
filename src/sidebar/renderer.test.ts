@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { AgentView, SessionSnapshot } from "../daemon/protocol.js";
+import { snapshotFingerprint } from "../daemon/protocol.js";
 import {
   formatTmuxSessionKey,
   formatTmuxSessionKeyFromId,
@@ -342,5 +343,18 @@ describe("sidebar render", () => {
     const plain = out.replace(new RegExp(`${esc}\\[[0-9;]*m`, "g"), "");
     assert.match(plain, /code-review\/agents · main/);
     assert.match(plain, /general-harness\/agents · wlpkksunlkry/);
+  });
+
+  it("produces identical output for identical sessions", () => {
+    const sessions: SessionSnapshot[] = [
+      session({
+        name: "proj",
+        agents: [agent({ label: "a1", status: "idle" })],
+      }),
+    ];
+    const first = render(sessions, 40, 20, true);
+    const second = render(sessions, 40, 20, true);
+    assert.equal(first, second);
+    assert.equal(snapshotFingerprint(sessions), snapshotFingerprint(sessions));
   });
 });
