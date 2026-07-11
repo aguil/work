@@ -175,7 +175,14 @@ export class DaemonServer {
 
   private startPolling(): void {
     this.poll();
-    this.pollTimer = setInterval(() => this.poll(), this.pollIntervalMs);
+    this.scheduleNextPoll();
+  }
+
+  private scheduleNextPoll(): void {
+    this.pollTimer = setTimeout(() => {
+      this.poll();
+      this.scheduleNextPoll();
+    }, this.pollIntervalMs);
   }
 
   poll(): void {
