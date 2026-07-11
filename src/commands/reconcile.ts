@@ -19,7 +19,6 @@ import {
 
 function paneMatchesDetachedAgent(pane: TmuxPane, agent: AgentRecord): boolean {
   if (pane.workAgentLabel !== agent.label) return false;
-  if (pane.workAgentCli === agent.cli) return true;
   if (detectSinglePane(pane)) return true;
   const cliSet = new Set(
     getConfigValue("agent-clis").map((c) => c.toLowerCase()),
