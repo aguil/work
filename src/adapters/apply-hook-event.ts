@@ -1,11 +1,11 @@
 import * as tmux from "../tmux/client.js";
+import { resolveWorkspaceForSession } from "../workspace/resolve-session.js";
 import {
   type AgentRecord,
   type AgentStatus,
   autoLabel,
   findAgentByConversation,
   findAgentByPane,
-  findWorkspaceBySession,
   listWorkspaces,
   saveWorkspace,
   upsertAgent,
@@ -89,7 +89,7 @@ function bindConversation(
   cwd: string | null,
 ): void {
   const sessionName = resolveSessionName(paneId);
-  const ws = sessionName ? findWorkspaceBySession(sessionName) : null;
+  const ws = sessionName ? resolveWorkspaceForSession(sessionName) : null;
   upsertConversationBinding({
     conversationId,
     paneId,
@@ -144,11 +144,23 @@ export function applyHookEvent(
   let target: { ws: WorkspaceState; agent: AgentRecord } | null = null;
 
   if (paneId) {
-    for (const ws of workspaces) {
-      const agent = findAgentByPane(ws, paneId);
-      if (agent) {
-        target = { ws, agent };
-        break;
+    const sessionName = resolveSessionName(paneId);
+    if (sessionName) {
+      const ws = resolveWorkspaceForSession(sessionName);
+      if (ws) {
+        const agent = findAgentByPane(ws, paneId);
+        if (agent) {
+          target = { ws, agent };
+        }
+      }
+    }
+    if (!target) {
+      for (const ws of workspaces) {
+        const agent = findAgentByPane(ws, paneId);
+        if (agent) {
+          target = { ws, agent };
+          break;
+        }
       }
     }
   }
@@ -172,7 +184,7 @@ export function applyHookEvent(
 
   if (!target && paneId) {
     const sessionName = resolveSessionName(paneId);
-    const ws = sessionName ? findWorkspaceBySession(sessionName) : null;
+    const ws = sessionName ? resolveWorkspaceForSession(sessionName) : null;
     if (ws) {
       const agent = ensureAgentForPane(ws, paneId);
       target = { ws, agent };

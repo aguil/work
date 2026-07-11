@@ -4,9 +4,14 @@ import {
   hasExplicitHookStatus,
 } from "../adapters/debounce.js";
 import { getConfigValue } from "../config/store.js";
-import { detectAgents, detectSinglePane, paneStillHostsAgent } from "../scanner/detect.js";
+import {
+  detectAgents,
+  detectSinglePane,
+  paneStillHostsAgent,
+} from "../scanner/detect.js";
 import type { TmuxPane } from "../tmux/client.js";
 import * as tmux from "../tmux/client.js";
+import { resolveWorkspaceForSession } from "../workspace/resolve-session.js";
 import { hydrateTrackedSessionOption } from "../workspace/session-options.js";
 import {
   type AgentRecord,
@@ -33,9 +38,12 @@ export function registerReconcileCommand(program: Command): void {
     .option("-a, --all", "Reconcile all tracked workspaces")
     .option("-q, --quiet", "Suppress output")
     .action((opts: { all?: boolean; quiet?: boolean }) => {
-      const workspaces = listWorkspaces().filter((w) => !w.archived);
       const sessions = tmux.listSessions();
       const sessionNames = new Set(sessions.map((s) => s.name));
+      for (const session of sessions) {
+        resolveWorkspaceForSession(session.name);
+      }
+      const workspaces = listWorkspaces().filter((w) => !w.archived);
       const allPanes = tmux.listPanes();
 
       let totalFixed = 0;
@@ -97,10 +105,7 @@ export function registerReconcileCommand(program: Command): void {
             !detectedPaneIds.has(agent.paneId)
           ) {
             const pane = paneById.get(agent.paneId);
-            if (
-              pane &&
-              paneStillHostsAgent(pane, agent.cli, agentCliSet)
-            ) {
+            if (pane && paneStillHostsAgent(pane, agent.cli, agentCliSet)) {
               if (pane.workAgentLabel !== agent.label) {
                 tmux.setOption(
                   "pane",
@@ -204,7 +209,12 @@ export function registerReconcileCommand(program: Command): void {
                 );
               }
               if (pane.workAgentCli !== existing.cli) {
-                tmux.setOption("pane", "@work-agent-cli", existing.cli, pane.id);
+                tmux.setOption(
+                  "pane",
+                  "@work-agent-cli",
+                  existing.cli,
+                  pane.id,
+                );
               }
             }
             continue;

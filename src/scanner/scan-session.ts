@@ -6,19 +6,20 @@ import {
 } from "../adapters/debounce.js";
 import { observePane } from "../adapters/observe.js";
 import * as tmux from "../tmux/client.js";
+import { resolveWorkspaceForSession } from "../workspace/resolve-session.js";
 import {
   type AgentRecord,
   autoLabel,
   findAgentByPane,
-  findWorkspaceBySession,
   saveWorkspace,
   upsertAgent,
+  type WorkspaceState,
 } from "../workspace/state.js";
 import type { DetectedAgent } from "./detect.js";
 import { detectAgents, detectSinglePane, isSidebarPane } from "./detect.js";
 
 function registerDetectedAgent(
-  ws: ReturnType<typeof findWorkspaceBySession>,
+  ws: WorkspaceState,
   detected: DetectedAgent,
   pane: ReturnType<typeof tmux.getPane>,
   opts?: { quiet?: boolean },
@@ -107,7 +108,7 @@ export function scanPane(paneId: string, opts?: { quiet?: boolean }): number {
   const detected = detectSinglePane(pane);
   if (!detected) return 0;
 
-  const ws = findWorkspaceBySession(pane.sessionName);
+  const ws = resolveWorkspaceForSession(pane.sessionName);
   if (!ws) {
     if (!opts?.quiet) {
       console.log(
@@ -129,7 +130,7 @@ export function scanSession(
   const detected = detectAgents(panes, sidebarPaneIds);
   if (detected.length === 0) return 0;
 
-  const ws = findWorkspaceBySession(sessionName);
+  const ws = resolveWorkspaceForSession(sessionName);
   if (!ws) {
     if (!opts?.quiet) {
       for (const d of detected) {
