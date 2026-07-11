@@ -136,7 +136,11 @@ function resolveAgentCli(pane: TmuxPane, cliSet: Set<string>): string | null {
   // still reports an agent CLI as the foreground command (typing redraws).
   if (registeredLabel) {
     if (pane.workAgentCli) {
-      if (hasAgentChildProcess(pane, pane.workAgentCli) || cliSet.has(cmd)) {
+      const registeredCli = pane.workAgentCli.toLowerCase();
+      if (
+        hasAgentChildProcess(pane, pane.workAgentCli) ||
+        (cliSet.has(cmd) && cmd === registeredCli)
+      ) {
         return pane.workAgentCli;
       }
       return null;
@@ -178,7 +182,9 @@ export function paneStillHostsAgent(
   if (!cliSet) return false;
 
   const cmd = pane.currentCommand.toLowerCase();
-  if (pane.workAgentLabel && cliSet.has(cmd)) return true;
+  if (pane.workAgentLabel && cliSet.has(cmd) && cmd === cli.toLowerCase()) {
+    return true;
+  }
 
   for (const agentCli of cliSet) {
     if (agentCli !== cli && hasAgentChildProcess(pane, agentCli)) return true;
