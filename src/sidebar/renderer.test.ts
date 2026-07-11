@@ -11,6 +11,10 @@ import { formatWindowLocation, repoDisplayName, sortAgents } from "./layout.js";
 import { normalizeSessions } from "./normalize.js";
 import { render } from "./renderer.js";
 import { coloredJjChangeId, formatRevisionLabel } from "./revision.js";
+import {
+  formatSessionShortcutLabel,
+  resolveSessionShortcutChooseIndex,
+} from "./session-shortcut.js";
 
 function agent(
   partial: Partial<AgentView> & Pick<AgentView, "label">,
@@ -97,6 +101,26 @@ describe("sidebar layout", () => {
     assert.equal(formatChooseKey(15, custom), "g");
     assert.equal(formatChooseKey(16, custom), "i");
     assert.equal(formatChooseKey(16 - 1, custom), "g");
+  });
+
+  it("uses choose-tree list position when session ids have gaps", () => {
+    const sessions = [
+      session({ name: "alpha", id: "$1", index: 1 }),
+      session({ name: "beta", id: "$3", index: 3 }),
+      session({ name: "gamma", id: "$5", index: 5 }),
+    ];
+    assert.equal(
+      resolveSessionShortcutChooseIndex(sessions[1], sessions, "id"),
+      2,
+    );
+    assert.equal(
+      resolveSessionShortcutChooseIndex(sessions[1], sessions, "choose-order"),
+      1,
+    );
+    assert.equal(
+      formatSessionShortcutLabel(sessions[1], sessions, "choose-order"),
+      "1",
+    );
   });
 
   it("disambiguates duplicate repo basenames", () => {
