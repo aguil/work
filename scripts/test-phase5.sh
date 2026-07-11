@@ -25,7 +25,24 @@ chmod 700 "$XDG_RUNTIME_DIR"
 
 PASS=0
 FAIL=0
-DETECT_SESSIONS=()
+CREATED_SESSIONS=()
+LAST_DETECT_PANE=""
+
+register_test_session() {
+  CREATED_SESSIONS+=("$1")
+}
+
+kill_test_sessions() {
+  local name
+  for name in "${CREATED_SESSIONS[@]}"; do
+    tmux kill-session -t "$name" 2>/dev/null || true
+  done
+  while IFS= read -r name; do
+    [[ -z "$name" ]] && continue
+    tmux kill-session -t "$name" 2>/dev/null || true
+  done < <(tmux list-sessions -F '#{session_name}' 2>/dev/null \
+    | rg "^${SESSION_PREFIX}" || true)
+}
 
 pass() { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
@@ -47,15 +64,15 @@ begin_detect_pane() {
   local tag="$1"
   shift
   local name="${SESSION_PREFIX}-${tag}-$$"
+  LAST_DETECT_PANE=""
   tmux kill-session -t "$name" 2>/dev/null || true
   if ! tmux new-session -d -s "$name" -- "$@"; then
-    echo ""
-    return
+    return 1
   fi
   sleep 0.1
   $WORK track "$name" --quiet
-  DETECT_SESSIONS+=("$name")
-  tmux list-panes -t "$name" -F '#{pane_id}' 2>/dev/null | head -1
+  register_test_session "$name"
+  LAST_DETECT_PANE=$(tmux list-panes -t "$name" -F '#{pane_id}' 2>/dev/null | head -1)
 }
 
 assert_pane_id() {
@@ -66,13 +83,10 @@ assert_pane_id() {
 }
 
 cleanup() {
-  for detect_session in "${DETECT_SESSIONS[@]}"; do
-    tmux kill-session -t "$detect_session" 2>/dev/null || true
-  done
-  tmux kill-session -t "$SESSION" 2>/dev/null || true
+  kill_test_sessions
   rm -rf "$TEST_ROOT"
 }
-trap cleanup EXIT
+trap cleanup EXIT INT TERM HUP
 
 section "1. Build & manifest smoke"
 cd "$WORK_DIR"
@@ -91,6 +105,7 @@ section "2. Track agent and title-based observation"
 tmux kill-session -t "$SESSION" 2>/dev/null || true
 tmux new-session -d -s "$SESSION"
 $WORK track "$SESSION" --quiet
+register_test_session "$SESSION"
 
 AGENT_PANE=$(tmux split-window -t "$SESSION" -h -P -F '#{pane_id}' \
   'bash -c "exec -a cursor sleep 300"')
@@ -157,8 +172,9 @@ else
 fi
 
 section "6b. Stale labeled shell with agent scrollback is not an agent"
-STALE_LABELED_PANE=$(begin_detect_pane "6b" bash -c \
-  'printf "Add a follow-up\nComposer 2.5\n"; sleep 300')
+begin_detect_pane "6b" bash -c \
+  'printf "Add a follow-up\nComposer 2.5\n"; sleep 300'
+STALE_LABELED_PANE=$LAST_DETECT_PANE
 sleep 0.2
 if assert_pane_id "stale labeled shell without agent process is not registered" "$STALE_LABELED_PANE"; then
   tmux set-option -p -t "$STALE_LABELED_PANE" @work-agent-label stale-labeled
@@ -171,7 +187,8 @@ if assert_pane_id "stale labeled shell without agent process is not registered" 
 fi
 
 section "6c. Labeled idle agent with live process is detected"
-LABELED_IDLE_PANE=$(begin_detect_pane "6c" bash -c 'exec -a cursor sleep 300')
+begin_detect_pane "6c" bash -c 'exec -a cursor sleep 300'
+LABELED_IDLE_PANE=$LAST_DETECT_PANE
 sleep 0.3
 if assert_pane_id "labeled idle agent with live process is detected" "$LABELED_IDLE_PANE"; then
   tmux set-option -p -t "$LABELED_IDLE_PANE" @work-agent-label labeled-idle
@@ -182,7 +199,8 @@ if assert_pane_id "labeled idle agent with live process is detected" "$LABELED_I
 fi
 
 section "6d. Explicit hook agent without live process is detached on reconcile"
-GHOST_PANE=$(begin_detect_pane "6d" bash -c 'exec -a cursor sleep 300')
+begin_detect_pane "6d" bash -c 'exec -a cursor sleep 300'
+GHOST_PANE=$LAST_DETECT_PANE
 sleep 0.3
 if assert_pane_id "explicit hook agent without live process is detached on reconcile" "$GHOST_PANE"; then
   $WORK scan --pane "$GHOST_PANE" --quiet
@@ -202,7 +220,8 @@ if assert_pane_id "explicit hook agent without live process is detached on recon
 fi
 
 section "6e. Labeled pane with agent child process is detected while typing"
-TYPING_PANE=$(begin_detect_pane "6e" bash -c 'exec -a cursor sleep 300 & sleep 300')
+begin_detect_pane "6e" bash -c 'exec -a cursor sleep 300 & sleep 300'
+TYPING_PANE=$LAST_DETECT_PANE
 sleep 0.3
 if assert_pane_id "labeled pane with agent child is detected without title evidence" "$TYPING_PANE"; then
   tmux set-option -p -t "$TYPING_PANE" @work-agent-label typing-agent
@@ -220,6 +239,7 @@ ZOMBIE_SESSION="${SESSION_PREFIX}-zombie-$$"
 tmux kill-session -t "$ZOMBIE_SESSION" 2>/dev/null || true
 tmux new-session -d -s "$ZOMBIE_SESSION"
 $WORK track "$ZOMBIE_SESSION" --quiet
+register_test_session "$ZOMBIE_SESSION"
 AGENT_PANE=$(tmux split-window -t "$ZOMBIE_SESSION" -h -P -F '#{pane_id}' \
   'bash -c "exec -a cursor sleep 300"')
 sleep 0.3
@@ -237,6 +257,7 @@ IDLE_SESSION="${SESSION_PREFIX}-idle-$$"
 tmux kill-session -t "$IDLE_SESSION" 2>/dev/null || true
 tmux new-session -d -s "$IDLE_SESSION"
 $WORK track "$IDLE_SESSION" --quiet
+register_test_session "$IDLE_SESSION"
 IDLE_PANE=$(tmux split-window -t "$IDLE_SESSION" -h -P -F '#{pane_id}' \
   'bash -c "exec -a cursor sleep 300"')
 sleep 0.3
@@ -251,6 +272,7 @@ WORK_SESSION="${SESSION_PREFIX}-session-scope-$$"
 tmux kill-session -t "$WORK_SESSION" 2>/dev/null || true
 tmux new-session -d -s "$WORK_SESSION"
 $WORK track "$WORK_SESSION" --quiet
+register_test_session "$WORK_SESSION"
 BUSY_PANE=$(tmux split-window -t "$WORK_SESSION" -h -P -F '#{pane_id}' \
   'bash -c "exec -a cursor sleep 300"')
 sleep 0.3
