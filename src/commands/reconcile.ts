@@ -4,7 +4,7 @@ import {
   hasExplicitHookStatus,
 } from "../adapters/debounce.js";
 import { getConfigValue } from "../config/store.js";
-import { detectAgents, detectSinglePane } from "../scanner/detect.js";
+import { detectAgents, detectSinglePane, paneStillHostsAgent } from "../scanner/detect.js";
 import type { TmuxPane } from "../tmux/client.js";
 import * as tmux from "../tmux/client.js";
 import { hydrateTrackedSessionOption } from "../workspace/session-options.js";
@@ -73,6 +73,9 @@ export function registerReconcileCommand(program: Command): void {
         const livePaneIds = new Set(sessionPanes.map((p) => p.id));
         const detected = detectAgents(sessionPanes);
         const detectedPaneIds = new Set(detected.map((p) => p.paneId));
+        const agentCliSet = new Set(
+          getConfigValue("agent-clis").map((c) => c.toLowerCase()),
+        );
 
         // Re-map agents whose pane IDs are stale
         for (const agent of Object.values(ws.agents)) {
@@ -94,7 +97,28 @@ export function registerReconcileCommand(program: Command): void {
             !detectedPaneIds.has(agent.paneId)
           ) {
             const pane = paneById.get(agent.paneId);
-            if (pane && hasExplicitHookStatus(agent)) {
+            if (
+              pane &&
+              paneStillHostsAgent(pane, agent.cli, agentCliSet)
+            ) {
+              if (pane.workAgentLabel !== agent.label) {
+                tmux.setOption(
+                  "pane",
+                  "@work-agent-label",
+                  agent.label,
+                  pane.id,
+                );
+              }
+              if (pane.workAgentCli !== agent.cli) {
+                tmux.setOption("pane", "@work-agent-cli", agent.cli, pane.id);
+              }
+              continue;
+            }
+            if (
+              pane &&
+              hasExplicitHookStatus(agent) &&
+              detectSinglePane(pane)
+            ) {
               if (pane.workAgentLabel !== agent.label) {
                 tmux.setOption(
                   "pane",
@@ -168,7 +192,23 @@ export function registerReconcileCommand(program: Command): void {
         // Discover new agents
         for (const d of detected) {
           const existing = findAgentByPane(ws, d.paneId);
-          if (existing) continue;
+          if (existing) {
+            const pane = paneById.get(d.paneId);
+            if (pane) {
+              if (pane.workAgentLabel !== existing.label) {
+                tmux.setOption(
+                  "pane",
+                  "@work-agent-label",
+                  existing.label,
+                  pane.id,
+                );
+              }
+              if (pane.workAgentCli !== existing.cli) {
+                tmux.setOption("pane", "@work-agent-cli", existing.cli, pane.id);
+              }
+            }
+            continue;
+          }
 
           // Check if any detached agent matches this CLI
           const detachedMatch = Object.values(ws.agents).find(
