@@ -184,9 +184,6 @@ export function paneStillHostsAgent(
     return true;
   }
 
-  for (const agentCli of cliSet) {
-    if (agentCli !== cli && hasAgentChildProcess(pane, agentCli)) return true;
-  }
   return false;
 }
 
