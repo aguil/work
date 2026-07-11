@@ -1,9 +1,13 @@
 import type { AgentView, SessionSnapshot } from "../daemon/protocol.js";
-import { formatTmuxSessionKeyFromId } from "../tmux/client.js";
 import type { TreeView } from "../vcs/detect.js";
 import { isSidebarAgent } from "../workspace/agent-display.js";
 import type { AgentStatus } from "../workspace/state.js";
 import { resolveSessionIndex } from "./normalize.js";
+import type { SessionShortcutContext } from "./session-shortcut.js";
+import {
+  formatSessionShortcutLabelFromContext,
+  formatTmuxSessionKey,
+} from "./session-shortcut.js";
 
 const STATUS_SORT: Record<AgentStatus, number> = {
   blocked: 0,
@@ -69,23 +73,46 @@ export function sortSessions(sessions: SessionSnapshot[]): SessionSnapshot[] {
 export function formatWindowLocation(
   agent: AgentView,
   session?: SessionSnapshot,
+  shortcutContext?: SessionShortcutContext,
 ): string {
-  const sessionIndex = session
-    ? resolveSessionIndex(session)
-    : typeof agent.sessionIndex === "number" &&
-        !Number.isNaN(agent.sessionIndex)
-      ? agent.sessionIndex
-      : 0;
   const sessionName = agent.sessionName?.trim() || session?.name || "?";
   const windowIndex = (agent.windowIndex ?? 0) + 1;
   const windowName = agent.windowName?.trim() || "?";
-  return `${formatTmuxSessionKeyFromId(sessionIndex)}:${sessionName} · ${windowIndex}:${windowName}`;
+
+  const resolvedSession =
+    session ??
+    ({
+      id: `$${agent.sessionIndex ?? 0}`,
+      name: sessionName,
+      index: agent.sessionIndex ?? 0,
+      windowCount: 0,
+      attached: false,
+      tracked: false,
+      workspaceName: null,
+      agents: [],
+      trees: [],
+    } satisfies SessionSnapshot);
+
+  const shortcut = shortcutContext
+    ? formatSessionShortcutLabelFromContext(resolvedSession, shortcutContext)
+    : formatTmuxSessionKey(
+        Math.max(0, resolveSessionIndex(resolvedSession) - 1),
+      );
+
+  return `${shortcut}:${sessionName} · ${windowIndex}:${windowName}`;
 }
 
-export function formatSessionTitle(session: SessionSnapshot): string {
+export function formatSessionTitle(
+  session: SessionSnapshot,
+  shortcutContext: SessionShortcutContext,
+): string {
   const attached = session.attached ? " *" : "";
   const untracked = session.tracked ? "" : " ○";
-  return `${formatTmuxSessionKeyFromId(resolveSessionIndex(session))}:${session.name}${attached}${untracked}`;
+  const shortcut = formatSessionShortcutLabelFromContext(
+    session,
+    shortcutContext,
+  );
+  return `${shortcut}:${session.name}${attached}${untracked}`;
 }
 
 export function repoBasename(tree: TreeView): string {

@@ -49,6 +49,47 @@ work config set prompt-repos-on-new-window true
 work config set auto-track true
 ```
 
+### Session shortcut keys (sidebar labels)
+
+The sidebar prefixes each session with a single character (e.g. `2:tmuxr`) so
+you can see which key switches to that session in tmux's session picker
+(`prefix + s` by default). That label is **not** a tmux global option — tmux
+documents the mechanism in [choose-tree(1)](https://man.openbsd.org/tmux.1#choose-tree)
+(`-K key-format`, evaluated per list line), but the actual keys depend on your
+binding.
+
+**Stock tmux** (`choose-tree -s`, no custom `-K`) assigns keys by **0-based list
+position** (`#{line}`), sorted by session id by default (`-O index`):
+
+| List position | Key                             |
+| ------------- | ------------------------------- |
+| 0–9           | `0`–`9`                         |
+| 10–35         | `M-a`–`M-z` (Meta/Alt + letter) |
+
+Many configs override `prefix + s` with a custom `-K` format (plain `a`–`z`,
+skipping letters that conflict with tree-mode keys, etc.). `work` cannot parse
+that expression; keep the alphabet in sync manually.
+
+```bash
+# Alphabet: one character per shortcut index (default: 0-9 then a-z)
+work config set session-shortcut-keys '0123456789abcdegiopu'
+
+# Index source: id ($N-1) or choose-order (list position in choose-tree -s)
+work config set session-shortcut-index choose-order
+```
+
+Or set tmux globals alongside your `bind-key s` block (cached for the lifetime of
+the `work sidebar` client process; `work config` is the fallback when unset):
+
+```tmux
+set-option -g @work-session-shortcut-keys "0123456789abcdegiopu"
+set-option -g @work-session-shortcut-index choose-order
+```
+
+Use `choose-order` when session ids have gaps (`$1`, `$3`, `$5` …) or when your
+`-K` mapping uses `#{line}` rather than session id. Use `id` when your `-K`
+block maps `$N` (or equivalent) directly to the alphabet.
+
 ## Commands (summary)
 
 | Area      | Commands                                                                   |

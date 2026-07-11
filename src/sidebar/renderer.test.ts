@@ -1,15 +1,50 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { after, before, describe, it } from "node:test";
+import { resetCache } from "../config/store.js";
 import type { AgentView, SessionSnapshot } from "../daemon/protocol.js";
 import { snapshotFingerprint } from "../daemon/protocol.js";
-import {
-  formatTmuxSessionKey,
-  formatTmuxSessionKeyFromId,
-} from "../tmux/client.js";
 import { formatWindowLocation, repoDisplayName, sortAgents } from "./layout.js";
 import { normalizeSessions } from "./normalize.js";
 import { render } from "./renderer.js";
 import { coloredJjChangeId, formatRevisionLabel } from "./revision.js";
+import {
+  formatChooseKey,
+  formatSessionShortcutLabel,
+  formatTmuxSessionKey,
+  formatTmuxSessionKeyFromId,
+  resetSessionShortcutIndexCache,
+  resetSessionShortcutKeysCache,
+  resolveSessionShortcutChooseIndex,
+  setSessionShortcutIndexSourceOverride,
+} from "./session-shortcut.js";
+
+let isolatedConfigHome: string;
+const savedConfigHome = process.env.XDG_CONFIG_HOME;
+
+before(() => {
+  isolatedConfigHome = mkdtempSync(join(tmpdir(), "work-sidebar-test-"));
+  process.env.XDG_CONFIG_HOME = isolatedConfigHome;
+  resetCache();
+  resetSessionShortcutKeysCache();
+  resetSessionShortcutIndexCache();
+  setSessionShortcutIndexSourceOverride("id");
+});
+
+after(() => {
+  if (savedConfigHome === undefined) {
+    delete process.env.XDG_CONFIG_HOME;
+  } else {
+    process.env.XDG_CONFIG_HOME = savedConfigHome;
+  }
+  rmSync(isolatedConfigHome, { recursive: true, force: true });
+  resetCache();
+  resetSessionShortcutKeysCache();
+  resetSessionShortcutIndexCache();
+  setSessionShortcutIndexSourceOverride(null);
+});
 
 function agent(
   partial: Partial<AgentView> & Pick<AgentView, "label">,
@@ -88,6 +123,34 @@ describe("sidebar layout", () => {
       }),
     );
     assert.equal(loc, "b:extra · 1:main");
+  });
+
+  it("formats session keys with a custom shortcut alphabet", () => {
+    const custom = "0123456789abcdegiopu";
+    assert.equal(formatChooseKey(14, custom), "e");
+    assert.equal(formatChooseKey(15, custom), "g");
+    assert.equal(formatChooseKey(16, custom), "i");
+    assert.equal(formatChooseKey(16 - 1, custom), "g");
+  });
+
+  it("uses choose-tree list position when session ids have gaps", () => {
+    const sessions = [
+      session({ name: "alpha", id: "$1", index: 1 }),
+      session({ name: "beta", id: "$3", index: 3 }),
+      session({ name: "gamma", id: "$5", index: 5 }),
+    ];
+    assert.equal(
+      resolveSessionShortcutChooseIndex(sessions[1], sessions, "id"),
+      2,
+    );
+    assert.equal(
+      resolveSessionShortcutChooseIndex(sessions[1], sessions, "choose-order"),
+      1,
+    );
+    assert.equal(
+      formatSessionShortcutLabel(sessions[1], sessions, "choose-order"),
+      "1",
+    );
   });
 
   it("disambiguates duplicate repo basenames", () => {

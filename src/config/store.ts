@@ -10,6 +10,10 @@ export interface Config {
   "checkout-base": string | null;
   "sidebar-width": number;
   "sidebar-position": "left" | "right";
+  /** tmux choose-session / choose-tree shortcut labels (0-based index → char). */
+  "session-shortcut-keys": string;
+  /** id: $N-1 (default). choose-order: position in choose-tree -s list (-O index). */
+  "session-shortcut-index": "id" | "choose-order";
 }
 
 const DEFAULTS: Config = {
@@ -27,6 +31,8 @@ const DEFAULTS: Config = {
   "checkout-base": null,
   "sidebar-width": 40,
   "sidebar-position": "right",
+  "session-shortcut-keys": "0123456789abcdefghijklmnopqrstuvwxyz",
+  "session-shortcut-index": "id",
 };
 
 type ConfigKey = keyof Config;
@@ -151,6 +157,18 @@ export function parseConfigValue(
     case "sidebar-position":
       if (raw !== "left" && raw !== "right") {
         throw new Error(`sidebar-position must be "left" or "right"`);
+      }
+      return raw;
+    case "session-shortcut-keys":
+      if (!raw) {
+        throw new Error("session-shortcut-keys must be a non-empty string");
+      }
+      return raw;
+    case "session-shortcut-index":
+      if (raw !== "id" && raw !== "choose-order") {
+        throw new Error(
+          'session-shortcut-index must be "id" or "choose-order"',
+        );
       }
       return raw;
     default:
