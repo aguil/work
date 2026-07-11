@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import type { AgentView, SessionSnapshot } from "../daemon/protocol.js";
 import { snapshotFingerprint } from "../daemon/protocol.js";
 import {
+  formatChooseKey,
   formatTmuxSessionKey,
   formatTmuxSessionKeyFromId,
 } from "../tmux/client.js";
@@ -88,6 +89,14 @@ describe("sidebar layout", () => {
       }),
     );
     assert.equal(loc, "b:extra · 1:main");
+  });
+
+  it("formats session keys with a custom shortcut alphabet", () => {
+    const custom = "0123456789abcdegiopu";
+    assert.equal(formatChooseKey(14, custom), "e");
+    assert.equal(formatChooseKey(15, custom), "g");
+    assert.equal(formatChooseKey(16, custom), "i");
+    assert.equal(formatChooseKey(16 - 1, custom), "g");
   });
 
   it("disambiguates duplicate repo basenames", () => {
