@@ -167,7 +167,6 @@ function resolveAgentCli(pane: TmuxPane, cliSet: Set<string>): string | null {
 
 /** Whether a tracked pane still runs an agent CLI (pane root or descendant). */
 export function paneHostsAgentProcess(pane: TmuxPane, cli: string): boolean {
-  agentProcessCache.clear();
   return hasAgentChildProcess(pane, cli);
 }
 
@@ -177,7 +176,6 @@ export function paneStillHostsAgent(
   cli: string,
   cliSet?: ReadonlySet<string>,
 ): boolean {
-  agentProcessCache.clear();
   if (hasAgentChildProcess(pane, cli)) return true;
   if (!cliSet) return false;
 
