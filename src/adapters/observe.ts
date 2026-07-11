@@ -1,7 +1,7 @@
 import type { TmuxPane } from "../tmux/client.js";
 import * as tmux from "../tmux/client.js";
 import type { AgentStatus } from "../workspace/state.js";
-import { isActiveAgentTitle } from "../scanner/detect.js";
+import { isActiveAgentTitle } from "./agent-title.js";
 import { evaluateMatch } from "./evaluate.js";
 import { observePaneWithHerdr } from "./herdr.js";
 import { resolveManifestForCli } from "./loader.js";

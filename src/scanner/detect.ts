@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { isActiveAgentTitle } from "../adapters/agent-title.js";
 import { evaluateMatch } from "../adapters/evaluate.js";
 import {
   agentProcessNames,
@@ -21,13 +22,6 @@ export interface DetectedAgent {
 }
 
 const CURSOR_AGENT_TITLE = /\bAgent\s+-/;
-const ACTIVE_AGENT_TITLE = /working|⏳|[\u2800-\u28FF]/i;
-
-function isActiveAgentTitle(title: string): boolean {
-  return ACTIVE_AGENT_TITLE.test(title);
-}
-
-export { isActiveAgentTitle };
 
 const agentProcessCache = new Map<string, boolean>();
 
@@ -142,10 +136,7 @@ function resolveAgentCli(pane: TmuxPane, cliSet: Set<string>): string | null {
   // still reports an agent CLI as the foreground command (typing redraws).
   if (registeredLabel) {
     if (pane.workAgentCli) {
-      if (
-        hasAgentChildProcess(pane, pane.workAgentCli) ||
-        cliSet.has(cmd)
-      ) {
+      if (hasAgentChildProcess(pane, pane.workAgentCli) || cliSet.has(cmd)) {
         return pane.workAgentCli;
       }
       return null;
