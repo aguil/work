@@ -1,10 +1,13 @@
 import type { AgentView, SessionSnapshot } from "../daemon/protocol.js";
-import { formatTmuxSessionKey } from "../tmux/client.js";
 import type { TreeView } from "../vcs/detect.js";
 import { isSidebarAgent } from "../workspace/agent-display.js";
 import type { AgentStatus } from "../workspace/state.js";
 import { resolveSessionIndex } from "./normalize.js";
-import { formatSessionShortcutLabel } from "./session-shortcut.js";
+import type { SessionShortcutContext } from "./session-shortcut.js";
+import {
+  formatSessionShortcutLabelFromContext,
+  formatTmuxSessionKey,
+} from "./session-shortcut.js";
 
 const STATUS_SORT: Record<AgentStatus, number> = {
   blocked: 0,
@@ -70,7 +73,7 @@ export function sortSessions(sessions: SessionSnapshot[]): SessionSnapshot[] {
 export function formatWindowLocation(
   agent: AgentView,
   session?: SessionSnapshot,
-  allSessions?: SessionSnapshot[],
+  shortcutContext?: SessionShortcutContext,
 ): string {
   const sessionName = agent.sessionName?.trim() || session?.name || "?";
   const windowIndex = (agent.windowIndex ?? 0) + 1;
@@ -90,8 +93,8 @@ export function formatWindowLocation(
       trees: [],
     } satisfies SessionSnapshot);
 
-  const shortcut = allSessions
-    ? formatSessionShortcutLabel(resolvedSession, allSessions)
+  const shortcut = shortcutContext
+    ? formatSessionShortcutLabelFromContext(resolvedSession, shortcutContext)
     : formatTmuxSessionKey(
         Math.max(0, resolveSessionIndex(resolvedSession) - 1),
       );
@@ -101,13 +104,13 @@ export function formatWindowLocation(
 
 export function formatSessionTitle(
   session: SessionSnapshot,
-  allSessions?: SessionSnapshot[],
+  shortcutContext: SessionShortcutContext,
 ): string {
   const attached = session.attached ? " *" : "";
   const untracked = session.tracked ? "" : " ○";
-  const shortcut = formatSessionShortcutLabel(
+  const shortcut = formatSessionShortcutLabelFromContext(
     session,
-    allSessions ?? [session],
+    shortcutContext,
   );
   return `${shortcut}:${session.name}${attached}${untracked}`;
 }

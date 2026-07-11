@@ -1,5 +1,4 @@
 import { execFileSync } from "node:child_process";
-import { getConfigValue } from "../config/store.js";
 
 function tmux(...args: string[]): string {
   try {
@@ -19,36 +18,12 @@ export function tmuxSessionIndex(sessionId: string): number {
   return match ? Number.parseInt(match[1], 10) : 0;
 }
 
-let cachedTmuxShortcutKeys: string | null | undefined;
-
-/** Clear cached tmux global shortcut alphabet (for tests). */
-export function resetSessionShortcutKeysCache(): void {
-  cachedTmuxShortcutKeys = undefined;
-}
-
-function resolveSessionShortcutKeys(): string {
-  if (cachedTmuxShortcutKeys === undefined) {
-    cachedTmuxShortcutKeys = getOption("global", "@work-session-shortcut-keys");
-  }
-  return cachedTmuxShortcutKeys ?? getConfigValue("session-shortcut-keys");
-}
-
 /** 0-based choose-session list position → shortcut label. */
 export function formatChooseKey(chooseIndex: number, keys: string): string {
   if (!Number.isFinite(chooseIndex) || chooseIndex < 0) return "?";
   const key = keys[chooseIndex];
   if (key !== undefined) return key;
   return String(chooseIndex);
-}
-
-/** 0-based choose-session list position → shortcut label (configured alphabet). */
-export function formatTmuxSessionKey(chooseIndex: number): string {
-  return formatChooseKey(chooseIndex, resolveSessionShortcutKeys());
-}
-
-/** tmux session id number ($N → N) → choose-session shortcut (0-based). */
-export function formatTmuxSessionKeyFromId(sessionIdNumber: number): string {
-  return formatTmuxSessionKey(sessionIdNumber - 1);
 }
 
 export interface TmuxSession {

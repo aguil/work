@@ -78,8 +78,8 @@ work config set session-shortcut-keys '0123456789abcdegiopu'
 work config set session-shortcut-index choose-order
 ```
 
-Or set tmux globals alongside your `bind-key s` block (read once per `workd`
-lifetime; `work config` is the fallback when unset):
+Or set tmux globals alongside your `bind-key s` block (cached for the lifetime of
+the `work sidebar` client process; `work config` is the fallback when unset):
 
 ```tmux
 set-option -g @work-session-shortcut-keys "0123456789abcdegiopu"

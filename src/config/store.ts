@@ -164,6 +164,13 @@ export function parseConfigValue(
         throw new Error("session-shortcut-keys must be a non-empty string");
       }
       return raw;
+    case "session-shortcut-index":
+      if (raw !== "id" && raw !== "choose-order") {
+        throw new Error(
+          'session-shortcut-index must be "id" or "choose-order"',
+        );
+      }
+      return raw;
     default:
       return undefined;
   }

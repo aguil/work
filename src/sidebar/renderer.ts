@@ -14,6 +14,7 @@ import {
 } from "./layout.js";
 import { normalizeSessions } from "./normalize.js";
 import { formatRevisionLabel } from "./revision.js";
+import { createSessionShortcutContext } from "./session-shortcut.js";
 
 const { dim, bold, reset, green } = colors;
 
@@ -64,10 +65,10 @@ function renderAgentRow(
   agent: AgentView,
   width: number,
   session?: SessionSnapshot,
-  allSessions?: SessionSnapshot[],
+  shortcutContext?: ReturnType<typeof createSessionShortcutContext>,
 ): string {
   const icon = coloredStatus(agent.status);
-  const location = formatWindowLocation(agent, session, allSessions);
+  const location = formatWindowLocation(agent, session, shortcutContext);
   const iconLen = 1;
   const minLocation = 8;
   const gap = "  ";
@@ -142,9 +143,9 @@ function renderRepoLine(
 function renderSessionTopRule(
   session: SessionSnapshot,
   width: number,
-  allSessions: SessionSnapshot[],
+  shortcutContext: ReturnType<typeof createSessionShortcutContext>,
 ): string {
-  const title = formatSessionTitle(session, allSessions);
+  const title = formatSessionTitle(session, shortcutContext);
   const live = session.agents.filter(isSidebarAgent);
   let accent: string = dim;
   if (live.some((a) => a.status === "blocked")) accent = colors.red;
@@ -159,9 +160,11 @@ function renderSessionTopRule(
 function renderSessionCard(
   session: SessionSnapshot,
   width: number,
-  allSessions: SessionSnapshot[],
+  shortcutContext: ReturnType<typeof createSessionShortcutContext>,
 ): string[] {
-  const lines: string[] = [renderSessionTopRule(session, width, allSessions)];
+  const lines: string[] = [
+    renderSessionTopRule(session, width, shortcutContext),
+  ];
   if (session.tracked && session.trees.length > 0) {
     for (const tree of session.trees) {
       lines.push(renderRepoLine(tree, session.trees, width));
@@ -178,6 +181,7 @@ export function render(
 ): string {
   const lines: string[] = [];
   const normalized = normalizeSessions(sessions);
+  const shortcutContext = createSessionShortcutContext(normalized);
   const w = Math.max(cols - 1, 20);
   const maxBody = Math.max(0, rows - FOOTER_LINES);
 
@@ -203,7 +207,7 @@ export function render(
       continue;
     }
     const session = sessionByName.get(agent.sessionName);
-    lines.push(renderAgentRow(agent, w, session, normalized));
+    lines.push(renderAgentRow(agent, w, session, shortcutContext));
   }
   if (agentsTruncated > 0 && lines.length < maxBody) {
     lines.push(`${dim}… +${agentsTruncated} agents${reset}`);
@@ -219,7 +223,7 @@ export function render(
   const sortedSessions = sortSessions(normalized);
   let sessionsTruncated = 0;
   for (const session of sortedSessions) {
-    const cardLines = renderSessionCard(session, w, normalized);
+    const cardLines = renderSessionCard(session, w, shortcutContext);
     if (lines.length + cardLines.length > maxBody) {
       sessionsTruncated++;
       continue;

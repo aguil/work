@@ -1,20 +1,50 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { after, before, describe, it } from "node:test";
+import { resetCache } from "../config/store.js";
 import type { AgentView, SessionSnapshot } from "../daemon/protocol.js";
 import { snapshotFingerprint } from "../daemon/protocol.js";
-import {
-  formatChooseKey,
-  formatTmuxSessionKey,
-  formatTmuxSessionKeyFromId,
-} from "../tmux/client.js";
 import { formatWindowLocation, repoDisplayName, sortAgents } from "./layout.js";
 import { normalizeSessions } from "./normalize.js";
 import { render } from "./renderer.js";
 import { coloredJjChangeId, formatRevisionLabel } from "./revision.js";
 import {
+  formatChooseKey,
   formatSessionShortcutLabel,
+  formatTmuxSessionKey,
+  formatTmuxSessionKeyFromId,
+  resetSessionShortcutIndexCache,
+  resetSessionShortcutKeysCache,
   resolveSessionShortcutChooseIndex,
+  setSessionShortcutIndexSourceOverride,
 } from "./session-shortcut.js";
+
+let isolatedConfigHome: string;
+const savedConfigHome = process.env.XDG_CONFIG_HOME;
+
+before(() => {
+  isolatedConfigHome = mkdtempSync(join(tmpdir(), "work-sidebar-test-"));
+  process.env.XDG_CONFIG_HOME = isolatedConfigHome;
+  resetCache();
+  resetSessionShortcutKeysCache();
+  resetSessionShortcutIndexCache();
+  setSessionShortcutIndexSourceOverride("id");
+});
+
+after(() => {
+  if (savedConfigHome === undefined) {
+    delete process.env.XDG_CONFIG_HOME;
+  } else {
+    process.env.XDG_CONFIG_HOME = savedConfigHome;
+  }
+  rmSync(isolatedConfigHome, { recursive: true, force: true });
+  resetCache();
+  resetSessionShortcutKeysCache();
+  resetSessionShortcutIndexCache();
+  setSessionShortcutIndexSourceOverride(null);
+});
 
 function agent(
   partial: Partial<AgentView> & Pick<AgentView, "label">,
