@@ -126,7 +126,9 @@ export function aggregateState(): AggregatedState {
   const sessions: SessionSnapshot[] = [];
 
   for (const session of tmuxSessions) {
-    const ws = resolveWorkspaceForSession(session.name, allWorkspaces);
+    const ws = resolveWorkspaceForSession(session.name, allWorkspaces, {
+      sessionListed: true,
+    });
     const sessionPanes = allPanes.filter((p) => p.sessionName === session.name);
     const detected = detectAgents(sessionPanes, sidebarPaneIds);
 
