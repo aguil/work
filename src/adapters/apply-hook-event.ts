@@ -1,5 +1,6 @@
 import type { TmuxPane } from "../tmux/client.js";
 import * as tmux from "../tmux/client.js";
+import type { ResolveSessionOptions } from "../workspace/resolve-session.js";
 import { resolveWorkspaceForSession } from "../workspace/resolve-session.js";
 import {
   type AgentRecord,
@@ -89,15 +90,18 @@ function ensureAgentForPane(ws: WorkspaceState, paneId: string): AgentRecord {
   return record;
 }
 
-function hookResolveOptions(paneCtx: HookPaneContext): {
-  sessionListed: boolean;
-  persistUnarchive: boolean;
-} {
+function hookPaneResolveOptions(
+  paneCtx: HookPaneContext,
+): ResolveSessionOptions {
   return {
     sessionListed: paneCtx.pane != null,
     persistUnarchive: false,
   };
 }
+
+const hookBindingResolveOptions: ResolveSessionOptions = {
+  persistUnarchive: false,
+};
 
 function bindConversation(
   conversationId: string,
@@ -110,7 +114,7 @@ function bindConversation(
     ? resolveWorkspaceForSession(
         paneCtx.sessionName,
         allWorkspaces,
-        hookResolveOptions(paneCtx),
+        hookPaneResolveOptions(paneCtx),
       )
     : null;
   upsertConversationBinding({
@@ -139,7 +143,7 @@ export function applyHookEvent(
         : null;
 
   const allWorkspaces = listWorkspaces();
-  const resolveOpts = hookResolveOptions(paneCtx);
+  const paneResolveOpts = hookPaneResolveOptions(paneCtx);
 
   if (conversationId) {
     bindConversation(conversationId, paneId, cwd, paneCtx, allWorkspaces);
@@ -174,7 +178,7 @@ export function applyHookEvent(
     const ws = resolveWorkspaceForSession(
       paneCtx.sessionName,
       allWorkspaces,
-      resolveOpts,
+      paneResolveOpts,
     );
     if (ws) {
       const agent = findAgentByPane(ws, paneId);
@@ -199,7 +203,7 @@ export function applyHookEvent(
       const ws = resolveWorkspaceForSession(
         binding.sessionName,
         allWorkspaces,
-        resolveOpts,
+        paneResolveOpts,
       );
       if (ws) {
         const agent = findAgentByConversation(ws, conversationId);
@@ -229,7 +233,7 @@ export function applyHookEvent(
     const ws = resolveWorkspaceForSession(
       paneCtx.sessionName,
       allWorkspaces,
-      resolveOpts,
+      paneResolveOpts,
     );
     if (ws) {
       const agent = ensureAgentForPane(ws, paneId);
