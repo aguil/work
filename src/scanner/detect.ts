@@ -249,15 +249,13 @@ export function paneStillHostsAgent(
   cli: string,
   cliSet?: ReadonlySet<string>,
 ): boolean {
-  if (hasAgentChildProcess(pane, cli)) return true;
-  if (!cliSet) return false;
-
-  const cmd = pane.currentCommand.toLowerCase();
-  if (pane.workAgentLabel && cliSet.has(cmd) && cmd === cli.toLowerCase()) {
-    return true;
+  if (cliSet) {
+    const cmd = pane.currentCommand.toLowerCase();
+    if (pane.workAgentLabel && cliSet.has(cmd) && cmd === cli.toLowerCase()) {
+      return true;
+    }
   }
-
-  return false;
+  return hasAgentChildProcess(pane, cli);
 }
 
 export function detectAgents(
@@ -293,8 +291,11 @@ export function isSidebarPane(pane: TmuxPane): boolean {
   return pane.workSidebar;
 }
 
-export function detectSinglePane(pane: TmuxPane): DetectedAgent | null {
-  agentProcessCache.clear();
+export function detectSinglePane(
+  pane: TmuxPane,
+  opts?: { preserveCache?: boolean },
+): DetectedAgent | null {
+  if (!opts?.preserveCache) agentProcessCache.clear();
   const agentClis = getConfigValue("agent-clis");
   const cliSet = new Set(agentClis.map((c) => c.toLowerCase()));
   const cli = resolveAgentCli(pane, cliSet);

@@ -108,6 +108,17 @@ export function registerReconcileCommand(program: Command): void {
             !detectedPaneIds.has(agent.paneId)
           ) {
             const pane = paneById.get(agent.paneId);
+            if (!pane?.workAgentLabel && !hasExplicitHookStatus(agent)) {
+              agent.status = "detached";
+              agent.detachedAt = new Date().toISOString();
+              agent.paneId = null;
+              agent.confidence = "none";
+              clearScreenMetadata(agent);
+              totalDetached++;
+              if (!opts.quiet)
+                console.log(`${ws.name}: detached ${agent.label}`);
+              continue;
+            }
             if (pane && paneStillHostsAgent(pane, agent.cli, agentCliSet)) {
               if (pane.workAgentLabel !== agent.label) {
                 tmux.setOption(
@@ -125,7 +136,7 @@ export function registerReconcileCommand(program: Command): void {
             if (
               pane &&
               hasExplicitHookStatus(agent) &&
-              detectSinglePane(pane)
+              detectSinglePane(pane, { preserveCache: true })
             ) {
               if (pane.workAgentLabel !== agent.label) {
                 tmux.setOption(
