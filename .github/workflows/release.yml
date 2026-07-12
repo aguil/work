@@ -1,10 +1,11 @@
 name: Release
 
-# Publishes to npm when release-please creates a version tag.
+# Publishes to npm when release-please creates a version tag (vX.Y.Z).
 on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 env:
   MISE_EXPERIMENTAL: "0"
@@ -44,4 +45,11 @@ jobs:
           mise exec --locked -- npm run test
 
       - name: Publish to npm
-        run: mise exec --locked -- npm publish --access public
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          if npm view "@aguil/work@${version}" version >/dev/null 2>&1; then
+            echo "@aguil/work@${version} is already on npm; skipping publish."
+            exit 0
+          fi
+          mise exec --locked -- npm publish --access public
