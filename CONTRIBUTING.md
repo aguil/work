@@ -79,6 +79,7 @@ Releases are automated with
    not included.
 2. release-please opens or updates a **Release PR** (`chore: release X.Y.Z`)
    that bumps `package.json`, `.release-please-manifest.json`, and `CHANGELOG.md`.
+   `CHANGELOG.md` is excluded from pre-commit (release-please owns its format).
 3. Review the Release PR. Merge when ready to ship.
 4. Merging the Release PR creates the `vX.Y.Z` tag and GitHub Release.
 5. The tag triggers [Release workflow](.github/workflows/release.yml), which
