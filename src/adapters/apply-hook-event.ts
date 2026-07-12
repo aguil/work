@@ -199,11 +199,12 @@ export function applyHookEvent(
         ? input.workspace_roots[0]
         : null;
 
-  const allWorkspaces = listWorkspaces();
   const paneResolveOpts = hookPaneResolveOptions(paneCtx);
   const pendingUnarchiveSaves = new Set<string>();
+  let allWorkspaces: WorkspaceState[] | null = null;
 
   if (conversationId) {
+    allWorkspaces = listWorkspaces();
     bindConversation(
       conversationId,
       paneId,
@@ -235,10 +236,12 @@ export function applyHookEvent(
         paneId,
         event,
       },
-      allWorkspaces,
+      allWorkspaces ?? [],
       pendingUnarchiveSaves,
     );
   }
+
+  allWorkspaces ??= listWorkspaces();
 
   const workspaces = allWorkspaces.filter((w) => !w.archived);
   let target: { ws: WorkspaceState; agent: AgentRecord } | null = null;
