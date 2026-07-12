@@ -25,6 +25,24 @@ chmod 700 "$XDG_RUNTIME_DIR"
 
 PASS=0
 FAIL=0
+CREATED_SESSIONS=()
+LAST_DETECT_PANE=""
+
+register_test_session() {
+  CREATED_SESSIONS+=("$1")
+}
+
+kill_test_sessions() {
+  local name
+  for name in "${CREATED_SESSIONS[@]}"; do
+    tmux kill-session -t "$name" 2>/dev/null || true
+  done
+  while IFS= read -r name; do
+    [[ -z "$name" ]] && continue
+    tmux kill-session -t "$name" 2>/dev/null || true
+  done < <(tmux list-sessions -F '#{session_name}' 2>/dev/null \
+    | rg "^${SESSION_PREFIX}" || true)
+}
 
 pass() { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
@@ -41,11 +59,34 @@ assert_eq() {
 
 section() { echo; echo "== $1 =="; }
 
+# Isolated session + single pane — avoids split/window limits on the main autotest session.
+begin_detect_pane() {
+  local tag="$1"
+  shift
+  local name="${SESSION_PREFIX}-${tag}-$$"
+  LAST_DETECT_PANE=""
+  tmux kill-session -t "$name" 2>/dev/null || true
+  if ! tmux new-session -d -s "$name" -- "$@"; then
+    return 1
+  fi
+  sleep 0.1
+  $WORK track "$name" --quiet
+  register_test_session "$name"
+  LAST_DETECT_PANE=$(tmux list-panes -t "$name" -F '#{pane_id}' 2>/dev/null | head -1)
+}
+
+assert_pane_id() {
+  local desc="$1" pane="$2"
+  if [[ "$pane" == %* ]]; then return 0; fi
+  fail "$desc (could not create pane: ${pane:-empty})"
+  return 1
+}
+
 cleanup() {
-  tmux kill-session -t "$SESSION" 2>/dev/null || true
+  kill_test_sessions
   rm -rf "$TEST_ROOT"
 }
-trap cleanup EXIT
+trap cleanup EXIT INT TERM HUP
 
 section "1. Build & manifest smoke"
 cd "$WORK_DIR"
@@ -64,6 +105,7 @@ section "2. Track agent and title-based observation"
 tmux kill-session -t "$SESSION" 2>/dev/null || true
 tmux new-session -d -s "$SESSION"
 $WORK track "$SESSION" --quiet
+register_test_session "$SESSION"
 
 AGENT_PANE=$(tmux split-window -t "$SESSION" -h -P -F '#{pane_id}' \
   'bash -c "exec -a cursor sleep 300"')
@@ -130,15 +172,63 @@ else
 fi
 
 section "6b. Stale labeled shell with agent scrollback is not an agent"
-STALE_LABELED_PANE=$(tmux split-window -t "$SESSION" -h -P -F '#{pane_id}' \
-  'bash -c "printf \"Add a follow-up\\nComposer 2.5\\n\"; sleep 300"')
+begin_detect_pane "6b" bash -c \
+  'printf "Add a follow-up\nComposer 2.5\n"; sleep 300'
+STALE_LABELED_PANE=$LAST_DETECT_PANE
 sleep 0.2
-tmux set-option -p -t "$STALE_LABELED_PANE" @work-agent-label stale-labeled
-OUT=$($WORK scan --pane "$STALE_LABELED_PANE" 2>&1)
-if [[ "$OUT" != *"found"* ]]; then
-  pass "stale labeled shell without agent process is not registered"
-else
-  fail "stale labeled shell without agent process is not registered (output: $OUT)"
+if assert_pane_id "stale labeled shell without agent process is not registered" "$STALE_LABELED_PANE"; then
+  tmux set-option -p -t "$STALE_LABELED_PANE" @work-agent-label stale-labeled
+  OUT=$($WORK scan --pane "$STALE_LABELED_PANE" 2>&1)
+  if [[ "$OUT" != *"found"* ]]; then
+    pass "stale labeled shell without agent process is not registered"
+  else
+    fail "stale labeled shell without agent process is not registered (output: $OUT)"
+  fi
+fi
+
+section "6c. Labeled idle agent with live process is detected"
+begin_detect_pane "6c" bash -c 'exec -a cursor sleep 300'
+LABELED_IDLE_PANE=$LAST_DETECT_PANE
+sleep 0.3
+if assert_pane_id "labeled idle agent with live process is detected" "$LABELED_IDLE_PANE"; then
+  tmux set-option -p -t "$LABELED_IDLE_PANE" @work-agent-label labeled-idle
+  tmux set-option -p -t "$LABELED_IDLE_PANE" @work-agent-cli cursor
+  tmux select-pane -t "$LABELED_IDLE_PANE" -T 'ready'
+  OUT=$($WORK scan --pane "$LABELED_IDLE_PANE" 2>&1)
+  assert_contains "labeled idle agent with live process is detected" "found" "$OUT"
+fi
+
+section "6d. Explicit hook agent without live process is detached on reconcile"
+begin_detect_pane "6d" bash -c 'exec -a cursor sleep 300'
+GHOST_PANE=$LAST_DETECT_PANE
+sleep 0.3
+if assert_pane_id "explicit hook agent without live process is detached on reconcile" "$GHOST_PANE"; then
+  $WORK scan --pane "$GHOST_PANE" --quiet
+  printf '{"hook_event_name":"preToolUse","conversation_id":"conv-ghost-1","tool_name":"Shell"}' \
+    | $WORK agent hook-event --pane "$GHOST_PANE" --json >/dev/null
+  tmux send-keys -t "$GHOST_PANE" C-c
+  sleep 0.3
+  tmux send-keys -t "$GHOST_PANE" "sleep 300" Enter
+  sleep 0.3
+  $WORK reconcile --quiet
+  OUT=$($WORK agents --json 2>&1)
+  if [[ "$OUT" == *"\"paneId\": \"$GHOST_PANE\""* ]]; then
+    fail "explicit hook agent without live process is detached on reconcile (still bound to $GHOST_PANE)"
+  else
+    pass "explicit hook agent without live process is detached on reconcile"
+  fi
+fi
+
+section "6e. Labeled pane with agent child process is detected while typing"
+begin_detect_pane "6e" bash -c 'exec -a cursor sleep 300 & sleep 300'
+TYPING_PANE=$LAST_DETECT_PANE
+sleep 0.3
+if assert_pane_id "labeled pane with agent child is detected without title evidence" "$TYPING_PANE"; then
+  tmux set-option -p -t "$TYPING_PANE" @work-agent-label typing-agent
+  tmux set-option -p -t "$TYPING_PANE" @work-agent-cli cursor
+  tmux select-pane -t "$TYPING_PANE" -T 'bash'
+  OUT=$($WORK scan --pane "$TYPING_PANE" 2>&1)
+  assert_contains "labeled pane with agent child is detected without title evidence" "found" "$OUT"
 fi
 
 section "7. status summary counts"
@@ -149,6 +239,7 @@ ZOMBIE_SESSION="${SESSION_PREFIX}-zombie-$$"
 tmux kill-session -t "$ZOMBIE_SESSION" 2>/dev/null || true
 tmux new-session -d -s "$ZOMBIE_SESSION"
 $WORK track "$ZOMBIE_SESSION" --quiet
+register_test_session "$ZOMBIE_SESSION"
 AGENT_PANE=$(tmux split-window -t "$ZOMBIE_SESSION" -h -P -F '#{pane_id}' \
   'bash -c "exec -a cursor sleep 300"')
 sleep 0.3
@@ -166,6 +257,7 @@ IDLE_SESSION="${SESSION_PREFIX}-idle-$$"
 tmux kill-session -t "$IDLE_SESSION" 2>/dev/null || true
 tmux new-session -d -s "$IDLE_SESSION"
 $WORK track "$IDLE_SESSION" --quiet
+register_test_session "$IDLE_SESSION"
 IDLE_PANE=$(tmux split-window -t "$IDLE_SESSION" -h -P -F '#{pane_id}' \
   'bash -c "exec -a cursor sleep 300"')
 sleep 0.3
@@ -180,6 +272,7 @@ WORK_SESSION="${SESSION_PREFIX}-session-scope-$$"
 tmux kill-session -t "$WORK_SESSION" 2>/dev/null || true
 tmux new-session -d -s "$WORK_SESSION"
 $WORK track "$WORK_SESSION" --quiet
+register_test_session "$WORK_SESSION"
 BUSY_PANE=$(tmux split-window -t "$WORK_SESSION" -h -P -F '#{pane_id}' \
   'bash -c "exec -a cursor sleep 300"')
 sleep 0.3
@@ -240,6 +333,24 @@ WORK_HERDR_BIN="$HERDR_STUB" $WORK agent observe "$HERDR_PANE" --apply --quiet
 OUT=$($WORK agents --json 2>&1)
 assert_contains "agent record stores status reason" '"statusReason": "bash_permission_prompt"' "$OUT"
 assert_contains "agent record stores visible blocker" '"visibleBlocker": true' "$OUT"
+
+TITLE_OVERRIDE_PANE=$(tmux new-window -t "$SESSION" -P -F '#{pane_id}' \
+  'bash -c "exec -a cursor sh -c \"printf \\\"HERDR-BLOCKED\\\\n\\\"; sleep 300\""')
+sleep 0.3
+$WORK scan --pane "$TITLE_OVERRIDE_PANE" --quiet
+tmux select-pane -t "$TITLE_OVERRIDE_PANE" -T '⢀ working'
+OUT=$(WORK_HERDR_BIN="$HERDR_STUB" $WORK agent observe "$TITLE_OVERRIDE_PANE" --json 2>&1)
+assert_contains "herdr blocked rejected when title shows working" '"status": "working"' "$OUT"
+assert_contains "active title falls back to manifest" '"source": "manifest"' "$OUT"
+
+IDLE_OVERRIDE_PANE=$(tmux new-window -t "$SESSION" -P -F '#{pane_id}' \
+  'bash -c "exec -a cursor sh -c \"printf \\\"HERDR-BLOCKED agent reply\\\\n→ Add a follow-up\\\\n\\\"; sleep 300\""')
+sleep 0.3
+$WORK scan --pane "$IDLE_OVERRIDE_PANE" --quiet
+tmux select-pane -t "$IDLE_OVERRIDE_PANE" -T 'Tmuxr Session Shortcut - ✅ Ready'
+OUT=$(WORK_HERDR_BIN="$HERDR_STUB" $WORK agent observe "$IDLE_OVERRIDE_PANE" --json 2>&1)
+assert_contains "herdr blocked rejected when idle prompt visible" '"status": "idle"' "$OUT"
+assert_contains "idle prompt falls back to manifest" '"source": "manifest"' "$OUT"
 
 SKIP_PANE=$(tmux new-window -t "$SESSION" -P -F '#{pane_id}' \
   'bash -c "exec -a cursor sh -c \"printf \\\"run this command? HERDR-SKIP\\\\n\\\"; sleep 300\""')

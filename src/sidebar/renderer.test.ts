@@ -103,7 +103,7 @@ describe("sidebar layout", () => {
         windowName: "agents",
       }),
     );
-    assert.equal(loc, "6:my-project · 1:agents");
+    assert.equal(loc, "6:my-project · 0:agents");
   });
 
   it("formats session index with tmux choose-session keys after 9", () => {
@@ -122,7 +122,7 @@ describe("sidebar layout", () => {
         windowName: "main",
       }),
     );
-    assert.equal(loc, "b:extra · 1:main");
+    assert.equal(loc, "b:extra · 0:main");
   });
 
   it("formats session keys with a custom shortcut alphabet", () => {
@@ -195,7 +195,7 @@ describe("sidebar layout", () => {
       }),
     );
     assert.doesNotMatch(loc, /undefined/);
-    assert.equal(loc, "2:proj · 1:?");
+    assert.equal(loc, "2:proj · 0:?");
   });
 });
 
@@ -301,7 +301,7 @@ describe("sidebar render", () => {
     const plain = out.replace(new RegExp(`${esc}\\[[0-9;]*m`, "g"), "");
     assert.match(plain, /agents/);
     assert.match(plain, /cursor-agent/);
-    assert.match(plain, /2:my-project · 1:agents/);
+    assert.match(plain, /2:my-project · 0:agents/);
     assert.match(plain, /sessions/);
     assert.match(plain, /─ 2:my-project \*/);
     assert.match(plain, /work · main/);

@@ -32,7 +32,8 @@ export function applyObservation(
   if (
     nextStatus === "idle" &&
     DEBOUNCE_FROM.has(agent.status) &&
-    !options?.trustIdle
+    !options?.trustIdle &&
+    !observed.visibleIdle
   ) {
     const count = (agent.pendingIdleCount ?? 0) + 1;
     agent.pendingIdleCount = count;

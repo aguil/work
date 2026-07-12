@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { isActiveAgentTitle } from "../adapters/agent-title.js";
 import { evaluateMatch } from "../adapters/evaluate.js";
 import {
   agentProcessNames,
@@ -21,11 +22,6 @@ export interface DetectedAgent {
 }
 
 const CURSOR_AGENT_TITLE = /\bAgent\s+-/;
-const ACTIVE_AGENT_TITLE = /working|⏳|[\u2800-\u28FF]/i;
-
-function isActiveAgentTitle(title: string): boolean {
-  return ACTIVE_AGENT_TITLE.test(title);
-}
 
 const agentProcessCache = new Map<string, boolean>();
 
@@ -39,10 +35,29 @@ function processNamesForDetection(cli: string): string[] {
   return agentProcessNames(cli);
 }
 
-/** True when an agent CLI process is running under the pane shell. */
+function processArgsMatchNames(pid: number, names: string[]): boolean {
+  try {
+    const args = execFileSync("ps", ["-p", String(pid), "-o", "args="], {
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .trim()
+      .toLowerCase();
+    for (const name of names) {
+      if (args.includes(name)) return true;
+    }
+  } catch {
+    // process exited
+  }
+  return false;
+}
+
+/** True when the pane or a descendant process is an agent CLI. */
 function hasAgentChildProcessUncached(pane: TmuxPane, cli: string): boolean {
   const names = processNamesForDetection(cli);
   if (names.length === 0 || pane.pid <= 0) return false;
+
+  if (processArgsMatchNames(pane.pid, names)) return true;
 
   const queue = [pane.pid];
   const seen = new Set<number>();
@@ -70,23 +85,9 @@ function hasAgentChildProcessUncached(pane: TmuxPane, cli: string): boolean {
       }
 
       for (const childPid of childPids) {
-        let args = "";
-        try {
-          args = execFileSync("ps", ["-p", childPid, "-o", "args="], {
-            encoding: "utf-8",
-            stdio: ["ignore", "pipe", "ignore"],
-          })
-            .trim()
-            .toLowerCase();
-        } catch {
-          continue;
-        }
-
-        for (const name of names) {
-          if (args.includes(name)) return true;
-        }
-
-        queue.push(parseInt(childPid, 10));
+        const pid = Number.parseInt(childPid, 10);
+        if (processArgsMatchNames(pid, names)) return true;
+        queue.push(pid);
       }
     }
   }
@@ -131,28 +132,28 @@ function resolveAgentCli(pane: TmuxPane, cliSet: Set<string>): string | null {
   const trackedCli = pane.workAgentCli ?? pane.currentCommand;
   const registeredLabel = pane.workAgentLabel;
 
-  if (cliSet.has(cmd)) {
-    if (registeredLabel) {
+  // Registered panes stay agents while the CLI process is live, or while tmux
+  // still reports an agent CLI as the foreground command (typing redraws).
+  if (registeredLabel) {
+    if (pane.workAgentCli) {
+      const registeredCli = pane.workAgentCli.toLowerCase();
       if (
-        isActiveAgentTitle(pane.title) ||
-        hasAgentScreenEvidence(pane, trackedCli)
+        hasAgentChildProcess(pane, pane.workAgentCli) ||
+        (cliSet.has(cmd) && cmd === registeredCli)
       ) {
-        return trackedCli;
+        return pane.workAgentCli;
       }
       return null;
     }
-    return trackedCli;
+    for (const agentCli of cliSet) {
+      if (hasAgentChildProcess(pane, agentCli)) return agentCli;
+    }
+    if (cliSet.has(cmd)) return cmd;
+    return null;
   }
 
-  if (registeredLabel) {
-    if (!hasAgentChildProcess(pane, trackedCli)) return null;
-    if (
-      isActiveAgentTitle(pane.title) ||
-      hasAgentScreenEvidence(pane, trackedCli)
-    ) {
-      return trackedCli;
-    }
-    return null;
+  if (cliSet.has(cmd)) {
+    return trackedCli;
   }
 
   if (!CURSOR_AGENT_TITLE.test(pane.title)) return null;
@@ -162,6 +163,28 @@ function resolveAgentCli(pane: TmuxPane, cliSet: Set<string>): string | null {
   if (isActiveAgentTitle(pane.title)) return "agent";
   if (hasAgentScreenEvidence(pane, "agent")) return "agent";
   return null;
+}
+
+/** Whether a tracked pane still runs an agent CLI (pane root or descendant). */
+export function paneHostsAgentProcess(pane: TmuxPane, cli: string): boolean {
+  return hasAgentChildProcess(pane, cli);
+}
+
+/** Workspace sync: pane still bound to an agent CLI (process tree or foreground cmd). */
+export function paneStillHostsAgent(
+  pane: TmuxPane,
+  cli: string,
+  cliSet?: ReadonlySet<string>,
+): boolean {
+  if (hasAgentChildProcess(pane, cli)) return true;
+  if (!cliSet) return false;
+
+  const cmd = pane.currentCommand.toLowerCase();
+  if (pane.workAgentLabel && cliSet.has(cmd) && cmd === cli.toLowerCase()) {
+    return true;
+  }
+
+  return false;
 }
 
 export function detectAgents(

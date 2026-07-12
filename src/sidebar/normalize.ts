@@ -32,6 +32,7 @@ export function normalizeSessions(
       index,
       agents: session.agents.map((agent) => ({
         ...agent,
+        sessionName: agent.sessionName?.trim() || session.name,
         sessionIndex: resolveAgentSessionIndex(agent, { ...session, index }),
       })),
     };

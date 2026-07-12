@@ -1,6 +1,7 @@
 import type { TmuxPane } from "../tmux/client.js";
 import * as tmux from "../tmux/client.js";
 import type { AgentStatus } from "../workspace/state.js";
+import { isActiveAgentTitle } from "./agent-title.js";
 import { evaluateMatch } from "./evaluate.js";
 import { observePaneWithHerdr } from "./herdr.js";
 import { resolveManifestForCli } from "./loader.js";
@@ -68,6 +69,32 @@ export function observeWithManifest(
   return null;
 }
 
+/** Herdr can false-positive blocked on scrollback while the live UI is idle. */
+function shouldRejectHerdrBlocked(
+  pane: TmuxPane,
+  cli: string,
+  result: ObservationResult,
+): boolean {
+  if (
+    result.source !== "herdr" ||
+    result.status !== "blocked" ||
+    !result.visibleBlocker
+  ) {
+    return false;
+  }
+  if (isActiveAgentTitle(pane.title)) return true;
+
+  const manifest = resolveManifestForCli(cli);
+  if (!manifest) return false;
+  const manifestResult = observeWithManifest(
+    buildObservationContext(pane),
+    manifest,
+  );
+  return (
+    manifestResult?.status === "idle" && manifestResult.visibleIdle === true
+  );
+}
+
 export function observePane(
   pane: TmuxPane,
   cli: string,
@@ -76,7 +103,10 @@ export function observePane(
   // "don't trust this screen" verdict suppresses the update, and silence
   // falls through to the bundled manifests below.
   const herdrResult = observePaneWithHerdr(pane, cli);
-  if (herdrResult !== undefined) return herdrResult;
+  if (herdrResult !== undefined) {
+    if (herdrResult === null) return null;
+    if (!shouldRejectHerdrBlocked(pane, cli, herdrResult)) return herdrResult;
+  }
 
   const manifest = resolveManifestForCli(cli);
   if (!manifest) return null;

@@ -3,10 +3,18 @@ import {
   hasExplicitHookStatus,
 } from "../adapters/debounce.js";
 import { observeAgentsInWorkspace } from "../adapters/update-agent.js";
-import { detectAgents, isSidebarPane } from "../scanner/detect.js";
+import { getConfigValue } from "../config/store.js";
+import {
+  detectAgents,
+  detectSinglePane,
+  isSidebarPane,
+  paneStillHostsAgent,
+} from "../scanner/detect.js";
 import { enrichAgentView } from "../sidebar/enrich.js";
+import type { TmuxPane } from "../tmux/client.js";
 import * as tmux from "../tmux/client.js";
 import { enrichTree, type TreeView } from "../vcs/detect.js";
+import { resolveWorkspaceForSession } from "../workspace/resolve-session.js";
 import {
   autoLabel,
   findAgentByPane,
@@ -108,8 +116,7 @@ export function aggregateState(): AggregatedState {
   treeRefreshesThisPoll = 0;
   const tmuxSessions = tmux.listSessions();
   const allPanes = tmux.listPanes();
-  const workspaces = listWorkspaces().filter((w) => !w.archived);
-  const wsMap = new Map(workspaces.map((w) => [w.sessionName, w]));
+  const allWorkspaces = listWorkspaces();
 
   const sidebarPaneIds = new Set(
     allPanes.filter(isSidebarPane).map((p) => p.id),
@@ -119,14 +126,16 @@ export function aggregateState(): AggregatedState {
   const sessions: SessionSnapshot[] = [];
 
   for (const session of tmuxSessions) {
-    const ws = wsMap.get(session.name);
+    const ws = resolveWorkspaceForSession(session.name, allWorkspaces, {
+      sessionListed: true,
+    });
     const sessionPanes = allPanes.filter((p) => p.sessionName === session.name);
     const detected = detectAgents(sessionPanes, sidebarPaneIds);
 
     let agents: SessionSnapshot["agents"] = [];
 
     if (ws) {
-      syncAgentsToWorkspace(ws, detected);
+      syncAgentsToWorkspace(ws, detected, paneById);
       if (observeAgentsInWorkspace(Object.values(ws.agents))) {
         saveWorkspace(ws);
       }
@@ -173,13 +182,26 @@ export function aggregateState(): AggregatedState {
 function syncAgentsToWorkspace(
   ws: WorkspaceState,
   detected: ReturnType<typeof detectAgents>,
+  paneById: Map<string, TmuxPane>,
 ): void {
   const detectedPaneIds = new Set(detected.map((d) => d.paneId));
+  const agentCliSet = new Set(
+    getConfigValue("agent-clis").map((c) => c.toLowerCase()),
+  );
   let changed = false;
 
   for (const d of detected) {
     const existing = findAgentByPane(ws, d.paneId);
     if (existing) {
+      const pane = paneById.get(d.paneId);
+      if (pane) {
+        if (pane.workAgentLabel !== existing.label) {
+          tmux.setOption("pane", "@work-agent-label", existing.label, pane.id);
+        }
+        if (pane.workAgentCli !== existing.cli) {
+          tmux.setOption("pane", "@work-agent-cli", existing.cli, pane.id);
+        }
+      }
       if (existing.status === "detached") {
         existing.status = "unknown";
         existing.detachedAt = null;
@@ -191,7 +213,7 @@ function syncAgentsToWorkspace(
         (a) => a.status === "detached" && a.cli === d.cli && !a.paneId,
       );
       if (!detachedMatch) {
-        const pane = tmux.getPane(d.paneId);
+        const pane = paneById.get(d.paneId);
         if (pane?.workAgentLabel) {
           detachedMatch = Object.values(ws.agents).find(
             (a) =>
@@ -240,8 +262,17 @@ function syncAgentsToWorkspace(
       agent.status !== "detached" &&
       !detectedPaneIds.has(agent.paneId)
     ) {
-      const pane = tmux.getPane(agent.paneId);
-      if (pane && hasExplicitHookStatus(agent)) {
+      const pane = paneById.get(agent.paneId);
+      if (pane && paneStillHostsAgent(pane, agent.cli, agentCliSet)) {
+        if (pane.workAgentLabel !== agent.label) {
+          tmux.setOption("pane", "@work-agent-label", agent.label, pane.id);
+        }
+        if (pane.workAgentCli !== agent.cli) {
+          tmux.setOption("pane", "@work-agent-cli", agent.cli, pane.id);
+        }
+        continue;
+      }
+      if (pane && hasExplicitHookStatus(agent) && detectSinglePane(pane)) {
         if (pane.workAgentLabel !== agent.label) {
           tmux.setOption("pane", "@work-agent-label", agent.label, pane.id);
         }
