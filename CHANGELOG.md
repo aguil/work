@@ -9,6 +9,14 @@ Entries from the next release onward are updated by
 [release-please](https://github.com/googleapis/release-please) when the release
 PR merges. See [CONTRIBUTING.md](./CONTRIBUTING.md#releasing).
 
+## [0.1.4](https://github.com/aguil/work/compare/v0.1.3...v0.1.4) (2026-07-12)
+
+
+### Fixed
+
+* **release:** pass repository to gh workflow run ([2f81da4](https://github.com/aguil/work/commit/2f81da4dd6cc9282ad7726abc87ceaacbdc48b8b))
+* **release:** pass repository to gh workflow run ([8f2f94a](https://github.com/aguil/work/commit/8f2f94ac2f87054921ec47bf5bd13b4526bc5ea7))
+
 ## [0.1.3](https://github.com/aguil/work/compare/v0.1.2...v0.1.3) (2026-07-12)
 
 
