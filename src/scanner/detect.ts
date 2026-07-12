@@ -105,6 +105,80 @@ function hasAgentChildProcess(pane: TmuxPane, cli: string): boolean {
   return live;
 }
 
+function processArgsMatchAnyCli(
+  pid: number,
+  namesByCli: Map<string, string[]>,
+): string | null {
+  try {
+    const args = execFileSync("ps", ["-p", String(pid), "-o", "args="], {
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .trim()
+      .toLowerCase();
+    for (const [cli, names] of namesByCli) {
+      for (const name of names) {
+        if (args.includes(name)) return cli;
+      }
+    }
+  } catch {
+    // process exited
+  }
+  return null;
+}
+
+/** One process-tree walk; returns the first configured agent CLI found. */
+function findAgentCliByProcessTree(
+  pane: TmuxPane,
+  cliSet: Set<string>,
+): string | null {
+  if (pane.pid <= 0) return null;
+
+  const namesByCli = new Map<string, string[]>();
+  for (const cli of cliSet) {
+    namesByCli.set(cli, processNamesForDetection(cli));
+  }
+
+  const queue = [pane.pid];
+  const seen = new Set<number>();
+  let depth = 0;
+
+  while (queue.length > 0 && depth < 4) {
+    const levelSize = queue.length;
+    depth++;
+    for (let i = 0; i < levelSize; i++) {
+      const parentPid = queue.shift();
+      if (parentPid == null || seen.has(parentPid)) continue;
+      seen.add(parentPid);
+
+      const matchedCli = processArgsMatchAnyCli(parentPid, namesByCli);
+      if (matchedCli) {
+        agentProcessCache.set(agentProcessCacheKey(pane, matchedCli), true);
+        return matchedCli;
+      }
+
+      let childPids: string[];
+      try {
+        childPids = execFileSync("pgrep", ["-P", String(parentPid)], {
+          encoding: "utf-8",
+          stdio: ["ignore", "pipe", "ignore"],
+        })
+          .trim()
+          .split("\n")
+          .filter(Boolean);
+      } catch {
+        continue;
+      }
+
+      for (const childPid of childPids) {
+        queue.push(Number.parseInt(childPid, 10));
+      }
+    }
+  }
+
+  return null;
+}
+
 /** True when pane scrollback shows agent UI, not a stale restored title. */
 function hasAgentScreenEvidence(pane: TmuxPane, cli: string): boolean {
   const manifest = resolveManifestForCli(cli);
@@ -145,10 +219,9 @@ function resolveAgentCli(pane: TmuxPane, cliSet: Set<string>): string | null {
       }
       return null;
     }
-    for (const agentCli of cliSet) {
-      if (hasAgentChildProcess(pane, agentCli)) return agentCli;
-    }
     if (cliSet.has(cmd)) return cmd;
+    const childCli = findAgentCliByProcessTree(pane, cliSet);
+    if (childCli) return childCli;
     return null;
   }
 
@@ -176,15 +249,13 @@ export function paneStillHostsAgent(
   cli: string,
   cliSet?: ReadonlySet<string>,
 ): boolean {
-  if (hasAgentChildProcess(pane, cli)) return true;
-  if (!cliSet) return false;
-
-  const cmd = pane.currentCommand.toLowerCase();
-  if (pane.workAgentLabel && cliSet.has(cmd) && cmd === cli.toLowerCase()) {
-    return true;
+  if (cliSet) {
+    const cmd = pane.currentCommand.toLowerCase();
+    if (pane.workAgentLabel && cliSet.has(cmd) && cmd === cli.toLowerCase()) {
+      return true;
+    }
   }
-
-  return false;
+  return hasAgentChildProcess(pane, cli);
 }
 
 export function detectAgents(
@@ -220,8 +291,11 @@ export function isSidebarPane(pane: TmuxPane): boolean {
   return pane.workSidebar;
 }
 
-export function detectSinglePane(pane: TmuxPane): DetectedAgent | null {
-  agentProcessCache.clear();
+export function detectSinglePane(
+  pane: TmuxPane,
+  opts?: { preserveCache?: boolean },
+): DetectedAgent | null {
+  if (!opts?.preserveCache) agentProcessCache.clear();
   const agentClis = getConfigValue("agent-clis");
   const cliSet = new Set(agentClis.map((c) => c.toLowerCase()));
   const cli = resolveAgentCli(pane, cliSet);

@@ -240,6 +240,11 @@ function syncAgentsToWorkspace(
           detachedAt: null,
           lastSeen: new Date().toISOString(),
         });
+        const pane = paneById.get(d.paneId);
+        if (pane) {
+          tmux.setOption("pane", "@work-agent-label", label, pane.id);
+          tmux.setOption("pane", "@work-agent-cli", d.cli, pane.id);
+        }
         changed = true;
       }
     }
@@ -263,6 +268,15 @@ function syncAgentsToWorkspace(
       !detectedPaneIds.has(agent.paneId)
     ) {
       const pane = paneById.get(agent.paneId);
+      if (!pane?.workAgentLabel && !hasExplicitHookStatus(agent)) {
+        agent.status = "detached";
+        agent.detachedAt = new Date().toISOString();
+        agent.paneId = null;
+        agent.confidence = "none";
+        clearScreenMetadata(agent);
+        changed = true;
+        continue;
+      }
       if (pane && paneStillHostsAgent(pane, agent.cli, agentCliSet)) {
         if (pane.workAgentLabel !== agent.label) {
           tmux.setOption("pane", "@work-agent-label", agent.label, pane.id);
@@ -272,7 +286,11 @@ function syncAgentsToWorkspace(
         }
         continue;
       }
-      if (pane && hasExplicitHookStatus(agent) && detectSinglePane(pane)) {
+      if (
+        pane &&
+        hasExplicitHookStatus(agent) &&
+        detectSinglePane(pane, { preserveCache: true })
+      ) {
         if (pane.workAgentLabel !== agent.label) {
           tmux.setOption("pane", "@work-agent-label", agent.label, pane.id);
         }
