@@ -158,20 +158,26 @@ function exitHook(
   return result;
 }
 
+function hookBindResolveOptions(
+  paneCtx: HookPaneContext,
+): ResolveSessionOptions {
+  return {
+    sessionListed: paneCtx.pane != null,
+  };
+}
+
 function bindConversation(
   conversationId: string,
   paneId: string | null,
   cwd: string | null,
   paneCtx: HookPaneContext,
   allWorkspaces: WorkspaceState[],
-  pendingUnarchiveSaves: Set<string>,
 ): void {
   const ws = paneCtx.sessionName
-    ? resolveWorkspaceForHook(
+    ? resolveWorkspaceForSession(
         paneCtx.sessionName,
         allWorkspaces,
-        hookPaneResolveOptions(paneCtx),
-        pendingUnarchiveSaves,
+        hookBindResolveOptions(paneCtx),
       )
     : null;
   upsertConversationBinding({
@@ -205,14 +211,7 @@ export function applyHookEvent(
 
   if (conversationId) {
     allWorkspaces = listWorkspaces();
-    bindConversation(
-      conversationId,
-      paneId,
-      cwd,
-      paneCtx,
-      allWorkspaces,
-      pendingUnarchiveSaves,
-    );
+    bindConversation(conversationId, paneId, cwd, paneCtx, allWorkspaces);
   }
 
   if (
