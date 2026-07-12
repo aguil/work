@@ -59,7 +59,7 @@ export interface WorkspaceState {
 }
 
 function workspacePath(name: string): string {
-  return join(paths.workspacesDir, `${name}.json`);
+  return join(paths.workspacesDir, `${encodeURIComponent(name)}.json`);
 }
 
 export function loadWorkspace(name: string): WorkspaceState | null {
