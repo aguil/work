@@ -6,10 +6,6 @@ on:
     tags:
       - "v*"
 
-permissions:
-  contents: read
-  id-token: write
-
 env:
   MISE_EXPERIMENTAL: "0"
 
@@ -17,6 +13,10 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Trusted publishing (OIDC): https://docs.npmjs.com/trusted-publishers
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - uses: actions/checkout@v6
@@ -26,7 +26,9 @@ jobs:
           install: true
           cache: true
 
-      - uses: actions/setup-node@v4
+      # npm 11.5.1+ (bundled with Node 24) exchanges the GitHub Actions OIDC
+      # token for a short-lived publish grant. Do not set NODE_AUTH_TOKEN.
+      - uses: actions/setup-node@v6
         with:
           node-version: "24"
           registry-url: https://registry.npmjs.org
@@ -42,6 +44,4 @@ jobs:
           mise exec --locked -- npm run test
 
       - name: Publish to npm
-        run: mise exec --locked -- npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: mise exec --locked -- npm publish --access public

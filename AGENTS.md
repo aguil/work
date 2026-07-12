@@ -68,5 +68,6 @@ This repo uses **Jujutsu** colocated with git (`jj git init --colocate`).
   `dist/hooks/`, `LICENSE`, `README.md`. Validate with `npm pack --dry-run`.
 - Release: [release-please](https://github.com/googleapis/release-please) opens
   Release PRs on `main`; merging creates `vX.Y.Z` + GitHub Release; tag triggers
-  `.github/workflows/release.yml` for npm publish. Manifest:
-  `.release-please-manifest.json`; config: `release-please-config.json`.
+  `.github/workflows/release.yml` for npm publish via OIDC trusted publishing
+  (no `NPM_TOKEN` secret). Manifest: `.release-please-manifest.json`; config:
+  `release-please-config.json`.

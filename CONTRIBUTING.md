@@ -100,8 +100,22 @@ that repackages the full git history.
 Do **not** hand-edit `package.json` version or release sections of `CHANGELOG.md`
 for routine releases; use the Release PR instead.
 
-First-time npm setup requires an `@aguil` org scope and `NPM_TOKEN` configured as
-a repository secret, plus npm trusted publishing from GitHub Actions.
+### npm trusted publishing (one time)
+
+CI publishes via [npm trusted publishing](https://docs.npmjs.com/trusted-publishers)
+(OIDC). **No `NPM_TOKEN` GitHub secret** is required once this is configured
+(same pattern as [`@aguil/agents`](https://github.com/aguil/agents)).
+
+1. **Bootstrap the package on npm** (first release only): publish with `npm login`
+   from a maintainer machine, or let the first successful tag-driven workflow run
+   after step 2.
+2. On npm **`@aguil/work`** → Package settings → **Trusted publishers**, add
+   **GitHub Actions** with repository **`aguil/work`** and workflow **`release.yml`**
+   (filename only; case-sensitive).
+3. Ensure tag **`v0.1.0`** exists on GitHub for release-please bootstrap (see above).
+
+Local or manual `npm publish` from your machine still uses `npm login` or a
+granular token.
 
 ## Reporting issues
 
