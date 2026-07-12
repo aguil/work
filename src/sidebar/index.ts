@@ -24,7 +24,7 @@ function redraw(): void {
 
 async function connectWithRetry(client: IpcClient): Promise<void> {
   const maxRetries = 60;
-  const retryMs = 1000;
+  const retryMs = 200;
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
@@ -37,7 +37,7 @@ async function connectWithRetry(client: IpcClient): Promise<void> {
       await new Promise((r) => setTimeout(r, retryMs));
     }
   }
-  throw new Error("workd not available after 60s");
+  throw new Error("workd not available after 12s");
 }
 
 export async function startSidebar(): Promise<void> {
