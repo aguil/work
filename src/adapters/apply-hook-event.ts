@@ -196,7 +196,6 @@ export function applyHookEvent(
   const event = resolveHookEventName(input);
   const conversationId = resolveConversationId(input);
   const paneId = resolvePaneId(opts?.paneId);
-  const paneCtx = resolveHookPaneContext(paneId);
   const cwd =
     typeof input.cwd === "string"
       ? input.cwd
@@ -205,9 +204,24 @@ export function applyHookEvent(
         ? input.workspace_roots[0]
         : null;
 
-  const paneResolveOpts = hookPaneResolveOptions(paneCtx);
+  const status = opts?.statusOverride ?? mapHookEventToStatus(event, input);
   const pendingUnarchiveSaves = new Set<string>();
   let allWorkspaces: WorkspaceState[] | null = null;
+
+  if (!conversationId && status == null) {
+    return {
+      applied: false,
+      workspace: null,
+      label: null,
+      status: null,
+      conversationId,
+      paneId,
+      event,
+    };
+  }
+
+  const paneCtx = resolveHookPaneContext(paneId);
+  const paneResolveOpts = hookPaneResolveOptions(paneCtx);
 
   if (conversationId) {
     allWorkspaces = listWorkspaces();
@@ -221,8 +235,6 @@ export function applyHookEvent(
   ) {
     removeConversationBinding(conversationId);
   }
-
-  const status = opts?.statusOverride ?? mapHookEventToStatus(event, input);
 
   if (status == null) {
     return exitHook(
