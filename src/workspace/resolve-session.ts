@@ -8,6 +8,8 @@ import {
 export interface ResolveSessionOptions {
   /** Caller already listed this session as live (skip tmux has-session). */
   sessionListed?: boolean;
+  /** When false, flip archived in memory only (caller persists on save). */
+  persistUnarchive?: boolean;
 }
 
 /**
@@ -28,5 +30,9 @@ export function resolveWorkspaceForSession(
   const archived =
     all.find((w) => w.archived && w.sessionName === sessionName) ?? null;
   if (!archived) return null;
+  if (options?.persistUnarchive === false) {
+    archived.archived = false;
+    return archived;
+  }
   return unarchiveWorkspace(archived);
 }

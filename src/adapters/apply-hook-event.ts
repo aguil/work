@@ -89,17 +89,34 @@ function ensureAgentForPane(ws: WorkspaceState, paneId: string): AgentRecord {
   return record;
 }
 
+function hookResolveOptions(paneCtx: HookPaneContext): {
+  sessionListed: boolean;
+  persistUnarchive: boolean;
+} {
+  return {
+    sessionListed: paneCtx.pane != null,
+    persistUnarchive: false,
+  };
+}
+
 function bindConversation(
   conversationId: string,
   paneId: string | null,
   cwd: string | null,
-  sessionName: string | null,
+  paneCtx: HookPaneContext,
+  allWorkspaces: WorkspaceState[],
 ): void {
-  const ws = sessionName ? resolveWorkspaceForSession(sessionName) : null;
+  const ws = paneCtx.sessionName
+    ? resolveWorkspaceForSession(
+        paneCtx.sessionName,
+        allWorkspaces,
+        hookResolveOptions(paneCtx),
+      )
+    : null;
   upsertConversationBinding({
     conversationId,
     paneId,
-    sessionName,
+    sessionName: paneCtx.sessionName,
     workspaceName: ws?.name ?? null,
     cwd: cwd ?? null,
   });
@@ -121,8 +138,11 @@ export function applyHookEvent(
         ? input.workspace_roots[0]
         : null;
 
+  const allWorkspaces = listWorkspaces();
+  const resolveOpts = hookResolveOptions(paneCtx);
+
   if (conversationId) {
-    bindConversation(conversationId, paneId, cwd, paneCtx.sessionName);
+    bindConversation(conversationId, paneId, cwd, paneCtx, allWorkspaces);
   }
 
   if (
@@ -147,12 +167,15 @@ export function applyHookEvent(
     };
   }
 
-  const allWorkspaces = listWorkspaces();
   const workspaces = allWorkspaces.filter((w) => !w.archived);
   let target: { ws: WorkspaceState; agent: AgentRecord } | null = null;
 
   if (paneId && paneCtx.sessionName) {
-    const ws = resolveWorkspaceForSession(paneCtx.sessionName, allWorkspaces);
+    const ws = resolveWorkspaceForSession(
+      paneCtx.sessionName,
+      allWorkspaces,
+      resolveOpts,
+    );
     if (ws) {
       const agent = findAgentByPane(ws, paneId);
       if (agent) {
@@ -173,7 +196,11 @@ export function applyHookEvent(
   if (!target && conversationId) {
     const binding = getConversationBinding(conversationId);
     if (binding?.sessionName) {
-      const ws = resolveWorkspaceForSession(binding.sessionName, allWorkspaces);
+      const ws = resolveWorkspaceForSession(
+        binding.sessionName,
+        allWorkspaces,
+        resolveOpts,
+      );
       if (ws) {
         const agent = findAgentByConversation(ws, conversationId);
         if (agent) target = { ws, agent };
@@ -199,7 +226,11 @@ export function applyHookEvent(
   }
 
   if (!target && paneId && paneCtx.sessionName) {
-    const ws = resolveWorkspaceForSession(paneCtx.sessionName, allWorkspaces);
+    const ws = resolveWorkspaceForSession(
+      paneCtx.sessionName,
+      allWorkspaces,
+      resolveOpts,
+    );
     if (ws) {
       const agent = ensureAgentForPane(ws, paneId);
       target = { ws, agent };
