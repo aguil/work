@@ -103,18 +103,75 @@ const hookBindingResolveOptions: ResolveSessionOptions = {
   persistUnarchive: false,
 };
 
+function resolveWorkspaceForHook(
+  sessionName: string,
+  allWorkspaces: WorkspaceState[],
+  options: ResolveSessionOptions,
+  pendingUnarchiveSaves: Set<string>,
+): WorkspaceState | null {
+  const wasArchived = allWorkspaces.some(
+    (w) => w.archived && w.sessionName === sessionName,
+  );
+  const ws = resolveWorkspaceForSession(sessionName, allWorkspaces, options);
+  if (ws && wasArchived && !ws.archived && options.persistUnarchive === false) {
+    pendingUnarchiveSaves.add(ws.name);
+  }
+  return ws;
+}
+
+function flushPendingUnarchiveSaves(
+  allWorkspaces: WorkspaceState[],
+  pendingUnarchiveSaves: Set<string>,
+  exceptName?: string,
+): void {
+  for (const name of pendingUnarchiveSaves) {
+    if (name === exceptName) continue;
+    const ws = allWorkspaces.find((w) => w.name === name);
+    if (ws) saveWorkspace(ws);
+  }
+  if (exceptName) {
+    pendingUnarchiveSaves.delete(exceptName);
+  } else {
+    pendingUnarchiveSaves.clear();
+  }
+}
+
+function saveHookWorkspace(
+  ws: WorkspaceState,
+  pendingUnarchiveSaves: Set<string>,
+): void {
+  pendingUnarchiveSaves.delete(ws.name);
+  saveWorkspace(ws);
+}
+
+function exitHook(
+  result: HookEventResult,
+  allWorkspaces: WorkspaceState[],
+  pendingUnarchiveSaves: Set<string>,
+  savedWorkspaceName?: string,
+): HookEventResult {
+  flushPendingUnarchiveSaves(
+    allWorkspaces,
+    pendingUnarchiveSaves,
+    savedWorkspaceName,
+  );
+  return result;
+}
+
 function bindConversation(
   conversationId: string,
   paneId: string | null,
   cwd: string | null,
   paneCtx: HookPaneContext,
   allWorkspaces: WorkspaceState[],
+  pendingUnarchiveSaves: Set<string>,
 ): void {
   const ws = paneCtx.sessionName
-    ? resolveWorkspaceForSession(
+    ? resolveWorkspaceForHook(
         paneCtx.sessionName,
         allWorkspaces,
         hookPaneResolveOptions(paneCtx),
+        pendingUnarchiveSaves,
       )
     : null;
   upsertConversationBinding({
@@ -144,9 +201,17 @@ export function applyHookEvent(
 
   const allWorkspaces = listWorkspaces();
   const paneResolveOpts = hookPaneResolveOptions(paneCtx);
+  const pendingUnarchiveSaves = new Set<string>();
 
   if (conversationId) {
-    bindConversation(conversationId, paneId, cwd, paneCtx, allWorkspaces);
+    bindConversation(
+      conversationId,
+      paneId,
+      cwd,
+      paneCtx,
+      allWorkspaces,
+      pendingUnarchiveSaves,
+    );
   }
 
   if (
@@ -160,25 +225,30 @@ export function applyHookEvent(
   const status = opts?.statusOverride ?? mapHookEventToStatus(event, input);
 
   if (status == null) {
-    return {
-      applied: false,
-      workspace: null,
-      label: null,
-      status: null,
-      conversationId,
-      paneId,
-      event,
-    };
+    return exitHook(
+      {
+        applied: false,
+        workspace: null,
+        label: null,
+        status: null,
+        conversationId,
+        paneId,
+        event,
+      },
+      allWorkspaces,
+      pendingUnarchiveSaves,
+    );
   }
 
   const workspaces = allWorkspaces.filter((w) => !w.archived);
   let target: { ws: WorkspaceState; agent: AgentRecord } | null = null;
 
   if (paneId && paneCtx.sessionName) {
-    const ws = resolveWorkspaceForSession(
+    const ws = resolveWorkspaceForHook(
       paneCtx.sessionName,
       allWorkspaces,
       paneResolveOpts,
+      pendingUnarchiveSaves,
     );
     if (ws) {
       const agent = findAgentByPane(ws, paneId);
@@ -200,10 +270,11 @@ export function applyHookEvent(
   if (!target && conversationId) {
     const binding = getConversationBinding(conversationId);
     if (binding?.sessionName) {
-      const ws = resolveWorkspaceForSession(
+      const ws = resolveWorkspaceForHook(
         binding.sessionName,
         allWorkspaces,
-        paneResolveOpts,
+        hookBindingResolveOptions,
+        pendingUnarchiveSaves,
       );
       if (ws) {
         const agent = findAgentByConversation(ws, conversationId);
@@ -230,10 +301,11 @@ export function applyHookEvent(
   }
 
   if (!target && paneId && paneCtx.sessionName) {
-    const ws = resolveWorkspaceForSession(
+    const ws = resolveWorkspaceForHook(
       paneCtx.sessionName,
       allWorkspaces,
       paneResolveOpts,
+      pendingUnarchiveSaves,
     );
     if (ws) {
       const agent = ensureAgentForPane(ws, paneId);
@@ -242,15 +314,19 @@ export function applyHookEvent(
   }
 
   if (!target) {
-    return {
-      applied: false,
-      workspace: null,
-      label: null,
-      status,
-      conversationId,
-      paneId,
-      event,
-    };
+    return exitHook(
+      {
+        applied: false,
+        workspace: null,
+        label: null,
+        status,
+        conversationId,
+        paneId,
+        event,
+      },
+      allWorkspaces,
+      pendingUnarchiveSaves,
+    );
   }
 
   const { ws, agent } = target;
@@ -282,15 +358,19 @@ export function applyHookEvent(
   }
 
   if (!agent.paneId && event !== "sessionEnd") {
-    return {
-      applied: false,
-      workspace: ws.name,
-      label: agent.label,
-      status,
-      conversationId,
-      paneId,
-      event,
-    };
+    return exitHook(
+      {
+        applied: false,
+        workspace: ws.name,
+        label: agent.label,
+        status,
+        conversationId,
+        paneId,
+        event,
+      },
+      allWorkspaces,
+      pendingUnarchiveSaves,
+    );
   }
 
   if (event === "sessionEnd") {
@@ -307,21 +387,26 @@ export function applyHookEvent(
       tmux.unsetOption("pane", "@work-agent-label", paneId);
       tmux.unsetOption("pane", "@work-agent-cli", paneId);
     }
-    saveWorkspace(ws);
-    return {
-      applied: true,
-      workspace: ws.name,
-      label: agent.label,
-      status: agent.status,
-      conversationId,
-      paneId: agent.paneId,
-      event,
-    };
+    saveHookWorkspace(ws, pendingUnarchiveSaves);
+    return exitHook(
+      {
+        applied: true,
+        workspace: ws.name,
+        label: agent.label,
+        status: agent.status,
+        conversationId,
+        paneId: agent.paneId,
+        event,
+      },
+      allWorkspaces,
+      pendingUnarchiveSaves,
+      ws.name,
+    );
   }
 
   const changed = applyHookStatus(agent, status, event);
   if (changed || conversationId) {
-    saveWorkspace(ws);
+    saveHookWorkspace(ws, pendingUnarchiveSaves);
   }
 
   if (conversationId && paneId) {
@@ -334,13 +419,18 @@ export function applyHookEvent(
     });
   }
 
-  return {
-    applied: true,
-    workspace: ws.name,
-    label: agent.label,
-    status: agent.status,
-    conversationId,
-    paneId: agent.paneId,
-    event,
-  };
+  return exitHook(
+    {
+      applied: true,
+      workspace: ws.name,
+      label: agent.label,
+      status: agent.status,
+      conversationId,
+      paneId: agent.paneId,
+      event,
+    },
+    allWorkspaces,
+    pendingUnarchiveSaves,
+    changed || conversationId ? ws.name : undefined,
+  );
 }
