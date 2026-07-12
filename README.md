@@ -43,14 +43,14 @@ package does not remove config or workspace state.
 
 ## Requirements
 
-| Requirement | Required | Notes |
-| ----------- | -------- | ----- |
-| Node.js 20+ | Yes | See `engines` in `package.json` |
-| tmux 3.x | Yes | Core integration |
-| tmux-tmuxr plugin | Recommended | Sidebar, daemon, tmux hooks |
-| git and/or jj | For VCS features | Worktrees, trees, branch display |
-| fzf | Optional | New-window repo picker (via tmux-tmuxr) |
-| herdr | Optional | Tier-2 screen detection backend |
+| Requirement       | Required         | Notes                                   |
+| ----------------- | ---------------- | --------------------------------------- |
+| Node.js 20+       | Yes              | See `engines` in `package.json`         |
+| tmux 3.x          | Yes              | Core integration                        |
+| tmux-tmuxr plugin | Recommended      | Sidebar, daemon, tmux hooks             |
+| git and/or jj     | For VCS features | Worktrees, trees, branch display        |
+| fzf               | Optional         | New-window repo picker (via tmux-tmuxr) |
+| herdr             | Optional         | Tier-2 screen detection backend         |
 
 ## Configuration
 
@@ -125,7 +125,7 @@ block maps `$N` (or equivalent) directly to the alphabet.
 | Workspace | `track`, `untrack`, `list`, `new`, `close`, `reconcile`                    |
 | Agents    | `scan`, `agents`, `launch`, `agent relaunch`, `agent hook-event`, `status` |
 | Hooks     | `hooks install cursor`, `hooks install claude`, `hooks print-env`          |
-| Trees     | `add-tree`, `remove-tree`, `trees`, `window use-repo`                    |
+| Trees     | `add-tree`, `remove-tree`, `trees`, `window use-repo`                      |
 | Actions   | `action list`, `action run`, `trust add/remove`                            |
 | Config    | `config get/set/list`, `repos`                                             |
 
