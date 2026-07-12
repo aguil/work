@@ -118,9 +118,10 @@ publish the first version via OIDC alone.
    release-please may open a Release PR that repackages the full git history.
    If [release.yml](.github/workflows/release.yml) runs on that tag, it skips
    publish when the version is already on npm.
-5. **From then on** — merge release-please Release PRs; **`vX.Y.Z`** tags trigger
-   [release.yml](.github/workflows/release.yml) which publishes via OIDC (no
-   `NPM_TOKEN`).
+5. **From then on** — merge release-please Release PRs. [release-please.yml](.github/workflows/release-please.yml)
+   dispatches [release.yml](.github/workflows/release.yml) on each new release
+   (tags created with `GITHUB_TOKEN` do not trigger other workflows). Publish
+   uses OIDC trusted publishing (no `NPM_TOKEN`).
 
 Local `npm publish` after the bootstrap still uses `npm login` or a granular token.
 
