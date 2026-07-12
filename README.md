@@ -2,27 +2,55 @@
 
 Agent workspace manager for tmux. Tracks sessions, detects agent CLIs, manages
 git/jj checkouts, and provides a sidebar dashboard via the companion
-[tmux-tmuxr](../tmux-tmuxr) TPM plugin.
+[tmux-tmuxr](https://github.com/aguil/tmux-tmuxr) TPM plugin.
+
+## Install
+
+```bash
+npm install -g @aguil/work
+```
+
+Verify:
+
+```bash
+work --version
+which work workd
+```
+
+## Quickstart
+
+1. **Install the CLI** (above) and the [tmux-tmuxr](https://github.com/aguil/tmux-tmuxr)
+   TPM plugin in your tmux config.
+2. **Reload tmux** (`prefix + r`). The plugin starts `workd` and sets `WORK_BIN`.
+3. **Track a session:** `prefix + Shift+S` (or `work track` in the session).
+4. **Install agent hooks** for accurate working/blocked/idle status:
+   ```bash
+   work hooks install cursor   # or: claude
+   ```
+5. **Toggle the sidebar:** `prefix + Shift+W`.
+
+State persists under XDG paths (see [Configuration](#configuration)) and survives
+CLI upgrades.
+
+### Upgrade and uninstall
+
+```bash
+npm update -g @aguil/work
+```
+
+Re-run `work hooks install` if your global install path changed. Uninstalling the
+package does not remove config or workspace state.
 
 ## Requirements
 
-- Node.js 20+ (see `.mise.toml`)
-- tmux 3.x
-
-## Development
-
-```bash
-mise install
-npm install
-npm run build
-npm run typecheck
-npm test              # Phases 1–7 integration tests (requires tmux)
-scripts/test-phase5.sh
-scripts/test-phase6.sh
-scripts/test-phase7.sh
-```
-
-Binaries are written to `dist/work.mjs` and `dist/workd.mjs`.
+| Requirement       | Required         | Notes                                   |
+| ----------------- | ---------------- | --------------------------------------- |
+| Node.js 20+       | Yes              | See `engines` in `package.json`         |
+| tmux 3.x          | Yes              | Core integration                        |
+| tmux-tmuxr plugin | Recommended      | Sidebar, daemon, tmux hooks             |
+| git and/or jj     | For VCS features | Worktrees, trees, branch display        |
+| fzf               | Optional         | New-window repo picker (via tmux-tmuxr) |
+| herdr             | Optional         | Tier-2 screen detection backend         |
 
 ## Configuration
 
@@ -40,9 +68,9 @@ Common settings:
 work config set repo-scan-dir ~/dev/repos,~/dev/other
 
 # Base directory for project checkouts (window use-repo, new-window picker)
-work config set checkout-base ~/dev/projects/tmuxr
+work config set checkout-base ~/dev/projects/my-project
 
-# Opt-in repo picker on prefix+c in tracked sessions
+# Opt-in repo picker when creating a new window in tracked sessions
 work config set prompt-repos-on-new-window true
 
 # Opt-in: track every new tmux session automatically
@@ -113,11 +141,10 @@ For accurate `working` / `blocked` / `idle` on interactive agents, install
 user-level hooks that call `work agent hook-event`:
 
 ```bash
-npm run build
-node dist/work.mjs hooks install cursor   # Cursor CLI
-node dist/work.mjs hooks install claude   # Claude Code
+work hooks install cursor   # Cursor CLI
+work hooks install claude   # Claude Code
 # optional: add to shell profile for tmux-launched agents
-eval "$(node dist/work.mjs hooks print-env)"
+eval "$(work hooks print-env)"
 ```
 
 Hooks write **explicit** status (overriding manifest/title heuristics until
@@ -128,11 +155,11 @@ Hooks write **explicit** status (overriding manifest/title heuristics until
 
 ### herdr detection backend (Tier 2 status, optional)
 
-Screen heuristics normally use the bundled TOML manifests in
-`src/adapters/manifests/`. When a [herdr](https://herdr.dev) binary is
-installed, `work` instead pipes each pane snapshot through
-`herdr agent explain --file --agent <label> --json`, which evaluates herdr's
-maintained (and remotely updated) detection manifests for ~18 agent CLIs.
+Screen heuristics normally use bundled TOML manifests shipped in the npm package.
+When a [herdr](https://herdr.dev) binary is installed, `work` instead pipes each
+pane snapshot through `herdr agent explain --file --agent <label> --json`, which
+evaluates herdr's maintained (and remotely updated) detection manifests for ~18
+agent CLIs.
 
 - A herdr rule match wins; when herdr reports the screen should not drive a
   state update (e.g. a transcript viewer showing stale prompts), the
@@ -164,12 +191,27 @@ WORK_HERDR_BIN=off              # disable the backend
 
 ## tmux integration
 
-Load via [tmux-tmuxr](../tmux-tmuxr). Keybindings:
+Load via [tmux-tmuxr](https://github.com/aguil/tmux-tmuxr). Keybindings:
 
 - `prefix + Shift+S` — track current session and scan for agents
 - `prefix + Shift+W` — toggle sidebar for the session
 
+The plugin resolves `work` from your global npm install when no local dev build
+is present.
+
+## Development
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup, checks, and release process.
+
+```bash
+mise install
+npm ci
+npm run build
+npm run typecheck
+npm test              # Phases 1–7 integration tests (requires tmux)
+```
+
 ## Related
 
-- Meta-project plans and handoff: `~/dev/projects/tmuxr/`
-- Plugin repo: `~/dev/repos/github.com/aguil/tmux-tmuxr`
+- [tmux-tmuxr](https://github.com/aguil/tmux-tmuxr) — TPM plugin
+- [Changelog](./CHANGELOG.md)

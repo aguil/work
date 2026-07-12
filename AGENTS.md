@@ -56,3 +56,19 @@ This repo uses **Jujutsu** colocated with git (`jj git init --colocate`).
 - Fast CLI startup matters — hooks invoke `work` on every pane event
 - State files use atomic write-to-temp + rename
 - Agent records keyed by `workspace + label`, not pane ID
+
+## npm packaging
+
+- Published as `@aguil/work` on npm; CLI binaries remain `work` and `workd`.
+- Version lives in `package.json`; `build.mjs` injects it into bundles via
+  `__WORK_VERSION__` (see `src/version.ts`).
+- `npm pack` / publish use `prepack` → `build:publish` (production build, no
+  sourcemaps). Dev builds use `npm run build` (with sourcemaps).
+- Tarball `files` whitelist: `dist/work.mjs`, `dist/workd.mjs`, `dist/manifests/`,
+  `dist/hooks/`, `LICENSE`, `README.md`. Validate with `npm pack --dry-run`.
+- Release: [release-please](https://github.com/googleapis/release-please) opens
+  Release PRs on `main`; merging creates `vX.Y.Z` + GitHub Release; tag triggers
+  `.github/workflows/release.yml` for npm publish via OIDC trusted publishing
+  (no `NPM_TOKEN` secret after bootstrap). First publish is manual (`npm login`);
+  then attach trusted publisher on `@aguil/work` for workflow `release.yml`.
+  Manifest: `.release-please-manifest.json`; config: `release-please-config.json`.
