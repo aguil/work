@@ -240,6 +240,11 @@ function syncAgentsToWorkspace(
           detachedAt: null,
           lastSeen: new Date().toISOString(),
         });
+        const pane = paneById.get(d.paneId);
+        if (pane) {
+          tmux.setOption("pane", "@work-agent-label", label, pane.id);
+          tmux.setOption("pane", "@work-agent-cli", d.cli, pane.id);
+        }
         changed = true;
       }
     }
