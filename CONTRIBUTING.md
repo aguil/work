@@ -116,7 +116,9 @@ publish the first version via OIDC alone.
    that matches the published version. The manifest
    (`.release-please-manifest.json`) already tracks `0.1.0`. Without this tag,
    release-please may open a Release PR that repackages the full git history.
-5. **From then on** — merge release-please Release PRs; tags trigger
+   If [release.yml](.github/workflows/release.yml) runs on that tag, it skips
+   publish when the version is already on npm.
+5. **From then on** — merge release-please Release PRs; **`vX.Y.Z`** tags trigger
    [release.yml](.github/workflows/release.yml) which publishes via OIDC (no
    `NPM_TOKEN`).
 
