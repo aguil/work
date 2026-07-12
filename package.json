@@ -1,5 +1,5 @@
 {
-  "name": "work",
+  "name": "@aguil/work",
   "version": "0.1.0",
   "description": "Agent workspace manager for tmux",
   "type": "module",
@@ -7,8 +7,17 @@
     "work": "./dist/work.mjs",
     "workd": "./dist/workd.mjs"
   },
+  "files": [
+    "dist/work.mjs",
+    "dist/workd.mjs",
+    "dist/manifests/",
+    "dist/hooks/",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "build": "node build.mjs",
+    "build:publish": "node build.mjs --production",
     "dev": "node build.mjs --watch",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
@@ -17,12 +26,31 @@
     "test": "bash scripts/cleanup-test-sessions.sh && bash scripts/test-phase1.sh && bash scripts/test-phase2.sh && bash scripts/test-phase3.sh && bash scripts/test-phase4.sh && bash scripts/test-phase5.sh && bash scripts/test-phase6.sh && bash scripts/test-phase7.sh && bash scripts/cleanup-test-sessions.sh",
     "test:unit": "node build.mjs && esbuild src/sidebar/renderer.test.ts --bundle --platform=node --format=esm --outfile=dist/sidebar.test.mjs && node --test dist/sidebar.test.mjs",
     "pre-commit": "bash scripts/pre-commit.sh",
-    "check": "npm run typecheck && npm run lint && npm run build && npm run test"
+    "check": "npm run typecheck && npm run lint && npm run build && npm run test",
+    "prepack": "npm run build:publish"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aguil/work.git"
+  },
+  "homepage": "https://github.com/aguil/work#readme",
+  "bugs": "https://github.com/aguil/work/issues",
+  "keywords": [
+    "tmux",
+    "agents",
+    "workspace",
+    "cli",
+    "cursor",
+    "claude",
+    "sidebar"
+  ],
   "engines": {
     "node": ">=20.0.0"
   },
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "commander": "^13.1.0",
     "smol-toml": "^1.3.1"

@@ -1,11 +1,12 @@
 import { Command } from "commander";
+import { WORK_VERSION } from "./version.js";
 
 const program = new Command();
 
 program
   .name("work")
   .description("Agent workspace manager for tmux")
-  .version("0.1.0");
+  .version(WORK_VERSION);
 
 // Phase 1 commands are registered in their respective modules
 // and attached here. Importing them triggers registration.
