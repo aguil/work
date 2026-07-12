@@ -92,30 +92,37 @@ bump the **minor** version (`0.1.0` → `0.2.0`).
 
 ### Bootstrap (one time)
 
-The manifest (`.release-please-manifest.json`) tracks the last released version
-(`0.1.0`). Before the first automated release after setup, ensure tag **`v0.1.0`**
-exists on GitHub for that commit. Otherwise release-please may open a Release PR
-that repackages the full git history.
+`@aguil/work` does not exist on npm until a maintainer publishes it once.
+Trusted publishing is configured **per package** on npmjs.com, so the registry
+must have the package name before you can attach a trusted publisher. CI cannot
+publish the first version via OIDC alone.
+
+**Order:**
+
+1. **Merge** the npm publish setup to `main`.
+2. **Manual first publish** from a maintainer machine (`@aguil` publish access):
+   ```bash
+   npm login   # scope: @aguil
+   npm ci
+   npm run build:publish
+   npm publish --access public
+   ```
+   This creates `@aguil/work@0.1.0` on the registry.
+3. **Trusted publisher** — on npm **`@aguil/work`** → Package settings →
+   **Trusted publishers**, add **GitHub Actions**: repository **`aguil/work`**,
+   workflow **`release.yml`** (filename only; case-sensitive).
+4. **Git tag for release-please** — push **`v0.1.0`** on GitHub for the commit
+   that matches the published version. The manifest
+   (`.release-please-manifest.json`) already tracks `0.1.0`. Without this tag,
+   release-please may open a Release PR that repackages the full git history.
+5. **From then on** — merge release-please Release PRs; tags trigger
+   [release.yml](.github/workflows/release.yml) which publishes via OIDC (no
+   `NPM_TOKEN`).
+
+Local `npm publish` after the bootstrap still uses `npm login` or a granular token.
 
 Do **not** hand-edit `package.json` version or release sections of `CHANGELOG.md`
 for routine releases; use the Release PR instead.
-
-### npm trusted publishing (one time)
-
-CI publishes via [npm trusted publishing](https://docs.npmjs.com/trusted-publishers)
-(OIDC). **No `NPM_TOKEN` GitHub secret** is required once this is configured
-(same pattern as [`@aguil/agents`](https://github.com/aguil/agents)).
-
-1. **Bootstrap the package on npm** (first release only): publish with `npm login`
-   from a maintainer machine, or let the first successful tag-driven workflow run
-   after step 2.
-2. On npm **`@aguil/work`** → Package settings → **Trusted publishers**, add
-   **GitHub Actions** with repository **`aguil/work`** and workflow **`release.yml`**
-   (filename only; case-sensitive).
-3. Ensure tag **`v0.1.0`** exists on GitHub for release-please bootstrap (see above).
-
-Local or manual `npm publish` from your machine still uses `npm login` or a
-granular token.
 
 ## Reporting issues
 

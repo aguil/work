@@ -69,5 +69,6 @@ This repo uses **Jujutsu** colocated with git (`jj git init --colocate`).
 - Release: [release-please](https://github.com/googleapis/release-please) opens
   Release PRs on `main`; merging creates `vX.Y.Z` + GitHub Release; tag triggers
   `.github/workflows/release.yml` for npm publish via OIDC trusted publishing
-  (no `NPM_TOKEN` secret). Manifest: `.release-please-manifest.json`; config:
-  `release-please-config.json`.
+  (no `NPM_TOKEN` secret after bootstrap). First publish is manual (`npm login`);
+  then attach trusted publisher on `@aguil/work` for workflow `release.yml`.
+  Manifest: `.release-please-manifest.json`; config: `release-please-config.json`.
