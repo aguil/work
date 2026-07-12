@@ -1,3 +1,4 @@
+import type { TmuxPane } from "../tmux/client.js";
 import * as tmux from "../tmux/client.js";
 import { resolveWorkspaceForSession } from "../workspace/resolve-session.js";
 import {
@@ -46,10 +47,15 @@ function resolvePaneId(explicitPaneId?: string): string | null {
   }
 }
 
-function resolveSessionName(paneId: string | null): string | null {
-  if (!paneId) return null;
+interface HookPaneContext {
+  pane: TmuxPane | null;
+  sessionName: string | null;
+}
+
+function resolveHookPaneContext(paneId: string | null): HookPaneContext {
+  if (!paneId) return { pane: null, sessionName: null };
   const pane = tmux.getPane(paneId);
-  return pane?.sessionName ?? null;
+  return { pane, sessionName: pane?.sessionName ?? null };
 }
 
 function findAgentByConversationInWorkspaces(
@@ -87,8 +93,8 @@ function bindConversation(
   conversationId: string,
   paneId: string | null,
   cwd: string | null,
+  sessionName: string | null,
 ): void {
-  const sessionName = resolveSessionName(paneId);
   const ws = sessionName ? resolveWorkspaceForSession(sessionName) : null;
   upsertConversationBinding({
     conversationId,
@@ -106,6 +112,7 @@ export function applyHookEvent(
   const event = resolveHookEventName(input);
   const conversationId = resolveConversationId(input);
   const paneId = resolvePaneId(opts?.paneId);
+  const paneCtx = resolveHookPaneContext(paneId);
   const cwd =
     typeof input.cwd === "string"
       ? input.cwd
@@ -115,7 +122,7 @@ export function applyHookEvent(
         : null;
 
   if (conversationId) {
-    bindConversation(conversationId, paneId, cwd);
+    bindConversation(conversationId, paneId, cwd, paneCtx.sessionName);
   }
 
   if (
@@ -144,15 +151,12 @@ export function applyHookEvent(
   const workspaces = allWorkspaces.filter((w) => !w.archived);
   let target: { ws: WorkspaceState; agent: AgentRecord } | null = null;
 
-  if (paneId) {
-    const sessionName = resolveSessionName(paneId);
-    if (sessionName) {
-      const ws = resolveWorkspaceForSession(sessionName, allWorkspaces);
-      if (ws) {
-        const agent = findAgentByPane(ws, paneId);
-        if (agent) {
-          target = { ws, agent };
-        }
+  if (paneId && paneCtx.sessionName) {
+    const ws = resolveWorkspaceForSession(paneCtx.sessionName, allWorkspaces);
+    if (ws) {
+      const agent = findAgentByPane(ws, paneId);
+      if (agent) {
+        target = { ws, agent };
       }
     }
     if (!target) {
@@ -194,11 +198,8 @@ export function applyHookEvent(
     }
   }
 
-  if (!target && paneId) {
-    const sessionName = resolveSessionName(paneId);
-    const ws = sessionName
-      ? resolveWorkspaceForSession(sessionName, allWorkspaces)
-      : null;
+  if (!target && paneId && paneCtx.sessionName) {
+    const ws = resolveWorkspaceForSession(paneCtx.sessionName, allWorkspaces);
     if (ws) {
       const agent = ensureAgentForPane(ws, paneId);
       target = { ws, agent };
