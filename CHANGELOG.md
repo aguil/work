@@ -9,6 +9,14 @@ Entries from the next release onward are updated by
 [release-please](https://github.com/googleapis/release-please) when the release
 PR merges. See [CONTRIBUTING.md](./CONTRIBUTING.md#releasing).
 
+## [0.1.3](https://github.com/aguil/work/compare/v0.1.2...v0.1.3) (2026-07-12)
+
+
+### Fixed
+
+* **release:** dispatch npm publish after release-please ([a1fd7a6](https://github.com/aguil/work/commit/a1fd7a6efce3d177743e064fcfb01b53de665778))
+* **release:** dispatch npm publish after release-please ([6fea373](https://github.com/aguil/work/commit/6fea3735623b51763ec7e101e658a35c4747d7b9))
+
 ## [0.1.2](https://github.com/aguil/work/compare/v0.1.1...v0.1.2) (2026-07-12)
 
 
