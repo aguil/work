@@ -1,8 +1,10 @@
 import { randomBytes } from "node:crypto";
 import {
   type Dirent,
+  existsSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmdirSync,
   unlinkSync,
@@ -61,8 +63,15 @@ export interface WorkspaceState {
 }
 
 function isPathWithinRoot(filePath: string, root: string): boolean {
-  const resolvedFile = resolve(filePath);
-  const resolvedRoot = resolve(root);
+  const resolvedRoot = existsSync(root) ? realpathSync(root) : resolve(root);
+  let resolvedFile: string;
+  try {
+    resolvedFile = existsSync(filePath)
+      ? realpathSync(filePath)
+      : resolve(filePath);
+  } catch {
+    return false;
+  }
   return (
     resolvedFile === resolvedRoot || resolvedFile.startsWith(resolvedRoot + sep)
   );
@@ -201,7 +210,8 @@ export function deleteWorkspace(name: string): void {
 
 export function listWorkspaces(): WorkspaceState[] {
   ensureDirs();
-  const filePaths = collectWorkspaceJsonFiles(paths.workspacesDir);
+  const workspacesRoot = paths.workspacesDir;
+  const filePaths = collectWorkspaceJsonFiles(workspacesRoot);
   const filesByName = new Map<string, string[]>();
   const stateByName = new Map<string, WorkspaceState>();
   for (const filePath of filePaths) {
@@ -210,7 +220,10 @@ export function listWorkspaces(): WorkspaceState[] {
     const files = filesByName.get(state.name) ?? [];
     files.push(filePath);
     filesByName.set(state.name, files);
-    const canonical = workspacePath(state.name);
+    const canonical = join(
+      workspacesRoot,
+      `${encodeURIComponent(state.name)}.json`,
+    );
     const existing = stateByName.get(state.name);
     if (!existing || filePath === canonical) {
       stateByName.set(state.name, state);
@@ -218,7 +231,7 @@ export function listWorkspaces(): WorkspaceState[] {
   }
   const results: WorkspaceState[] = [];
   for (const [name, files] of filesByName) {
-    const canonical = workspacePath(name);
+    const canonical = join(workspacesRoot, `${encodeURIComponent(name)}.json`);
     const state = stateByName.get(name);
     if (!state) continue;
     const hasCanonical = files.includes(canonical);
