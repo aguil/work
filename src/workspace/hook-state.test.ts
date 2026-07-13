@@ -68,10 +68,7 @@ describe("hook workspace state", { concurrency: false }, () => {
 
       assert.equal(lookupSessionIndexEntry("sess-b")?.archived, true);
       assert.equal(loadWorkspacesForSession("sess-b").active, null);
-      assert.equal(
-        loadWorkspacesForSession("sess-b").archived?.name,
-        "proj-b",
-      );
+      assert.equal(loadWorkspacesForSession("sess-b").archived?.name, "proj-b");
     });
   });
 
