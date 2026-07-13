@@ -1,5 +1,5 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { readFileSync } from "node:fs";
+import { writeJsonAtomic } from "../util/atomic-json.js";
 import { paths } from "./paths.js";
 
 export interface Config {
@@ -100,8 +100,7 @@ function load(): Config {
 }
 
 function save(config: Config): void {
-  mkdirSync(dirname(paths.configFile), { recursive: true });
-  writeFileSync(paths.configFile, `${JSON.stringify(config, null, 2)}\n`);
+  writeJsonAtomic(paths.configFile, config);
   cached = config;
 }
 

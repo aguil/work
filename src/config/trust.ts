@@ -1,11 +1,6 @@
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  realpathSync,
-  writeFileSync,
-} from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { resolve } from "node:path";
+import { writeJsonAtomic } from "../util/atomic-json.js";
 import { ensureDirs, paths } from "./paths.js";
 
 interface TrustStore {
@@ -29,8 +24,7 @@ function loadStore(): TrustStore {
 
 function saveStore(store: TrustStore): void {
   ensureDirs();
-  mkdirSync(dirname(trustPath()), { recursive: true });
-  writeFileSync(trustPath(), `${JSON.stringify(store, null, 2)}\n`);
+  writeJsonAtomic(trustPath(), store, { mode: 0o600 });
 }
 
 export function normalizeTrustPath(input: string): string {
