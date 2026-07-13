@@ -24,7 +24,7 @@
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "test": "bash scripts/cleanup-test-sessions.sh && bash scripts/test-phase1.sh && bash scripts/test-phase2.sh && bash scripts/test-phase3.sh && bash scripts/test-phase4.sh && bash scripts/test-phase5.sh && bash scripts/test-phase6.sh && bash scripts/test-phase7.sh && bash scripts/cleanup-test-sessions.sh",
-    "test:unit": "node build.mjs && esbuild src/sidebar/renderer.test.ts src/util/atomic-json.test.ts src/workspace/state.test.ts src/workspace/hook-state.test.ts --bundle --platform=node --format=esm --outdir=dist/tests && node --test dist/tests/sidebar/renderer.test.js dist/tests/util/atomic-json.test.js dist/tests/workspace/state.test.js dist/tests/workspace/hook-state.test.js",
+    "test:unit": "node build.mjs && esbuild src/sidebar/renderer.test.ts src/util/atomic-json.test.ts src/workspace/state.test.ts src/workspace/hook-state.test.ts --bundle --platform=node --format=esm --outdir=dist/tests && node --test --test-concurrency=1 dist/tests/sidebar/renderer.test.js dist/tests/util/atomic-json.test.js dist/tests/workspace/state.test.js dist/tests/workspace/hook-state.test.js",
     "pre-commit": "bash scripts/pre-commit.sh",
     "check": "npm run typecheck && npm run lint && npm run build && npm run test",
     "prepack": "npm run build:publish"
