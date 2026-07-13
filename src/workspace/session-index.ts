@@ -2,6 +2,7 @@ import { type Dirent, existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ensureDirs, paths } from "../config/paths.js";
 import { writeJsonAtomic } from "../util/atomic-json.js";
+import { withFileLock } from "./lock.js";
 
 export interface SessionIndexEntry {
   name: string;
@@ -20,6 +21,14 @@ interface WorkspaceIndexFields {
 
 function sessionIndexPath(): string {
   return join(paths.state, "session-index.json");
+}
+
+function sessionIndexLockPath(): string {
+  return join(paths.state, "session-index.lock");
+}
+
+function withSessionIndexLock<T>(fn: () => T): T {
+  return withFileLock(sessionIndexLockPath(), fn);
 }
 
 function emptyIndex(): SessionIndex {
@@ -80,16 +89,18 @@ function readWorkspaceIndexFields(path: string): WorkspaceIndexFields | null {
 
 export function rebuildSessionIndex(): void {
   ensureDirs();
-  const index = emptyIndex();
-  for (const filePath of collectWorkspaceJsonFiles(paths.workspacesDir)) {
-    const fields = readWorkspaceIndexFields(filePath);
-    if (!fields) continue;
-    index.bySession[fields.sessionName] = {
-      name: fields.name,
-      archived: fields.archived,
-    };
-  }
-  saveIndex(index);
+  withSessionIndexLock(() => {
+    const index = emptyIndex();
+    for (const filePath of collectWorkspaceJsonFiles(paths.workspacesDir)) {
+      const fields = readWorkspaceIndexFields(filePath);
+      if (!fields) continue;
+      index.bySession[fields.sessionName] = {
+        name: fields.name,
+        archived: fields.archived,
+      };
+    }
+    saveIndex(index);
+  });
 }
 
 export function syncSessionIndexEntry(state: {
@@ -97,19 +108,25 @@ export function syncSessionIndexEntry(state: {
   sessionName: string;
   archived: boolean;
 }): void {
-  const index = loadIndex();
-  index.bySession[state.sessionName] = {
-    name: state.name,
-    archived: state.archived,
-  };
-  saveIndex(index);
+  ensureDirs();
+  withSessionIndexLock(() => {
+    const index = loadIndex();
+    index.bySession[state.sessionName] = {
+      name: state.name,
+      archived: state.archived,
+    };
+    saveIndex(index);
+  });
 }
 
 export function removeSessionIndexEntry(sessionName: string): void {
-  const index = loadIndex();
-  if (!(sessionName in index.bySession)) return;
-  delete index.bySession[sessionName];
-  saveIndex(index);
+  ensureDirs();
+  withSessionIndexLock(() => {
+    const index = loadIndex();
+    if (!(sessionName in index.bySession)) return;
+    delete index.bySession[sessionName];
+    saveIndex(index);
+  });
 }
 
 export function lookupSessionIndexEntry(
