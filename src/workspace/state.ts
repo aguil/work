@@ -1,12 +1,14 @@
 import { randomBytes } from "node:crypto";
 import {
+  type Dirent,
   readdirSync,
   readFileSync,
   renameSync,
+  rmdirSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { ensureDirs, paths } from "../config/paths.js";
 
 export type AgentStatus =
@@ -62,13 +64,88 @@ function workspacePath(name: string): string {
   return join(paths.workspacesDir, `${encodeURIComponent(name)}.json`);
 }
 
-export function loadWorkspace(name: string): WorkspaceState | null {
+/** Pre-0.1.5 on-disk layout: `${name}.json` (slashes became nested directories). */
+function legacyWorkspacePath(name: string): string {
+  return join(paths.workspacesDir, `${name}.json`);
+}
+
+function readWorkspaceFile(path: string): WorkspaceState | null {
   try {
-    const raw = readFileSync(workspacePath(name), "utf-8");
+    const raw = readFileSync(path, "utf-8");
     return JSON.parse(raw) as WorkspaceState;
   } catch {
     return null;
   }
+}
+
+function removeLegacyWorkspaceFile(filePath: string): void {
+  try {
+    unlinkSync(filePath);
+  } catch {
+    return;
+  }
+  let dir = dirname(filePath);
+  const root = paths.workspacesDir;
+  while (dir.startsWith(root) && dir !== root) {
+    try {
+      if (readdirSync(dir).length === 0) {
+        rmdirSync(dir);
+        dir = dirname(dir);
+      } else {
+        break;
+      }
+    } catch {
+      break;
+    }
+  }
+}
+
+function migrateLegacyWorkspaceFile(
+  name: string,
+  filePath: string,
+  state: WorkspaceState,
+): void {
+  const canonical = workspacePath(name);
+  if (filePath === canonical) return;
+  saveWorkspace(state);
+  if (filePath !== legacyWorkspacePath(name)) {
+    removeLegacyWorkspaceFile(filePath);
+  }
+}
+
+function collectWorkspaceJsonFiles(dir: string): string[] {
+  const files: string[] = [];
+  let entries: Dirent[];
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return files;
+  }
+  for (const entry of entries) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...collectWorkspaceJsonFiles(full));
+    } else if (entry.isFile() && entry.name.endsWith(".json")) {
+      files.push(full);
+    }
+  }
+  return files;
+}
+
+export function loadWorkspace(name: string): WorkspaceState | null {
+  const currentPath = workspacePath(name);
+  const current = readWorkspaceFile(currentPath);
+  if (current) return current;
+
+  const legacyPath = legacyWorkspacePath(name);
+  if (legacyPath === currentPath) return null;
+
+  const legacy = readWorkspaceFile(legacyPath);
+  if (!legacy) return null;
+
+  saveWorkspace(legacy);
+  removeLegacyWorkspaceFile(legacyPath);
+  return legacy;
 }
 
 export function saveWorkspace(state: WorkspaceState): void {
@@ -79,28 +156,40 @@ export function saveWorkspace(state: WorkspaceState): void {
   // Owner-only: agent records carry pane-derived text (status evidence).
   writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
   renameSync(tmp, target);
+  const legacy = legacyWorkspacePath(state.name);
+  if (legacy !== target) {
+    removeLegacyWorkspaceFile(legacy);
+  }
 }
 
 export function deleteWorkspace(name: string): void {
-  try {
-    unlinkSync(workspacePath(name));
-  } catch {
-    // already gone
+  removeLegacyWorkspaceFile(workspacePath(name));
+  const legacy = legacyWorkspacePath(name);
+  if (legacy !== workspacePath(name)) {
+    removeLegacyWorkspaceFile(legacy);
   }
 }
 
 export function listWorkspaces(): WorkspaceState[] {
   ensureDirs();
-  const dir = paths.workspacesDir;
-  const files = readdirSync(dir).filter((f) => f.endsWith(".json"));
-  const results: WorkspaceState[] = [];
-  for (const file of files) {
-    try {
-      const raw = readFileSync(join(dir, file), "utf-8");
-      results.push(JSON.parse(raw) as WorkspaceState);
-    } catch {
-      // skip corrupt files
+  const filePaths = collectWorkspaceJsonFiles(paths.workspacesDir);
+  const byName = new Map<string, { path: string; state: WorkspaceState }>();
+  for (const filePath of filePaths) {
+    const state = readWorkspaceFile(filePath);
+    if (!state) continue;
+    const canonical = workspacePath(state.name);
+    const existing = byName.get(state.name);
+    if (!existing || filePath === canonical) {
+      byName.set(state.name, { path: filePath, state });
     }
+  }
+  const results: WorkspaceState[] = [];
+  for (const [name, { path, state }] of byName) {
+    const canonical = workspacePath(name);
+    if (path !== canonical) {
+      migrateLegacyWorkspaceFile(name, path, state);
+    }
+    results.push(state);
   }
   return results;
 }

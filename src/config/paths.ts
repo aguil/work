@@ -18,9 +18,15 @@ function xdgRuntime(): string {
 }
 
 export const paths = {
-  config: join(xdgConfig(), "work"),
-  state: join(xdgState(), "work"),
-  runtime: join(xdgRuntime(), "work"),
+  get config(): string {
+    return join(xdgConfig(), "work");
+  },
+  get state(): string {
+    return join(xdgState(), "work");
+  },
+  get runtime(): string {
+    return join(xdgRuntime(), "work");
+  },
 
   get configFile(): string {
     return join(this.config, "config.json");
@@ -43,7 +49,7 @@ export const paths = {
   get trustFile(): string {
     return join(this.state, "trust.json");
   },
-} as const;
+};
 
 export function ensureDirs(): void {
   mkdirSync(paths.config, { recursive: true });
