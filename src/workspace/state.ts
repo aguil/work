@@ -196,7 +196,14 @@ export function saveWorkspace(state: WorkspaceState): void {
   state.updatedAt = new Date().toISOString();
   // Owner-only: agent records carry pane-derived text (status evidence).
   writeJsonAtomic(target, state, { mode: 0o600 });
-  syncSessionIndexEntry(state);
+  const indexEntry = lookupSessionIndexEntry(state.sessionName);
+  if (
+    !indexEntry ||
+    indexEntry.name !== state.name ||
+    indexEntry.archived !== state.archived
+  ) {
+    syncSessionIndexEntry(state);
+  }
   const legacy = legacyWorkspacePath(state.name);
   if (legacy && legacy !== target) {
     removeLegacyWorkspaceFile(legacy);
