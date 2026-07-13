@@ -100,6 +100,7 @@ function hookBindResolveOptions(
 ): ResolveSessionOptions {
   return {
     sessionListed: paneCtx.pane != null,
+    persistUnarchive: false,
   };
 }
 
@@ -107,8 +108,20 @@ function resolveWorkspaceForHook(
   sessionName: string,
   options: ResolveSessionOptions,
   pendingUnarchiveSaves: Set<string>,
+  allWorkspaces?: WorkspaceState[],
 ): WorkspaceState | null {
-  const loaded = loadWorkspacesForSession(sessionName);
+  const loaded = allWorkspaces
+    ? {
+        active:
+          allWorkspaces.find(
+            (w) => !w.archived && w.sessionName === sessionName,
+          ) ?? null,
+        archived:
+          allWorkspaces.find(
+            (w) => w.archived && w.sessionName === sessionName,
+          ) ?? null,
+      }
+    : loadWorkspacesForSession(sessionName);
   const ws = resolveWorkspaceFromLoaded(sessionName, loaded, options);
   if (
     ws &&
@@ -154,11 +167,12 @@ function bindConversation(
   paneId: string | null,
   cwd: string | null,
   paneCtx: HookPaneContext,
+  allWorkspaces?: WorkspaceState[],
 ): void {
   const ws = paneCtx.sessionName
     ? resolveWorkspaceForSession(
         paneCtx.sessionName,
-        undefined,
+        allWorkspaces,
         hookBindResolveOptions(paneCtx),
       )
     : null;
@@ -177,6 +191,7 @@ function findHookTarget(
   conversationId: string | null,
   paneResolveOpts: ResolveSessionOptions,
   pendingUnarchiveSaves: Set<string>,
+  allWorkspaces: WorkspaceState[],
   activeWorkspaces: WorkspaceState[],
 ): HookTarget | null {
   if (paneId && paneCtx.sessionName) {
@@ -184,6 +199,7 @@ function findHookTarget(
       paneCtx.sessionName,
       paneResolveOpts,
       pendingUnarchiveSaves,
+      allWorkspaces,
     );
     if (ws) {
       const agent = findAgentByPane(ws, paneId);
@@ -227,6 +243,7 @@ function findHookTarget(
         binding.sessionName,
         hookBindingResolveOptions,
         pendingUnarchiveSaves,
+        allWorkspaces,
       );
       if (ws) {
         const agent = findAgentByConversation(ws, conversationId);
@@ -268,6 +285,7 @@ function findHookTarget(
       paneCtx.sessionName,
       paneResolveOpts,
       pendingUnarchiveSaves,
+      allWorkspaces,
     );
     if (ws) {
       return { workspaceName: ws.name, agentLabel: null, createAgent: true };
@@ -339,9 +357,12 @@ export function applyHookEvent(
 
   const paneCtx = resolveHookPaneContext(paneId);
   const paneResolveOpts = hookPaneResolveOptions(paneCtx);
+  const allWorkspaces =
+    status != null || conversationId != null ? listWorkspaces() : [];
+  const activeWorkspaces = allWorkspaces.filter((w) => !w.archived);
 
   if (conversationId) {
-    bindConversation(conversationId, paneId, cwd, paneCtx);
+    bindConversation(conversationId, paneId, cwd, paneCtx, allWorkspaces);
   }
 
   if (
@@ -367,13 +388,13 @@ export function applyHookEvent(
     );
   }
 
-  const activeWorkspaces = listWorkspaces().filter((w) => !w.archived);
   const target = findHookTarget(
     paneId,
     paneCtx,
     conversationId,
     paneResolveOpts,
     pendingUnarchiveSaves,
+    allWorkspaces,
     activeWorkspaces,
   );
 
