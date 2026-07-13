@@ -5,6 +5,7 @@ import {
 import { observeAgentsInWorkspace } from "../adapters/update-agent.js";
 import { getConfigValue } from "../config/store.js";
 import {
+  clearAgentProcessCache,
   detectAgents,
   detectSinglePane,
   isSidebarPane,
@@ -123,6 +124,8 @@ export function aggregateState(): AggregatedState {
   );
   const paneById = new Map(allPanes.map((p) => [p.id, p]));
 
+  clearAgentProcessCache();
+
   const sessions: SessionSnapshot[] = [];
 
   for (const session of tmuxSessions) {
@@ -130,13 +133,15 @@ export function aggregateState(): AggregatedState {
       sessionListed: true,
     });
     const sessionPanes = allPanes.filter((p) => p.sessionName === session.name);
-    const detected = detectAgents(sessionPanes, sidebarPaneIds);
+    const detected = detectAgents(sessionPanes, sidebarPaneIds, {
+      preserveCache: true,
+    });
 
     let agents: SessionSnapshot["agents"] = [];
 
     if (ws) {
       syncAgentsToWorkspace(ws, detected, paneById);
-      if (observeAgentsInWorkspace(Object.values(ws.agents))) {
+      if (observeAgentsInWorkspace(Object.values(ws.agents), paneById)) {
         saveWorkspace(ws);
       }
       agents = Object.values(ws.agents).map((a) =>

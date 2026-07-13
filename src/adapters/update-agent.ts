@@ -1,5 +1,6 @@
-import * as tmux from "../tmux/client.js";
+import type { TmuxPane } from "../tmux/client.js";
 import type { AgentRecord } from "../workspace/state.js";
+import { isActiveAgentTitle } from "./agent-title.js";
 import {
   applyObservation,
   hasExplicitHookStatus,
@@ -25,13 +26,17 @@ export function updateAgentFromPane(
 
 export function observeAgentsInWorkspace(
   agents: Iterable<AgentRecord>,
+  paneById: Map<string, TmuxPane>,
 ): boolean {
   let changed = false;
   for (const agent of agents) {
     if (!agent.paneId || agent.status === "detached") continue;
-    const pane = tmux.getPane(agent.paneId);
+    const pane = paneById.get(agent.paneId);
     if (!pane) continue;
     if (hasExplicitHookStatus(agent)) {
+      if (agent.status === "working" && isActiveAgentTitle(pane.title)) {
+        continue;
+      }
       const result = observePane(pane, agent.cli);
       if (!result || !observationOverridesExplicit(result)) continue;
       if (applyObservation(agent, result, { trustIdle: true })) changed = true;
