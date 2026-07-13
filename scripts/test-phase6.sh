@@ -37,6 +37,14 @@ assert_contains() {
 
 section() { echo; echo "== $1 =="; }
 
+pane_status() {
+  $WORK agents --json 2>/dev/null | node -e '
+    const agents = JSON.parse(require("fs").readFileSync(0, "utf-8"));
+    const agent = agents.find((a) => a.paneId === process.argv[1]);
+    console.log(agent ? agent.status : "missing");
+  ' "$1"
+}
+
 cleanup() {
   tmux kill-session -t "$SESSION" 2>/dev/null || true
   rm -rf "$TEST_ROOT"
@@ -95,6 +103,33 @@ assert_contains "permission_denied blocked" '"status": "blocked"' "$OUT"
 section "5. Bundled hook script installed by hooks install (dry-run)"
 OUT=$($WORK hooks install cursor --dry-run 2>&1)
 assert_contains "dry-run mentions work-event.sh" "work-event.sh" "$OUT"
+
+section "6. Hook script attributes events to TMUX_PANE, not the focused pane"
+FOCUS_WINDOW=$(tmux new-window -d -t "$SESSION" -P -F '#{window_id}' \
+  'bash -c "exec -a agent sleep 300"')
+FOCUSED_PANE=$(tmux list-panes -t "$FOCUS_WINDOW" -F '#{pane_id}')
+UNFOCUSED_PANE=$(tmux split-window -t "$FOCUS_WINDOW" -h -P -F '#{pane_id}' \
+  'bash -c "exec -a agent sleep 300"')
+sleep 0.3
+$WORK scan --pane "$FOCUSED_PANE" --quiet
+$WORK scan --pane "$UNFOCUSED_PANE" --quiet
+for pane in "$FOCUSED_PANE" "$UNFOCUSED_PANE"; do
+  printf '%s' '{"hook_event_name":"sessionStart","conversation_id":"focus-'"$pane"'","cwd":"/tmp"}' \
+    | $WORK agent hook-event --pane "$pane" --quiet
+done
+tmux select-window -t "$FOCUS_WINDOW"
+tmux select-pane -t "$FOCUSED_PANE"
+assert_eq "focused pane has focus before the event" "$FOCUSED_PANE" \
+  "$(tmux display-message -p -t "$SESSION" '#{pane_id}')"
+
+HOOK_JSON='{"hook_event_name":"preToolUse","conversation_id":"focus-'"$UNFOCUSED_PANE"'","tool_name":"Read"}'
+printf '%s' "$HOOK_JSON" \
+  | TMUX="$(tmux display-message -p '#{socket_path},0,0')" \
+    TMUX_PANE="$UNFOCUSED_PANE" WORK_BIN="node $WORK_DIR/dist/work.mjs" \
+    bash "$WORK_DIR/dist/hooks/cursor/work-event.sh"
+sleep 0.5
+assert_eq "unfocused pane receives the event" "working" "$(pane_status "$UNFOCUSED_PANE")"
+assert_eq "focused pane keeps its status" "idle" "$(pane_status "$FOCUSED_PANE")"
 
 section "Summary"
 echo "Passed: $PASS"
