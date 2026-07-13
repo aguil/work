@@ -1,7 +1,10 @@
 import type { TmuxPane } from "../tmux/client.js";
 import * as tmux from "../tmux/client.js";
 import type { ResolveSessionOptions } from "../workspace/resolve-session.js";
-import { resolveWorkspaceForSession } from "../workspace/resolve-session.js";
+import {
+  resolveWorkspaceForSession,
+  resolveWorkspaceFromLoaded,
+} from "../workspace/resolve-session.js";
 import {
   type AgentRecord,
   type AgentStatus,
@@ -9,7 +12,9 @@ import {
   findAgentByConversation,
   findAgentByPane,
   listWorkspaces,
-  saveWorkspace,
+  loadWorkspace,
+  loadWorkspacesForSession,
+  mutateWorkspace,
   upsertAgent,
   type WorkspaceState,
 } from "../workspace/state.js";
@@ -37,6 +42,24 @@ export interface HookEventResult {
   event: string;
 }
 
+interface HookTarget {
+  workspaceName: string;
+  agentLabel: string | null;
+  createAgent: boolean;
+}
+
+type TmuxPaneSideEffect =
+  | {
+      kind: "set";
+      paneId: string;
+      label: string;
+      cli: string;
+    }
+  | {
+      kind: "unset";
+      paneId: string;
+    };
+
 function resolvePaneId(explicitPaneId?: string): string | null {
   if (explicitPaneId) return explicitPaneId;
   if (!process.env.TMUX) return null;
@@ -59,37 +82,6 @@ function resolveHookPaneContext(paneId: string | null): HookPaneContext {
   return { pane, sessionName: pane?.sessionName ?? null };
 }
 
-function findAgentByConversationInWorkspaces(
-  workspaces: WorkspaceState[],
-  conversationId: string,
-): { ws: WorkspaceState; agent: AgentRecord } | null {
-  for (const ws of workspaces) {
-    const agent = findAgentByConversation(ws, conversationId);
-    if (agent) return { ws, agent };
-  }
-  return null;
-}
-
-function ensureAgentForPane(ws: WorkspaceState, paneId: string): AgentRecord {
-  const existing = findAgentByPane(ws, paneId);
-  if (existing) return existing;
-
-  const record: AgentRecord = {
-    label: autoLabel("agent", ws),
-    cli: "agent",
-    paneId,
-    status: "unknown",
-    confidence: "none",
-    detachedAt: null,
-    lastSeen: new Date().toISOString(),
-    conversationId: null,
-  };
-  upsertAgent(ws, record);
-  tmux.setOption("pane", "@work-agent-label", record.label, paneId);
-  tmux.setOption("pane", "@work-agent-cli", record.cli, paneId);
-  return record;
-}
-
 function hookPaneResolveOptions(
   paneCtx: HookPaneContext,
 ): ResolveSessionOptions {
@@ -103,31 +95,56 @@ const hookBindingResolveOptions: ResolveSessionOptions = {
   persistUnarchive: false,
 };
 
+function hookBindResolveOptions(
+  paneCtx: HookPaneContext,
+): ResolveSessionOptions {
+  return {
+    sessionListed: paneCtx.pane != null,
+    persistUnarchive: false,
+  };
+}
+
 function resolveWorkspaceForHook(
   sessionName: string,
-  allWorkspaces: WorkspaceState[],
   options: ResolveSessionOptions,
   pendingUnarchiveSaves: Set<string>,
+  allWorkspaces?: WorkspaceState[],
 ): WorkspaceState | null {
-  const wasArchived = allWorkspaces.some(
-    (w) => w.archived && w.sessionName === sessionName,
-  );
-  const ws = resolveWorkspaceForSession(sessionName, allWorkspaces, options);
-  if (ws && wasArchived && !ws.archived && options.persistUnarchive === false) {
+  const loaded = allWorkspaces
+    ? {
+        active:
+          allWorkspaces.find(
+            (w) => !w.archived && w.sessionName === sessionName,
+          ) ?? null,
+        archived:
+          allWorkspaces.find(
+            (w) => w.archived && w.sessionName === sessionName,
+          ) ?? null,
+      }
+    : loadWorkspacesForSession(sessionName);
+  const ws = resolveWorkspaceFromLoaded(sessionName, loaded, options);
+  if (
+    ws &&
+    loaded.archived &&
+    !ws.archived &&
+    options.persistUnarchive === false
+  ) {
     pendingUnarchiveSaves.add(ws.name);
   }
   return ws;
 }
 
 function flushPendingUnarchiveSaves(
-  allWorkspaces: WorkspaceState[],
   pendingUnarchiveSaves: Set<string>,
   exceptName?: string,
 ): void {
   for (const name of pendingUnarchiveSaves) {
     if (name === exceptName) continue;
-    const ws = allWorkspaces.find((w) => w.name === name);
-    if (ws) saveWorkspace(ws);
+    mutateWorkspace(name, (ws) => {
+      if (!ws.archived) return false;
+      ws.archived = false;
+      return true;
+    });
   }
   if (exceptName) {
     pendingUnarchiveSaves.delete(exceptName);
@@ -136,34 +153,13 @@ function flushPendingUnarchiveSaves(
   }
 }
 
-function saveHookWorkspace(
-  ws: WorkspaceState,
-  pendingUnarchiveSaves: Set<string>,
-): void {
-  pendingUnarchiveSaves.delete(ws.name);
-  saveWorkspace(ws);
-}
-
 function exitHook(
   result: HookEventResult,
-  allWorkspaces: WorkspaceState[],
   pendingUnarchiveSaves: Set<string>,
   savedWorkspaceName?: string,
 ): HookEventResult {
-  flushPendingUnarchiveSaves(
-    allWorkspaces,
-    pendingUnarchiveSaves,
-    savedWorkspaceName,
-  );
+  flushPendingUnarchiveSaves(pendingUnarchiveSaves, savedWorkspaceName);
   return result;
-}
-
-function hookBindResolveOptions(
-  paneCtx: HookPaneContext,
-): ResolveSessionOptions {
-  return {
-    sessionListed: paneCtx.pane != null,
-  };
 }
 
 function bindConversation(
@@ -171,7 +167,7 @@ function bindConversation(
   paneId: string | null,
   cwd: string | null,
   paneCtx: HookPaneContext,
-  allWorkspaces: WorkspaceState[],
+  allWorkspaces?: WorkspaceState[],
 ): void {
   const ws = paneCtx.sessionName
     ? resolveWorkspaceForSession(
@@ -187,6 +183,146 @@ function bindConversation(
     workspaceName: ws?.name ?? null,
     cwd: cwd ?? null,
   });
+}
+
+function findHookTarget(
+  paneId: string | null,
+  paneCtx: HookPaneContext,
+  conversationId: string | null,
+  paneResolveOpts: ResolveSessionOptions,
+  pendingUnarchiveSaves: Set<string>,
+  allWorkspaces: WorkspaceState[],
+  activeWorkspaces: WorkspaceState[],
+): HookTarget | null {
+  if (paneId && paneCtx.sessionName) {
+    const ws = resolveWorkspaceForHook(
+      paneCtx.sessionName,
+      paneResolveOpts,
+      pendingUnarchiveSaves,
+      allWorkspaces,
+    );
+    if (ws) {
+      const agent = findAgentByPane(ws, paneId);
+      if (agent) {
+        return {
+          workspaceName: ws.name,
+          agentLabel: agent.label,
+          createAgent: false,
+        };
+      }
+    }
+    for (const other of activeWorkspaces) {
+      const agent = findAgentByPane(other, paneId);
+      if (agent) {
+        return {
+          workspaceName: other.name,
+          agentLabel: agent.label,
+          createAgent: false,
+        };
+      }
+    }
+  }
+
+  if (conversationId) {
+    const binding = getConversationBinding(conversationId);
+    if (binding?.workspaceName) {
+      const ws = loadWorkspace(binding.workspaceName);
+      if (ws && !ws.archived) {
+        const agent = findAgentByConversation(ws, conversationId);
+        if (agent) {
+          return {
+            workspaceName: ws.name,
+            agentLabel: agent.label,
+            createAgent: false,
+          };
+        }
+      }
+    }
+    if (binding?.sessionName) {
+      const ws = resolveWorkspaceForHook(
+        binding.sessionName,
+        hookBindingResolveOptions,
+        pendingUnarchiveSaves,
+        allWorkspaces,
+      );
+      if (ws) {
+        const agent = findAgentByConversation(ws, conversationId);
+        if (agent) {
+          return {
+            workspaceName: ws.name,
+            agentLabel: agent.label,
+            createAgent: false,
+          };
+        }
+      }
+    }
+    for (const ws of activeWorkspaces) {
+      const agent = findAgentByConversation(ws, conversationId);
+      if (agent) {
+        return {
+          workspaceName: ws.name,
+          agentLabel: agent.label,
+          createAgent: false,
+        };
+      }
+    }
+    if (binding?.paneId) {
+      for (const ws of activeWorkspaces) {
+        const agent = findAgentByPane(ws, binding.paneId);
+        if (agent) {
+          return {
+            workspaceName: ws.name,
+            agentLabel: agent.label,
+            createAgent: false,
+          };
+        }
+      }
+    }
+  }
+
+  if (paneId && paneCtx.sessionName) {
+    const ws = resolveWorkspaceForHook(
+      paneCtx.sessionName,
+      paneResolveOpts,
+      pendingUnarchiveSaves,
+      allWorkspaces,
+    );
+    if (ws) {
+      return { workspaceName: ws.name, agentLabel: null, createAgent: true };
+    }
+  }
+
+  return null;
+}
+
+function createAgentForPane(ws: WorkspaceState, paneId: string): AgentRecord {
+  const existing = findAgentByPane(ws, paneId);
+  if (existing) return existing;
+
+  const record: AgentRecord = {
+    label: autoLabel("agent", ws),
+    cli: "agent",
+    paneId,
+    status: "unknown",
+    confidence: "none",
+    detachedAt: null,
+    lastSeen: new Date().toISOString(),
+    conversationId: null,
+  };
+  upsertAgent(ws, record);
+  return record;
+}
+
+function applyTmuxSideEffects(effects: TmuxPaneSideEffect[]): void {
+  for (const effect of effects) {
+    if (effect.kind === "set") {
+      tmux.setOption("pane", "@work-agent-label", effect.label, effect.paneId);
+      tmux.setOption("pane", "@work-agent-cli", effect.cli, effect.paneId);
+    } else {
+      tmux.unsetOption("pane", "@work-agent-label", effect.paneId);
+      tmux.unsetOption("pane", "@work-agent-cli", effect.paneId);
+    }
+  }
 }
 
 export function applyHookEvent(
@@ -206,7 +342,6 @@ export function applyHookEvent(
 
   const status = opts?.statusOverride ?? mapHookEventToStatus(event, input);
   const pendingUnarchiveSaves = new Set<string>();
-  let allWorkspaces: WorkspaceState[] | null = null;
 
   if (!conversationId && status == null) {
     return {
@@ -222,9 +357,11 @@ export function applyHookEvent(
 
   const paneCtx = resolveHookPaneContext(paneId);
   const paneResolveOpts = hookPaneResolveOptions(paneCtx);
+  const allWorkspaces =
+    status != null || conversationId != null ? listWorkspaces() : [];
+  const activeWorkspaces = allWorkspaces.filter((w) => !w.archived);
 
   if (conversationId) {
-    allWorkspaces = listWorkspaces();
     bindConversation(conversationId, paneId, cwd, paneCtx, allWorkspaces);
   }
 
@@ -247,85 +384,19 @@ export function applyHookEvent(
         paneId,
         event,
       },
-      allWorkspaces ?? [],
       pendingUnarchiveSaves,
     );
   }
 
-  allWorkspaces ??= listWorkspaces();
-
-  const workspaces = allWorkspaces.filter((w) => !w.archived);
-  let target: { ws: WorkspaceState; agent: AgentRecord } | null = null;
-
-  if (paneId && paneCtx.sessionName) {
-    const ws = resolveWorkspaceForHook(
-      paneCtx.sessionName,
-      allWorkspaces,
-      paneResolveOpts,
-      pendingUnarchiveSaves,
-    );
-    if (ws) {
-      const agent = findAgentByPane(ws, paneId);
-      if (agent) {
-        target = { ws, agent };
-      }
-    }
-    if (!target) {
-      for (const ws of workspaces) {
-        const agent = findAgentByPane(ws, paneId);
-        if (agent) {
-          target = { ws, agent };
-          break;
-        }
-      }
-    }
-  }
-
-  if (!target && conversationId) {
-    const binding = getConversationBinding(conversationId);
-    if (binding?.sessionName) {
-      const ws = resolveWorkspaceForHook(
-        binding.sessionName,
-        allWorkspaces,
-        hookBindingResolveOptions,
-        pendingUnarchiveSaves,
-      );
-      if (ws) {
-        const agent = findAgentByConversation(ws, conversationId);
-        if (agent) target = { ws, agent };
-      }
-    }
-  }
-
-  if (!target && conversationId) {
-    target = findAgentByConversationInWorkspaces(workspaces, conversationId);
-  }
-
-  if (!target && conversationId) {
-    const binding = getConversationBinding(conversationId);
-    if (binding?.paneId) {
-      for (const ws of workspaces) {
-        const agent = findAgentByPane(ws, binding.paneId);
-        if (agent) {
-          target = { ws, agent };
-          break;
-        }
-      }
-    }
-  }
-
-  if (!target && paneId && paneCtx.sessionName) {
-    const ws = resolveWorkspaceForHook(
-      paneCtx.sessionName,
-      allWorkspaces,
-      paneResolveOpts,
-      pendingUnarchiveSaves,
-    );
-    if (ws) {
-      const agent = ensureAgentForPane(ws, paneId);
-      target = { ws, agent };
-    }
-  }
+  const target = findHookTarget(
+    paneId,
+    paneCtx,
+    conversationId,
+    paneResolveOpts,
+    pendingUnarchiveSaves,
+    allWorkspaces,
+    activeWorkspaces,
+  );
 
   if (!target) {
     return exitHook(
@@ -338,42 +409,80 @@ export function applyHookEvent(
         paneId,
         event,
       },
-      allWorkspaces,
       pendingUnarchiveSaves,
     );
   }
 
-  const { ws, agent } = target;
+  let result: HookEventResult = {
+    applied: false,
+    workspace: target.workspaceName,
+    label: target.agentLabel,
+    status,
+    conversationId,
+    paneId,
+    event,
+  };
+  let boundSessionName = paneCtx.sessionName;
+  let persistedTarget = false;
+  const tmuxSideEffects: TmuxPaneSideEffect[] = [];
 
-  if (paneId) {
-    tmux.setOption("pane", "@work-agent-label", agent.label, paneId);
-    tmux.setOption("pane", "@work-agent-cli", agent.cli, paneId);
-  }
+  mutateWorkspace(target.workspaceName, (ws) => {
+    boundSessionName = ws.sessionName;
+    let dirty = false;
 
-  if (conversationId) {
-    for (const other of Object.values(ws.agents)) {
-      if (
-        other.label !== agent.label &&
-        other.conversationId === conversationId
-      ) {
-        other.conversationId = null;
+    if (pendingUnarchiveSaves.has(ws.name) && ws.archived) {
+      ws.archived = false;
+      pendingUnarchiveSaves.delete(ws.name);
+      dirty = true;
+    }
+
+    let agent: AgentRecord | undefined;
+    if (target.createAgent && paneId) {
+      agent = createAgentForPane(ws, paneId);
+    } else if (target.agentLabel) {
+      agent = ws.agents[target.agentLabel];
+    } else if (paneId) {
+      agent = findAgentByPane(ws, paneId);
+    }
+    if (!agent) return dirty;
+
+    if (paneId) {
+      tmuxSideEffects.push({
+        kind: "set",
+        paneId,
+        label: agent.label,
+        cli: agent.cli,
+      });
+    }
+
+    if (conversationId) {
+      for (const other of Object.values(ws.agents)) {
+        if (
+          other.label !== agent.label &&
+          other.conversationId === conversationId
+        ) {
+          other.conversationId = null;
+          dirty = true;
+        }
+      }
+      if (agent.conversationId !== conversationId) {
+        agent.conversationId = conversationId;
+        dirty = true;
       }
     }
-    agent.conversationId = conversationId;
-  }
 
-  if (paneId && (!agent.paneId || agent.status === "detached")) {
-    agent.paneId = paneId;
-    agent.detachedAt = null;
-    if (agent.status === "detached") {
-      agent.status = "unknown";
-      agent.confidence = "none";
+    if (paneId && (!agent.paneId || agent.status === "detached")) {
+      agent.paneId = paneId;
+      agent.detachedAt = null;
+      if (agent.status === "detached") {
+        agent.status = "unknown";
+        agent.confidence = "none";
+      }
+      dirty = true;
     }
-  }
 
-  if (!agent.paneId && event !== "sessionEnd") {
-    return exitHook(
-      {
+    if (!agent.paneId && event !== "sessionEnd") {
+      result = {
         applied: false,
         workspace: ws.name,
         label: agent.label,
@@ -381,29 +490,24 @@ export function applyHookEvent(
         conversationId,
         paneId,
         event,
-      },
-      allWorkspaces,
-      pendingUnarchiveSaves,
-    );
-  }
-
-  if (event === "sessionEnd") {
-    agent.status = "detached";
-    agent.confidence = "none";
-    agent.hookEvent = event;
-    agent.pendingIdleCount = 0;
-    agent.conversationId = null;
-    agent.paneId = null;
-    agent.detachedAt = new Date().toISOString();
-    agent.lastSeen = new Date().toISOString();
-    clearScreenMetadata(agent);
-    if (paneId) {
-      tmux.unsetOption("pane", "@work-agent-label", paneId);
-      tmux.unsetOption("pane", "@work-agent-cli", paneId);
+      };
+      return dirty;
     }
-    saveHookWorkspace(ws, pendingUnarchiveSaves);
-    return exitHook(
-      {
+
+    if (event === "sessionEnd") {
+      agent.status = "detached";
+      agent.confidence = "none";
+      agent.hookEvent = event;
+      agent.pendingIdleCount = 0;
+      agent.conversationId = null;
+      agent.paneId = null;
+      agent.detachedAt = new Date().toISOString();
+      agent.lastSeen = new Date().toISOString();
+      clearScreenMetadata(agent);
+      if (paneId) {
+        tmuxSideEffects.push({ kind: "unset", paneId });
+      }
+      result = {
         applied: true,
         workspace: ws.name,
         label: agent.label,
@@ -411,40 +515,41 @@ export function applyHookEvent(
         conversationId,
         paneId: agent.paneId,
         event,
-      },
-      allWorkspaces,
-      pendingUnarchiveSaves,
-      ws.name,
-    );
-  }
+      };
+      dirty = true;
+    } else {
+      const changed = applyHookStatus(agent, status, event);
+      result = {
+        applied: true,
+        workspace: ws.name,
+        label: agent.label,
+        status: agent.status,
+        conversationId,
+        paneId: agent.paneId,
+        event,
+      };
+      dirty = dirty || changed || conversationId != null;
+    }
 
-  const changed = applyHookStatus(agent, status, event);
-  if (changed || conversationId) {
-    saveHookWorkspace(ws, pendingUnarchiveSaves);
-  }
+    if (dirty) persistedTarget = true;
+    return dirty;
+  });
 
-  if (conversationId && paneId) {
+  applyTmuxSideEffects(tmuxSideEffects);
+
+  if (conversationId && paneId && result.applied) {
     upsertConversationBinding({
       conversationId,
       paneId,
-      sessionName: ws.sessionName,
-      workspaceName: ws.name,
+      sessionName: boundSessionName,
+      workspaceName: result.workspace,
       cwd,
     });
   }
 
   return exitHook(
-    {
-      applied: true,
-      workspace: ws.name,
-      label: agent.label,
-      status: agent.status,
-      conversationId,
-      paneId: agent.paneId,
-      event,
-    },
-    allWorkspaces,
+    result,
     pendingUnarchiveSaves,
-    changed || conversationId ? ws.name : undefined,
+    persistedTarget ? (result.workspace ?? undefined) : undefined,
   );
 }

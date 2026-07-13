@@ -1,7 +1,5 @@
 import type { Command } from "commander";
 import { clearScreenMetadata } from "../adapters/debounce.js";
-import { observeAgentPane } from "../adapters/observe.js";
-import { updateAgentFromPane } from "../adapters/update-agent.js";
 import {
   type AgentRecord,
   findAgentByPane,
@@ -108,7 +106,10 @@ export function registerAgentsCommands(program: Command): void {
     .description("Handle pane title change (called by pane-title-changed hook)")
     .argument("<pane-id>", "Pane ID")
     .option("-q, --quiet", "Suppress output")
-    .action((paneId: string, opts: { quiet?: boolean }) => {
+    .action(async (paneId: string, opts: { quiet?: boolean }) => {
+      const { updateAgentFromPane } = await import(
+        "../adapters/update-agent.js"
+      );
       const workspaces = listWorkspaces().filter((w) => !w.archived);
 
       for (const ws of workspaces) {
@@ -135,10 +136,14 @@ export function registerAgentsCommands(program: Command): void {
     .option("--json", "Output as JSON")
     .option("-q, --quiet", "Suppress output")
     .action(
-      (
+      async (
         paneId: string,
         opts: { apply?: boolean; json?: boolean; quiet?: boolean },
       ) => {
+        const { observeAgentPane } = await import("../adapters/observe.js");
+        const { updateAgentFromPane } = await import(
+          "../adapters/update-agent.js"
+        );
         const workspaces = listWorkspaces().filter((w) => !w.archived);
 
         for (const ws of workspaces) {

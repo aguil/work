@@ -11,7 +11,21 @@ program
 // Phase 1 commands are registered in their respective modules
 // and attached here. Importing them triggers registration.
 
+function isHookEventInvocation(argv: string[]): boolean {
+  const args = argv.slice(2);
+  return args[0] === "agent" && args[1] === "hook-event";
+}
+
 async function main(): Promise<void> {
+  if (isHookEventInvocation(process.argv)) {
+    const { registerHookEventCli } = await import(
+      "./commands/hook-event-cli.js"
+    );
+    registerHookEventCli(program);
+    await program.parseAsync(process.argv);
+    return;
+  }
+
   const { registerTrackCommands } = await import("./commands/track.js");
   const { registerScanCommand } = await import("./commands/scan.js");
   const { registerAgentsCommands } = await import("./commands/agents.js");
