@@ -6,10 +6,9 @@ const MAX_LOCK_ATTEMPTS = 100;
 const LOCK_RETRY_MS = 5;
 
 function sleepMs(ms: number): void {
-  const end = Date.now() + ms;
-  while (Date.now() < end) {
-    // busy-wait for short hook-path retries
-  }
+  if (ms <= 0) return;
+  const buffer = new SharedArrayBuffer(4);
+  Atomics.wait(new Int32Array(buffer), 0, 0, ms);
 }
 
 export function withFileLock<T>(lockPath: string, fn: () => T): T {
