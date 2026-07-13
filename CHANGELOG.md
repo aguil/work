@@ -9,6 +9,15 @@ Entries from the next release onward are updated by
 [release-please](https://github.com/googleapis/release-please) when the release
 PR merges. See [CONTRIBUTING.md](./CONTRIBUTING.md#releasing).
 
+## [0.1.8](https://github.com/aguil/work/compare/v0.1.7...v0.1.8) (2026-07-13)
+
+
+### Performance
+
+* **scanner:** preserve agent process cache within poll tick ([b27e345](https://github.com/aguil/work/commit/b27e3459909f707510d59a5e92c941740b3a7752))
+* **workd:** reduce poll IPC and redundant observation ([497a064](https://github.com/aguil/work/commit/497a064c39ae33125defe13b7eb4da5ceb07b582))
+* **workd:** reuse pane map and skip redundant observation ([bde1ec2](https://github.com/aguil/work/commit/bde1ec29387d5468926c30c82e13d75fa8905672))
+
 ## [0.1.7](https://github.com/aguil/work/compare/v0.1.6...v0.1.7) (2026-07-13)
 
 
