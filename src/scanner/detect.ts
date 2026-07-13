@@ -258,11 +258,16 @@ export function paneStillHostsAgent(
   return hasAgentChildProcess(pane, cli);
 }
 
+export function clearAgentProcessCache(): void {
+  agentProcessCache.clear();
+}
+
 export function detectAgents(
   panes: TmuxPane[],
   excludePaneIds?: Set<string>,
+  opts?: { preserveCache?: boolean },
 ): DetectedAgent[] {
-  agentProcessCache.clear();
+  if (!opts?.preserveCache) agentProcessCache.clear();
   const agentClis = getConfigValue("agent-clis");
   const cliSet = new Set(agentClis.map((c) => c.toLowerCase()));
   const detected: DetectedAgent[] = [];
