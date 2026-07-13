@@ -1,17 +1,15 @@
-import { randomBytes } from "node:crypto";
 import {
   type Dirent,
   existsSync,
   readdirSync,
   readFileSync,
   realpathSync,
-  renameSync,
   rmdirSync,
   unlinkSync,
-  writeFileSync,
 } from "node:fs";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { ensureDirs, paths } from "../config/paths.js";
+import { writeJsonAtomic } from "../util/atomic-json.js";
 
 export type AgentStatus =
   | "idle"
@@ -188,11 +186,9 @@ export function loadWorkspace(name: string): WorkspaceState | null {
 export function saveWorkspace(state: WorkspaceState): void {
   ensureDirs();
   const target = workspacePath(state.name);
-  const tmp = `${target}.${randomBytes(4).toString("hex")}.tmp`;
   state.updatedAt = new Date().toISOString();
   // Owner-only: agent records carry pane-derived text (status evidence).
-  writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
-  renameSync(tmp, target);
+  writeJsonAtomic(target, state, { mode: 0o600 });
   const legacy = legacyWorkspacePath(state.name);
   if (legacy && legacy !== target) {
     removeLegacyWorkspaceFile(legacy);
