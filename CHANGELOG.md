@@ -9,6 +9,22 @@ Entries from the next release onward are updated by
 [release-please](https://github.com/googleapis/release-please) when the release
 PR merges. See [CONTRIBUTING.md](./CONTRIBUTING.md#releasing).
 
+## [0.1.7](https://github.com/aguil/work/compare/v0.1.6...v0.1.7) (2026-07-13)
+
+
+### Fixed
+
+* **cli:** restore hook-event in work agent help ([2df5de7](https://github.com/aguil/work/commit/2df5de72f9b7e4880c24cc0834e48934aab7620f))
+* hook-event path concurrency and hot-path overhead ([d617235](https://github.com/aguil/work/commit/d61723577ed5e484a00fe592640dc11aed4a6a26))
+* **hooks:** defer unarchive in bindConversation path ([04ff4b7](https://github.com/aguil/work/commit/04ff4b74e6b411c60c27cb0e89659b09951e1221))
+* **hooks:** persist deferred unarchive on successful hook apply ([92fbf0a](https://github.com/aguil/work/commit/92fbf0a0fca60a047295b75fb50787993c7ac864))
+* **workspace:** serialize session index read-modify-write ([9d789d8](https://github.com/aguil/work/commit/9d789d8cdc0e8807a3b505841dbd6d6693a79582))
+
+
+### Performance
+
+* **workspace:** skip redundant session index rewrites ([ed618e3](https://github.com/aguil/work/commit/ed618e3e74731cb82f61a4ef353911208e97c39a))
+
 ## [0.1.6](https://github.com/aguil/work/compare/v0.1.5...v0.1.6) (2026-07-13)
 
 
