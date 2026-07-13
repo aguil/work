@@ -8,7 +8,6 @@ import {
   listWorkspaces,
   saveWorkspace,
 } from "../workspace/state.js";
-import { registerAgentHookCommand } from "./agent-hook.js";
 import { registerAgentRelaunch } from "./launch.js";
 
 export function registerAgentsCommands(program: Command): void {
@@ -191,5 +190,4 @@ export function registerAgentsCommands(program: Command): void {
     );
 
   registerAgentRelaunch(agent);
-  registerAgentHookCommand(agent);
 }
