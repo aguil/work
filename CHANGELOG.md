@@ -9,6 +9,14 @@ Entries from the next release onward are updated by
 [release-please](https://github.com/googleapis/release-please) when the release
 PR merges. See [CONTRIBUTING.md](./CONTRIBUTING.md#releasing).
 
+## [0.1.9](https://github.com/aguil/work/compare/v0.1.8...v0.1.9) (2026-07-13)
+
+
+### Fixed
+
+* **lock:** yield CPU while waiting for workspace locks ([5c82ad2](https://github.com/aguil/work/commit/5c82ad2d7556376bb81530cb358e6ac04569225d))
+* **lock:** yield CPU while waiting for workspace locks ([de76a59](https://github.com/aguil/work/commit/de76a59a263fd656667da374b057566622c1bef7))
+
 ## [0.1.8](https://github.com/aguil/work/compare/v0.1.7...v0.1.8) (2026-07-13)
 
 
