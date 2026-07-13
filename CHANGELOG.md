@@ -9,6 +9,24 @@ Entries from the next release onward are updated by
 [release-please](https://github.com/googleapis/release-please) when the release
 PR merges. See [CONTRIBUTING.md](./CONTRIBUTING.md#releasing).
 
+## [0.1.6](https://github.com/aguil/work/compare/v0.1.5...v0.1.6) (2026-07-13)
+
+
+### Added
+
+* **util:** add atomic JSON write helper ([2c47596](https://github.com/aguil/work/commit/2c475965e06f6a98f6da8b461665fa12923239ce))
+
+
+### Fixed
+
+* **config:** use atomic writes for config and trust stores ([d648d74](https://github.com/aguil/work/commit/d648d745ecc28027fd0b1382988552b324ecb774))
+* use atomic write-to-temp+rename for config and trust stores ([7e1261e](https://github.com/aguil/work/commit/7e1261ed39fccb85155ae7636b7c93ccb007bc5e))
+
+
+### Changed
+
+* **workspace:** reuse atomic JSON helper in saveWorkspace ([2bc519c](https://github.com/aguil/work/commit/2bc519c2785e1d44d00f5a48339a7f49e009fb20))
+
 ## [0.1.5](https://github.com/aguil/work/compare/v0.1.4...v0.1.5) (2026-07-13)
 
 
