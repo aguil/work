@@ -135,7 +135,7 @@ section "4. remove-tree"
 echo "wip" >>"$WORKTREE_ROOT/README.md"
 git -C "$WORKTREE_ROOT" commit -am "wip feature commit" >/dev/null
 
-if $WORK remove-tree "$WORKTREE_ROOT" --session "$SESSION" >/dev/null 2>&1; then
+if $WORK remove-tree "$WORKTREE_ROOT" --session "$SESSION" >/dev/null 2>&1 </dev/null; then
   fail "remove-tree blocks unmerged worktree without --force"
 else
   pass "remove-tree blocks unmerged worktree without --force"
