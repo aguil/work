@@ -10,6 +10,13 @@ import {
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { ensureDirs, paths } from "../config/paths.js";
 import { writeJsonAtomic } from "../util/atomic-json.js";
+import { withWorkspaceLock } from "./lock.js";
+import {
+  lookupSessionIndexEntry,
+  rebuildSessionIndex,
+  removeSessionIndexEntry,
+  syncSessionIndexEntry,
+} from "./session-index.js";
 
 export type AgentStatus =
   | "idle"
@@ -189,13 +196,54 @@ export function saveWorkspace(state: WorkspaceState): void {
   state.updatedAt = new Date().toISOString();
   // Owner-only: agent records carry pane-derived text (status evidence).
   writeJsonAtomic(target, state, { mode: 0o600 });
+  syncSessionIndexEntry(state);
   const legacy = legacyWorkspacePath(state.name);
   if (legacy && legacy !== target) {
     removeLegacyWorkspaceFile(legacy);
   }
 }
 
+export function mutateWorkspace(
+  name: string,
+  mutator: (state: WorkspaceState) => boolean,
+): WorkspaceState | null {
+  return withWorkspaceLock(name, () => {
+    const state = loadWorkspace(name);
+    if (!state) return null;
+    if (mutator(state)) {
+      saveWorkspace(state);
+    }
+    return state;
+  });
+}
+
+export function loadWorkspacesForSession(sessionName: string): {
+  active: WorkspaceState | null;
+  archived: WorkspaceState | null;
+} {
+  let entry = lookupSessionIndexEntry(sessionName);
+  if (!entry) {
+    rebuildSessionIndex();
+    entry = lookupSessionIndexEntry(sessionName);
+  }
+  if (!entry) {
+    return { active: null, archived: null };
+  }
+  const ws = loadWorkspace(entry.name);
+  if (!ws) {
+    return { active: null, archived: null };
+  }
+  if (ws.archived) {
+    return { active: null, archived: ws };
+  }
+  return { active: ws, archived: null };
+}
+
 export function deleteWorkspace(name: string): void {
+  const existing = loadWorkspace(name);
+  if (existing) {
+    removeSessionIndexEntry(existing.sessionName);
+  }
   removeLegacyWorkspaceFile(workspacePath(name));
   const legacy = legacyWorkspacePath(name);
   const canonical = workspacePath(name);
@@ -271,15 +319,13 @@ export function createWorkspace(
 export function findWorkspaceBySession(
   sessionName: string,
 ): WorkspaceState | null {
-  const all = listWorkspaces();
-  return all.find((w) => !w.archived && w.sessionName === sessionName) ?? null;
+  return loadWorkspacesForSession(sessionName).active;
 }
 
 export function findArchivedWorkspaceBySession(
   sessionName: string,
 ): WorkspaceState | null {
-  const all = listWorkspaces();
-  return all.find((w) => w.archived && w.sessionName === sessionName) ?? null;
+  return loadWorkspacesForSession(sessionName).archived;
 }
 
 export function unarchiveWorkspace(ws: WorkspaceState): WorkspaceState {

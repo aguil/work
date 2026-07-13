@@ -1,6 +1,6 @@
 import * as tmux from "../tmux/client.js";
 import {
-  listWorkspaces,
+  loadWorkspacesForSession,
   unarchiveWorkspace,
   type WorkspaceState,
 } from "./state.js";
@@ -22,13 +22,26 @@ export function resolveWorkspaceForSession(
   allWorkspaces?: WorkspaceState[],
   options?: ResolveSessionOptions,
 ): WorkspaceState | null {
-  const all = allWorkspaces ?? listWorkspaces();
-  const active =
-    all.find((w) => !w.archived && w.sessionName === sessionName) ?? null;
+  if (allWorkspaces) {
+    const active =
+      allWorkspaces.find((w) => !w.archived && w.sessionName === sessionName) ??
+      null;
+    if (active) return active;
+    if (!options?.sessionListed && !tmux.hasSession(sessionName)) return null;
+    const archived =
+      allWorkspaces.find((w) => w.archived && w.sessionName === sessionName) ??
+      null;
+    if (!archived) return null;
+    if (options?.persistUnarchive === false) {
+      archived.archived = false;
+      return archived;
+    }
+    return unarchiveWorkspace(archived);
+  }
+
+  const { active, archived } = loadWorkspacesForSession(sessionName);
   if (active) return active;
   if (!options?.sessionListed && !tmux.hasSession(sessionName)) return null;
-  const archived =
-    all.find((w) => w.archived && w.sessionName === sessionName) ?? null;
   if (!archived) return null;
   if (options?.persistUnarchive === false) {
     archived.archived = false;
