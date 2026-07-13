@@ -9,6 +9,17 @@ Entries from the next release onward are updated by
 [release-please](https://github.com/googleapis/release-please) when the release
 PR merges. See [CONTRIBUTING.md](./CONTRIBUTING.md#releasing).
 
+## [0.1.5](https://github.com/aguil/work/compare/v0.1.4...v0.1.5) (2026-07-13)
+
+
+### Fixed
+
+* **workspace:** encode workspace state filenames ([747fc38](https://github.com/aguil/work/commit/747fc383c26c136e8657547621ca6743f51c0d64))
+* **workspace:** encode workspace state filenames ([00a49af](https://github.com/aguil/work/commit/00a49af548ca628aac4f32c8a28f75e77fcaf168))
+* **workspace:** harden legacy workspace migration paths ([bca3dc2](https://github.com/aguil/work/commit/bca3dc20a61bed57ddcc48f60d38e647660f82d8))
+* **workspace:** migrate legacy workspace state filenames ([769d8a4](https://github.com/aguil/work/commit/769d8a41875a4d74aae7ba81bf4d3ecbcd2d4a57))
+* **workspace:** resolve symlinks before legacy state cleanup ([4b79c3e](https://github.com/aguil/work/commit/4b79c3eb921655930dba18c2d9642bfd3483c0dc))
+
 ## [0.1.4](https://github.com/aguil/work/compare/v0.1.3...v0.1.4) (2026-07-12)
 
 
