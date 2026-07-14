@@ -48,7 +48,12 @@ export function inferCheckoutBase(ws: WorkspaceState): string | null {
 
 export function resolveCheckoutBase(ws: WorkspaceState): string {
   const configured = getConfigValue("checkout-base");
-  if (configured) return resolve(configured);
+  if (configured) {
+    const root = resolve(configured);
+    // A value already named for the session is that session's base; otherwise
+    // treat it as a shared root so sessions don't share one flat directory.
+    return basename(root) === ws.name ? root : join(root, ws.name);
+  }
 
   const inferred = inferCheckoutBase(ws);
   if (inferred) return inferred;
