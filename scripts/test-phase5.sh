@@ -132,6 +132,16 @@ OUT=$($WORK agent observe "$BLOCK_PANE" --json 2>&1)
 assert_contains "screen approval prompt matches blocked" '"status": "blocked"' "$OUT"
 assert_contains "screen match is heuristic" '"confidence": "heuristic"' "$OUT"
 
+begin_detect_pane "claude-idle" bash -c \
+  'exec -a claude sh -c "printf \"❯ draft reply\n────────────────\n~/repo | Sonnet\naccept edits on\n\"; sleep 300"'
+CLAUDE_IDLE_PANE=$LAST_DETECT_PANE
+if assert_pane_id "Claude idle prompt pane is created" "$CLAUDE_IDLE_PANE"; then
+  $WORK scan --pane "$CLAUDE_IDLE_PANE" --quiet
+  OUT=$($WORK agent observe "$CLAUDE_IDLE_PANE" --json 2>&1)
+  assert_contains "Claude prompt glyph matches idle" '"status": "idle"' "$OUT"
+  assert_contains "Claude prompt is visibly idle" '"visibleIdle": true' "$OUT"
+fi
+
 section "4. Idle debounce on apply"
 IDLE_PANE=$(tmux split-window -t "$SESSION" -h -P -F '#{pane_id}' \
   'bash -c "exec -a cursor sh -c \"printf \\\">\\\\n\\\"; sleep 300\""')
