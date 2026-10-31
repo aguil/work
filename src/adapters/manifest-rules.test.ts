@@ -2,15 +2,21 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { isActiveAgentTitle } from "./agent-title.js";
+import { mapHookEventToStatus } from "./hook-events.js";
 import { parseManifestFile } from "./loader.js";
 import { observeWithManifest } from "./observe.js";
 
+const CLAUDE_TOML = "src/adapters/manifests/claude.toml";
 const CURSOR_TOML = "src/adapters/manifests/cursor.toml";
 
 function statusFrom(toml: string, paneTitle: string, bottomLines: string) {
   const manifest = parseManifestFile(toml);
   assert.ok(manifest);
   return observeWithManifest({ paneTitle, bottomLines }, manifest)?.status;
+}
+
+function claudeStatus(bottomLines: string) {
+  return statusFrom(CLAUDE_TOML, "claude", bottomLines);
 }
 
 function cursorStatus(paneTitle: string, bottomLines = "") {
@@ -27,6 +33,63 @@ const CURSOR_APPROVAL_FRAME = `
     Add Shell(touch) to allowlist? (tab)
     Run Everything (shift+tab)
     Skip & tell the agent what to do instead (esc or n)`;
+
+// Bottom of the permission dialog as captured on Claude Code 2.1.312.
+const CLAUDE_DIALOG_FRAME = `
+ Do you want to proceed?
+ ❯ 1. Yes
+   2. Yes, and always allow access to /tmp/cv from this project
+   3. Yes, and switch to auto mode · auto mode handles these prompts for you
+   4. No
+
+ Esc to cancel · Tab to amend`;
+
+describe("claude.toml on Claude Code 2.1.312", () => {
+  it("reads the permission dialog as blocked", () => {
+    assert.equal(claudeStatus(CLAUDE_DIALOG_FRAME), "blocked");
+  });
+
+  it("reads the 2. Yes option line as blocked", () => {
+    assert.equal(claudeStatus("   2. Yes, and always allow"), "blocked");
+  });
+
+  it("reads the 3. Yes option line as blocked", () => {
+    assert.equal(claudeStatus("   3. Yes, and switch to auto mode"), "blocked");
+  });
+
+  it("does not read Do you want to proceed in agent prose as blocked", () => {
+    assert.notEqual(
+      claudeStatus(
+        "Do you want to proceed with the migration?\n\n────\n❯\n────",
+      ),
+      "blocked",
+    );
+  });
+
+  it("does not read a numbered reply on the prompt line as blocked", () => {
+    assert.notEqual(
+      claudeStatus("────\n❯ 1. Yes, do the first one\n────"),
+      "blocked",
+    );
+  });
+
+  it("reads the working footer as working", () => {
+    assert.equal(
+      claudeStatus("❯\n⏸ manual mode on · esc to interrupt · ← 1 agents"),
+      "working",
+    );
+  });
+
+  it("reads idle from the measured hook payloads", () => {
+    assert.equal(mapHookEventToStatus("Stop", {}), "idle");
+    assert.equal(
+      mapHookEventToStatus("Notification", {
+        notification_type: "idle_prompt",
+      }),
+      "idle",
+    );
+  });
+});
 
 describe("cursor.toml on cursor-agent 2026.10.22", () => {
   it("reads a confirmation title as blocked", () => {
