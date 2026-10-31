@@ -40,6 +40,9 @@ const CLAUDE_HOOK_EVENTS = [
   "SubagentStop",
 ] as const;
 
+/** Relative command older releases registered; it never resolves in Claude Code. */
+const LEGACY_CLAUDE_HOOK_COMMAND = "./hooks/work-event.sh";
+
 type HookTarget = "cursor" | "claude";
 
 interface CursorHooksJson {
@@ -105,11 +108,29 @@ function claudeHookExists(
   return false;
 }
 
+function withoutLegacyClaudeHook(
+  hooks: Record<string, ClaudeMatcherGroup[]>,
+): Record<string, ClaudeMatcherGroup[]> {
+  const cleaned: Record<string, ClaudeMatcherGroup[]> = {};
+  for (const [event, groups] of Object.entries(hooks)) {
+    const kept = groups
+      .map((group) => ({
+        ...group,
+        hooks: group.hooks.filter(
+          (h) => h.command !== LEGACY_CLAUDE_HOOK_COMMAND,
+        ),
+      }))
+      .filter((group) => group.hooks.length > 0);
+    if (kept.length > 0) cleaned[event] = kept;
+  }
+  return cleaned;
+}
+
 function mergeClaudeSettings(
   existing: ClaudeSettings,
   command: string,
 ): ClaudeSettings {
-  const hooks = { ...(existing.hooks ?? {}) };
+  const hooks = withoutLegacyClaudeHook(existing.hooks ?? {});
   const handler: ClaudeHookHandler = {
     type: "command",
     command,
@@ -154,7 +175,8 @@ function installHookBundle(
     const claudeDir = join(homedir(), ".claude");
     destScript = join(claudeDir, "hooks", "work-event.sh");
     configPath = join(claudeDir, "settings.json");
-    command = "./hooks/work-event.sh";
+    // Claude Code runs hooks in the session's cwd, so the path must be absolute.
+    command = destScript;
   }
 
   if (opts.dryRun) {

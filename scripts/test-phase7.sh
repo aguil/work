@@ -121,6 +121,63 @@ sleep 0.5
 OUT=$($WORK agents --json 2>&1)
 assert_contains "hook script with node WORK_BIN applies" '"status": "working"' "$OUT"
 
+section "10. hooks install claude registers the absolute script path"
+INSTALL_HOME="$TEST_ROOT/home"
+mkdir -p "$INSTALL_HOME/.claude"
+CLAUDE_SETTINGS="$INSTALL_HOME/.claude/settings.json"
+INSTALLED_SCRIPT="$INSTALL_HOME/.claude/hooks/work-event.sh"
+# Lists each event's command handlers, one "event command" per line.
+registered_commands() {
+  node -e '
+    const { hooks } = JSON.parse(require("fs").readFileSync(process.argv[1], "utf-8"));
+    for (const [event, groups] of Object.entries(hooks)) {
+      for (const group of groups) {
+        for (const handler of group.hooks) console.log(`${event} ${handler.command}`);
+      }
+    }
+  ' "$CLAUDE_SETTINGS"
+}
+
+HOME="$INSTALL_HOME" $WORK hooks install claude >/dev/null 2>&1
+OUT=$(registered_commands)
+assert_contains "PreToolUse registers absolute path" "PreToolUse $INSTALLED_SCRIPT" "$OUT"
+assert_eq "every event registers the absolute path" "$(wc -l <<< "$OUT")" \
+  "$(grep -c " $INSTALLED_SCRIPT\$" <<< "$OUT")"
+if [[ -x "$INSTALLED_SCRIPT" ]]; then pass "registered path is the installed script"
+else fail "registered path is the installed script"; fi
+
+section "11. Re-install replaces a relative registration"
+cat > "$CLAUDE_SETTINGS" <<'JSON'
+{
+  "model": "keep-me",
+  "hooks": {
+    "PreToolUse": [
+      { "hooks": [{ "type": "command", "command": "./hooks/work-event.sh", "async": true }] },
+      { "matcher": "Bash", "hooks": [
+        { "type": "command", "command": "./hooks/work-event.sh" },
+        { "type": "command", "command": "/usr/local/bin/other-hook" }
+      ] }
+    ],
+    "Stop": [{ "hooks": [{ "type": "command", "command": "./hooks/work-event.sh", "async": true }] }]
+  }
+}
+JSON
+HOME="$INSTALL_HOME" $WORK hooks install claude >/dev/null 2>&1
+OUT=$(registered_commands)
+if [[ "$OUT" == *"./hooks/work-event.sh"* ]]; then fail "relative registration removed"
+else pass "relative registration removed"; fi
+assert_eq "PreToolUse has one absolute registration" "1" \
+  "$(grep -c "^PreToolUse $INSTALLED_SCRIPT\$" <<< "$OUT")"
+assert_eq "Stop has one absolute registration" "1" \
+  "$(grep -c "^Stop $INSTALLED_SCRIPT\$" <<< "$OUT")"
+assert_contains "other hook in the group survives" \
+  "PreToolUse /usr/local/bin/other-hook" "$OUT"
+assert_contains "other settings survive" '"model": "keep-me"' "$(cat "$CLAUDE_SETTINGS")"
+
+BEFORE=$(cat "$CLAUDE_SETTINGS")
+HOME="$INSTALL_HOME" $WORK hooks install claude >/dev/null 2>&1
+assert_eq "second install changes nothing" "$BEFORE" "$(cat "$CLAUDE_SETTINGS")"
+
 section "Summary"
 echo "Passed: $PASS"
 echo "Failed: $FAIL"
