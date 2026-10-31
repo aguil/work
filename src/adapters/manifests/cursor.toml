@@ -19,7 +19,15 @@ state = "blocked"
 visible_blocker = true
 [rules.match]
 region = "pane_title"
-contains = ["action required", "waiting for approval"]
+contains = ["action required", "waiting for approval", "waiting for confirmation", "🔐"]
+
+[[rules]]
+priority = 110
+state = "blocked"
+visible_blocker = true
+[rules.match]
+region = "pane_title"
+contains = ["waiting for you", "❓"]
 
 [[rules]]
 priority = 100
@@ -31,6 +39,7 @@ lines = 8
 any = [
   { contains = ["waiting for approval"] },
   { contains = ["run this command?"] },
+  { contains = ["run this command outside the sandbox"] },
   { contains = ["allow this command"] },
 ]
 
@@ -42,7 +51,6 @@ region = "pane_title"
 any = [
   { contains = ["working"] },
   { contains = ["⏳"] },
-  { regex = ['^[\u2800-\u28FF]'] },
 ]
 
 [[rules]]
