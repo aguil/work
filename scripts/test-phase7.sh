@@ -268,6 +268,16 @@ fire_hook cursor "$CURSOR_PANE" '{"hook_event_name":"preToolUse","conversation_i
 assert_eq "Cursor hook keeps the name detection records" "agent" \
   "$(wait_pane_field "$CURSOR_PANE" cli agent)"
 
+# Only claude.toml matches this string, so this shows which rules apply.
+MANIFEST_PANE=$(tmux new-window -d -t "$SESSION" -P -F '#{pane_id}' \
+  'printf "esc to interrupt\n"; sleep 300')
+sleep 0.3
+fire_hook claude "$MANIFEST_PANE" '{"hook_event_name":"Stop","session_id":"cli-manifest"}'
+assert_eq "hook-created record is claude" "claude" \
+  "$(wait_pane_field "$MANIFEST_PANE" cli claude)"
+OUT=$($WORK agent observe "$MANIFEST_PANE" --json 2>&1)
+assert_contains "hook-created record uses claude.toml" '"status": "working"' "$OUT"
+
 section "14. A hook corrects an existing cli: agent record"
 STALE_PANE=$(tmux split-window -t "$FOCUS_WINDOW" -P -F '#{pane_id}' 'sleep 300')
 printf '%s' '{"hook_event_name":"PreToolUse","session_id":"cli-stale","tool_name":"Read"}' \
