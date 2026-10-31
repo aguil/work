@@ -15,8 +15,10 @@ fi
 
 input=$(cat)
 
-pane_id=""
-if [[ -n "${TMUX:-}" ]]; then
+# TMUX_PANE names the pane running the agent; display-message without a target
+# names whichever pane has focus, so it is only a fallback.
+pane_id="${TMUX_PANE:-}"
+if [[ -z "$pane_id" && -n "${TMUX:-}" ]]; then
   pane_id=$(tmux display-message -p '#{pane_id}' 2>/dev/null || true)
 fi
 

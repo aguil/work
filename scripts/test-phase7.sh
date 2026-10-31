@@ -37,6 +37,14 @@ assert_contains() {
 
 section() { echo; echo "== $1 =="; }
 
+pane_status() {
+  $WORK agents --json 2>/dev/null | node -e '
+    const agents = JSON.parse(require("fs").readFileSync(0, "utf-8"));
+    const agent = agents.find((a) => a.paneId === process.argv[1]);
+    console.log(agent ? agent.status : "missing");
+  ' "$1"
+}
+
 cleanup() {
   tmux kill-session -t "$SESSION" 2>/dev/null || true
   rm -rf "$TEST_ROOT"
@@ -120,6 +128,102 @@ tmux run-shell -t "$AGENT_PANE" \
 sleep 0.5
 OUT=$($WORK agents --json 2>&1)
 assert_contains "hook script with node WORK_BIN applies" '"status": "working"' "$OUT"
+
+section "9. Hook script attributes events to TMUX_PANE, not the focused pane"
+FOCUS_WINDOW=$(tmux new-window -d -t "$SESSION" -P -F '#{window_id}' \
+  'bash -c "exec -a claude sleep 300"')
+FOCUSED_PANE=$(tmux list-panes -t "$FOCUS_WINDOW" -F '#{pane_id}')
+UNFOCUSED_PANE=$(tmux split-window -t "$FOCUS_WINDOW" -h -P -F '#{pane_id}' \
+  'bash -c "exec -a claude sleep 300"')
+sleep 0.3
+$WORK scan --pane "$FOCUSED_PANE" --quiet
+$WORK scan --pane "$UNFOCUSED_PANE" --quiet
+for pane in "$FOCUSED_PANE" "$UNFOCUSED_PANE"; do
+  printf '%s' '{"hook_event_name":"SessionStart","session_id":"focus-'"$pane"'","cwd":"/tmp"}' \
+    | $WORK agent hook-event --pane "$pane" --quiet
+done
+tmux select-window -t "$FOCUS_WINDOW"
+tmux select-pane -t "$FOCUSED_PANE"
+assert_eq "focused pane has focus before the event" "$FOCUSED_PANE" \
+  "$(tmux display-message -p -t "$SESSION" '#{pane_id}')"
+
+HOOK_JSON='{"hook_event_name":"PreToolUse","session_id":"focus-'"$UNFOCUSED_PANE"'","tool_name":"Read"}'
+printf '%s' "$HOOK_JSON" \
+  | TMUX="$(tmux display-message -p '#{socket_path},0,0')" \
+    TMUX_PANE="$UNFOCUSED_PANE" WORK_BIN="node $WORK_DIR/dist/work.mjs" \
+    bash "$WORK_DIR/dist/hooks/claude/work-event.sh"
+sleep 0.5
+assert_eq "unfocused pane receives the event" "working" "$(pane_status "$UNFOCUSED_PANE")"
+assert_eq "focused pane keeps its status" "idle" "$(pane_status "$FOCUSED_PANE")"
+
+section "10. hooks install claude registers the absolute script path"
+INSTALL_HOME="$TEST_ROOT/home"
+mkdir -p "$INSTALL_HOME/.claude"
+CLAUDE_SETTINGS="$INSTALL_HOME/.claude/settings.json"
+INSTALLED_SCRIPT="$INSTALL_HOME/.claude/hooks/work-event.sh"
+# Lists each event's command handlers, one "event command" per line.
+registered_commands() {
+  node -e '
+    const { hooks } = JSON.parse(require("fs").readFileSync(process.argv[1], "utf-8"));
+    for (const [event, groups] of Object.entries(hooks)) {
+      for (const group of groups) {
+        for (const handler of group.hooks) console.log(`${event} ${handler.command}`);
+      }
+    }
+  ' "$CLAUDE_SETTINGS"
+}
+
+HOME="$INSTALL_HOME" $WORK hooks install claude >/dev/null 2>&1
+OUT=$(registered_commands)
+assert_contains "PreToolUse registers absolute path" "PreToolUse $INSTALLED_SCRIPT" "$OUT"
+assert_eq "every event registers the absolute path" "$(wc -l <<< "$OUT")" \
+  "$(grep -c " $INSTALLED_SCRIPT\$" <<< "$OUT")"
+if [[ -x "$INSTALLED_SCRIPT" ]]; then pass "registered path is the installed script"
+else fail "registered path is the installed script"; fi
+
+section "11. Re-install replaces a relative registration"
+cat > "$CLAUDE_SETTINGS" <<'JSON'
+{
+  "model": "keep-me",
+  "hooks": {
+    "PreToolUse": [
+      { "hooks": [{ "type": "command", "command": "./hooks/work-event.sh", "async": true }] },
+      { "matcher": "Bash", "hooks": [
+        { "type": "command", "command": "./hooks/work-event.sh" },
+        { "type": "command", "command": "/usr/local/bin/other-hook" }
+      ] }
+    ],
+    "Stop": [{ "hooks": [{ "type": "command", "command": "./hooks/work-event.sh", "async": true }] }]
+  }
+}
+JSON
+HOME="$INSTALL_HOME" $WORK hooks install claude >/dev/null 2>&1
+OUT=$(registered_commands)
+if [[ "$OUT" == *"./hooks/work-event.sh"* ]]; then fail "relative registration removed"
+else pass "relative registration removed"; fi
+assert_eq "PreToolUse has one absolute registration" "1" \
+  "$(grep -c "^PreToolUse $INSTALLED_SCRIPT\$" <<< "$OUT")"
+assert_eq "Stop has one absolute registration" "1" \
+  "$(grep -c "^Stop $INSTALLED_SCRIPT\$" <<< "$OUT")"
+assert_contains "other hook in the group survives" \
+  "PreToolUse /usr/local/bin/other-hook" "$OUT"
+assert_contains "other settings survive" '"model": "keep-me"' "$(cat "$CLAUDE_SETTINGS")"
+
+BEFORE=$(cat "$CLAUDE_SETTINGS")
+HOME="$INSTALL_HOME" $WORK hooks install claude >/dev/null 2>&1
+assert_eq "second install changes nothing" "$BEFORE" "$(cat "$CLAUDE_SETTINGS")"
+
+section "12. Registered command runs from another directory when HOME has a space"
+SPACED_HOME="$TEST_ROOT/home with space"
+mkdir -p "$SPACED_HOME/.claude"
+HOME="$SPACED_HOME" $WORK hooks install claude >/dev/null 2>&1
+CLAUDE_SETTINGS="$SPACED_HOME/.claude/settings.json"
+RAN_MARKER="$TEST_ROOT/registered-command-ran"
+printf '#!/usr/bin/env bash\ntouch "%s"\n' "$RAN_MARKER" > "$SPACED_HOME/.claude/hooks/work-event.sh"
+REGISTERED=$(registered_commands | sed -n 's/^PreToolUse //p')
+(cd / && bash -c "$REGISTERED") >/dev/null 2>&1
+if [[ -e "$RAN_MARKER" ]]; then pass "registered command runs through a shell"
+else fail "registered command runs through a shell"; fi
 
 section "Summary"
 echo "Passed: $PASS"
