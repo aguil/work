@@ -73,6 +73,16 @@ describe("cursor.toml on cursor-agent 2026.10.22", () => {
     );
   });
 
+  it("does not read agent prose about the sandbox as blocked", () => {
+    assert.equal(
+      cursorStatus(
+        "Cursor Agent - ⏳ Working ···",
+        "You will need to run this command outside the sandbox.",
+      ),
+      "working",
+    );
+  });
+
   for (const dots of ["···", ".··", "..·", "..."]) {
     it(`reads a working title with ${dots} as working`, () => {
       assert.equal(

@@ -39,7 +39,7 @@ lines = 8
 any = [
   { contains = ["waiting for approval"] },
   { contains = ["run this command?"] },
-  { contains = ["run this command outside the sandbox"] },
+  { contains = ["run this command outside the sandbox?"] },
   { contains = ["allow this command"] },
 ]
 
