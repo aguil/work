@@ -178,6 +178,18 @@ BEFORE=$(cat "$CLAUDE_SETTINGS")
 HOME="$INSTALL_HOME" $WORK hooks install claude >/dev/null 2>&1
 assert_eq "second install changes nothing" "$BEFORE" "$(cat "$CLAUDE_SETTINGS")"
 
+section "12. Registered command runs from another directory when HOME has a space"
+SPACED_HOME="$TEST_ROOT/home with space"
+mkdir -p "$SPACED_HOME/.claude"
+HOME="$SPACED_HOME" $WORK hooks install claude >/dev/null 2>&1
+CLAUDE_SETTINGS="$SPACED_HOME/.claude/settings.json"
+RAN_MARKER="$TEST_ROOT/registered-command-ran"
+printf '#!/usr/bin/env bash\ntouch "%s"\n' "$RAN_MARKER" > "$SPACED_HOME/.claude/hooks/work-event.sh"
+REGISTERED=$(registered_commands | sed -n 's/^PreToolUse //p')
+(cd / && bash -c "$REGISTERED") >/dev/null 2>&1
+if [[ -e "$RAN_MARKER" ]]; then pass "registered command runs through a shell"
+else fail "registered command runs through a shell"; fi
+
 section "Summary"
 echo "Passed: $PASS"
 echo "Failed: $FAIL"

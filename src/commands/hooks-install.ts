@@ -66,6 +66,12 @@ interface ClaudeSettings {
   [key: string]: unknown;
 }
 
+/** Hook commands run through a shell, so a path with spaces must be quoted. */
+function shellQuotePath(path: string): string {
+  if (/^[\w@%+=:,./-]+$/.test(path)) return path;
+  return `'${path.replace(/'/g, "'\\''")}'`;
+}
+
 function bundledHooksDir(target: HookTarget): string {
   return join(dirname(fileURLToPath(import.meta.url)), "hooks", target);
 }
@@ -176,7 +182,7 @@ function installHookBundle(
     destScript = join(claudeDir, "hooks", "work-event.sh");
     configPath = join(claudeDir, "settings.json");
     // Claude Code runs hooks in the session's cwd, so the path must be absolute.
-    command = destScript;
+    command = shellQuotePath(destScript);
   }
 
   if (opts.dryRun) {
