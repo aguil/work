@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { TmuxPane } from "../tmux/client.js";
 import type { AgentRecord } from "../workspace/state.js";
-import { observeAgentsInWorkspace } from "./update-agent.js";
+import { correctAgentCli, observeAgentsInWorkspace } from "./update-agent.js";
 
 function pane(id: string, title: string): TmuxPane {
   return {
@@ -49,5 +49,30 @@ describe("observeAgentsInWorkspace", () => {
     assert.equal(changed, false);
     assert.equal(agent.status, "working");
     assert.equal(agent.confidence, "explicit");
+  });
+});
+
+describe("correctAgentCli", () => {
+  it("corrects a cli: agent record once its CLI is known", () => {
+    const agent = explicitWorkingAgent("%1");
+
+    assert.equal(correctAgentCli(agent, "claude"), true);
+    assert.equal(agent.cli, "claude");
+    assert.equal(agent.label, "agent");
+  });
+
+  it("leaves a Cursor record alone when Cursor's hook reports agent", () => {
+    const agent = explicitWorkingAgent("%1");
+
+    assert.equal(correctAgentCli(agent, "agent"), false);
+    assert.equal(agent.cli, "agent");
+  });
+
+  it("never rewrites a record whose CLI is already known", () => {
+    const agent = { ...explicitWorkingAgent("%1"), cli: "claude" };
+
+    assert.equal(correctAgentCli(agent, "agent"), false);
+    assert.equal(correctAgentCli(agent, "codex"), false);
+    assert.equal(agent.cli, "claude");
   });
 });

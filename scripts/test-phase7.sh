@@ -45,6 +45,34 @@ pane_status() {
   ' "$1"
 }
 
+pane_field() {
+  $WORK agents --json 2>/dev/null | node -e '
+    const agents = JSON.parse(require("fs").readFileSync(0, "utf-8"));
+    const agent = agents.find((a) => a.paneId === process.argv[1]);
+    console.log(agent ? agent[process.argv[2]] : "missing");
+  ' "$1" "$2"
+}
+
+# Fires an installed-style hook script from a pane, as the CLI would.
+fire_hook() {
+  local target="$1" pane="$2" json="$3"
+  printf '%s' "$json" \
+    | TMUX="$(tmux display-message -p '#{socket_path},0,0')" \
+      TMUX_PANE="$pane" WORK_BIN="node $WORK_DIR/dist/work.mjs" \
+      bash "$WORK_DIR/dist/hooks/$target/work-event.sh"
+}
+
+# The hook scripts background `work`, so wait for the record to appear.
+wait_pane_field() {
+  local pane="$1" field="$2" expected="$3" value
+  for _ in $(seq 1 50); do
+    value=$(pane_field "$pane" "$field")
+    [[ "$value" == "$expected" ]] && break
+    sleep 0.1
+  done
+  echo "$value"
+}
+
 cleanup() {
   tmux kill-session -t "$SESSION" 2>/dev/null || true
   rm -rf "$TEST_ROOT"
@@ -224,6 +252,35 @@ REGISTERED=$(registered_commands | sed -n 's/^PreToolUse //p')
 (cd / && bash -c "$REGISTERED") >/dev/null 2>&1
 if [[ -e "$RAN_MARKER" ]]; then pass "registered command runs through a shell"
 else fail "registered command runs through a shell"; fi
+
+section "13. A hook-created record carries the CLI that fired it"
+# These panes run plain sleep, so detection cannot be the source of the CLI.
+CLAUDE_PANE=$(tmux split-window -t "$FOCUS_WINDOW" -P -F '#{pane_id}' 'sleep 300')
+fire_hook claude "$CLAUDE_PANE" '{"hook_event_name":"PreToolUse","session_id":"cli-claude","tool_name":"Read"}'
+assert_eq "Claude Code hook creates a claude record" "claude" \
+  "$(wait_pane_field "$CLAUDE_PANE" cli claude)"
+assert_eq "pane option carries the CLI" "claude" \
+  "$(tmux display-message -p -t "$CLAUDE_PANE" '#{@work-agent-cli}')"
+assert_contains "record gets Claude Code's label" "claude" "$(pane_field "$CLAUDE_PANE" label)"
+
+CURSOR_PANE=$(tmux split-window -t "$FOCUS_WINDOW" -P -F '#{pane_id}' 'sleep 300')
+fire_hook cursor "$CURSOR_PANE" '{"hook_event_name":"preToolUse","conversation_id":"cli-cursor","tool_name":"Read"}'
+assert_eq "Cursor hook keeps the name detection records" "agent" \
+  "$(wait_pane_field "$CURSOR_PANE" cli agent)"
+
+section "14. A hook corrects an existing cli: agent record"
+STALE_PANE=$(tmux split-window -t "$FOCUS_WINDOW" -P -F '#{pane_id}' 'sleep 300')
+printf '%s' '{"hook_event_name":"PreToolUse","session_id":"cli-stale","tool_name":"Read"}' \
+  | $WORK agent hook-event --pane "$STALE_PANE" --quiet
+assert_eq "a hook reporting no CLI writes agent" "agent" "$(pane_field "$STALE_PANE" cli)"
+STALE_LABEL=$(pane_field "$STALE_PANE" label)
+
+fire_hook claude "$STALE_PANE" '{"hook_event_name":"Stop","session_id":"cli-stale"}'
+assert_eq "Claude Code hook corrects the record" "claude" \
+  "$(wait_pane_field "$STALE_PANE" cli claude)"
+assert_eq "pane option follows the correction" "claude" \
+  "$(tmux display-message -p -t "$STALE_PANE" '#{@work-agent-cli}')"
+assert_eq "correction keeps the label" "$STALE_LABEL" "$(pane_field "$STALE_PANE" label)"
 
 section "Summary"
 echo "Passed: $PASS"
