@@ -38,6 +38,7 @@ const CLAUDE_HOOK_EVENTS = [
   "StopFailure",
   "SubagentStart",
   "SubagentStop",
+  "Notification",
 ] as const;
 
 /** Relative command older releases registered; it never resolves in Claude Code. */

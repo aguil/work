@@ -292,6 +292,28 @@ assert_eq "pane option follows the correction" "claude" \
   "$(tmux display-message -p -t "$STALE_PANE" '#{@work-agent-cli}')"
 assert_eq "correction keeps the label" "$STALE_LABEL" "$(pane_field "$STALE_PANE" label)"
 
+section "15. Notification installs once, with no matcher, and reaches the pane"
+NOTIFY_HOME="$TEST_ROOT/notify-home"
+mkdir -p "$NOTIFY_HOME/.claude"
+HOME="$NOTIFY_HOME" $WORK hooks install claude >/dev/null 2>&1
+HOME="$NOTIFY_HOME" $WORK hooks install claude >/dev/null 2>&1
+OUT=$(node -e '
+  const { hooks } = JSON.parse(require("fs").readFileSync(process.argv[1], "utf-8"));
+  const groups = hooks.Notification ?? [];
+  console.log(`${groups.length} ${groups[0]?.hooks.length} ${"matcher" in (groups[0] ?? {})}`);
+' "$NOTIFY_HOME/.claude/settings.json")
+assert_eq "one Notification registration with no matcher" "1 1 false" "$OUT"
+
+NOTIFY_PANE=$(tmux new-window -d -t "$SESSION" -P -F '#{pane_id}' 'sleep 300')
+fire_hook claude "$NOTIFY_PANE" '{"hook_event_name":"Stop","session_id":"notify"}'
+assert_eq "agent is idle before the dialog" "idle" "$(wait_pane_field "$NOTIFY_PANE" status idle)"
+fire_hook claude "$NOTIFY_PANE" '{"hook_event_name":"Notification","session_id":"notify","notification_type":"permission_prompt","message":"Claude needs your permission to use Bash"}'
+assert_eq "permission_prompt blocks the pane it fired from" "blocked" \
+  "$(wait_pane_field "$NOTIFY_PANE" status blocked)"
+fire_hook claude "$NOTIFY_PANE" '{"hook_event_name":"Notification","session_id":"notify","notification_type":"idle_prompt","message":"Claude is waiting for your input"}'
+assert_eq "idle_prompt reads idle on the pane it fired from" "idle" \
+  "$(wait_pane_field "$NOTIFY_PANE" status idle)"
+
 section "Summary"
 echo "Passed: $PASS"
 echo "Failed: $FAIL"
