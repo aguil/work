@@ -18,6 +18,7 @@ import {
   loadWorkspace,
   mutateWorkspace,
 } from "../workspace/state.js";
+import { applyHookEvent } from "./apply-hook-event.js";
 import { applyHookStatus } from "./debounce.js";
 import type { ObservationResult } from "./types.js";
 import { correctAgentCli, observeAgents } from "./update-agent.js";
@@ -482,5 +483,100 @@ describe("applyWorkspacePoll", { concurrency: false }, () => {
 
     assert.equal(stored("a")?.status, "detached");
     assert.equal(stored("a")?.paneId, null);
+  });
+});
+
+describe("hook event ordering", { concurrency: false }, () => {
+  const saved = {
+    XDG_STATE_HOME: process.env.XDG_STATE_HOME,
+    XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME,
+    XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR,
+    TMUX: process.env.TMUX,
+    TMUX_PANE: process.env.TMUX_PANE,
+  };
+  let home: string;
+
+  beforeEach(() => {
+    home = mkdtempSync(join(tmpdir(), "work-order-test-"));
+    process.env.XDG_STATE_HOME = join(home, "state");
+    process.env.XDG_CONFIG_HOME = join(home, "config");
+    process.env.XDG_RUNTIME_DIR = join(home, "runtime");
+    delete process.env.TMUX;
+    delete process.env.TMUX_PANE;
+    createWorkspace("w", "s", true);
+    mutateWorkspace("w", (ws) => {
+      ws.agents.a = {
+        ...explicitWorkingAgent("%1"),
+        label: "a",
+        cli: "claude",
+        conversationId: "c",
+      };
+      return true;
+    });
+  });
+
+  afterEach(() => {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  function fire(event: string, eventTs?: number): boolean {
+    return applyHookEvent(
+      { hook_event_name: event, session_id: "c" },
+      { eventTs },
+    ).applied;
+  }
+
+  const agent = () => loadWorkspace("w")?.agents.a;
+
+  it("drops an event older than the last applied one", () => {
+    assert.equal(fire("Stop", 200), true);
+    const before = agent();
+
+    assert.equal(fire("PreToolUse", 100), false);
+
+    assert.deepEqual(agent(), before);
+  });
+
+  it("applies an event with an equal timestamp", () => {
+    fire("Stop", 200);
+
+    assert.equal(fire("PreToolUse", 200), true);
+    assert.equal(agent()?.status, "working");
+  });
+
+  it("applies a newer event and advances the timestamp", () => {
+    fire("Stop", 200);
+
+    assert.equal(fire("PreToolUse", 300), true);
+    assert.equal(agent()?.status, "working");
+    assert.equal(agent()?.lastEventTs, 300);
+  });
+
+  it("keeps the timestamp when the event changes nothing else", () => {
+    fire("Stop", 200);
+    fire("Stop", 300);
+
+    assert.equal(agent()?.lastEventTs, 300);
+  });
+
+  it("applies an event with no timestamp, from a script not yet reinstalled", () => {
+    fire("Stop", 200);
+
+    assert.equal(fire("PreToolUse"), true);
+    assert.equal(agent()?.status, "working");
+    assert.equal(agent()?.lastEventTs, 200);
+  });
+
+  it("does not reattach an agent when an older event follows sessionEnd", () => {
+    fire("SessionEnd", 200);
+    assert.equal(agent()?.status, "detached");
+
+    fire("PreToolUse", 100);
+
+    assert.equal(agent()?.status, "detached");
   });
 });

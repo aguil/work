@@ -38,6 +38,8 @@ export interface AgentRecord {
   pendingIdleCount?: number;
   conversationId?: string | null;
   hookEvent?: string | null;
+  /** Stamp of the last applied hook event, in microseconds since the epoch. */
+  lastEventTs?: number;
   // Screen-derived metadata below is only meaningful while `status` came
   // from observation (confidence inferred/heuristic); explicit hook status
   // clears it and detached agents should be rendered from `status` alone.

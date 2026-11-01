@@ -4,6 +4,14 @@
 
 set -euo pipefail
 
+# Backgrounded hooks can reach `work` out of order, so stamp each one on arrival,
+# in microseconds. Bash before 5.0 has no EPOCHREALTIME, and BSD date has no %N.
+if [[ -n "${EPOCHREALTIME:-}" ]]; then
+  event_ts="${EPOCHREALTIME/[.,]/}"
+else
+  event_ts="$(date +%s)000000"
+fi
+
 WORK_BIN="${WORK_BIN:-__WORK_BIN__}"
 read -r -a WORK_CMD <<< "$WORK_BIN"
 if [[ ${#WORK_CMD[@]} -eq 1 ]] \
@@ -24,7 +32,7 @@ fi
 
 # `agent` is the CLI's binary name and what detection records; `cursor` is the
 # editor launcher, which `work relaunch` would run.
-args=(agent hook-event --quiet --cli agent)
+args=(agent hook-event --quiet --cli agent --ts "$event_ts")
 if [[ -n "$pane_id" ]]; then
   args+=(--pane "$pane_id")
 fi

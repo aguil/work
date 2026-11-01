@@ -314,6 +314,53 @@ fire_hook claude "$NOTIFY_PANE" '{"hook_event_name":"Notification","session_id":
 assert_eq "idle_prompt reads idle on the pane it fired from" "idle" \
   "$(wait_pane_field "$NOTIFY_PANE" status idle)"
 
+section "Hook event timestamps (#51)"
+# A fake `work` records the argv each script passes, so these read the stamp
+# itself instead of inferring it from a status.
+STAMP_DIR="$TEST_ROOT/stamp"
+mkdir -p "$STAMP_DIR"
+cat >"$STAMP_DIR/fake-work" <<'FAKE'
+#!/usr/bin/env bash
+cat >/dev/null
+printf '%s\n' "$@" >"$STAMP_OUT"
+FAKE
+chmod +x "$STAMP_DIR/fake-work"
+
+# Prints the value of --ts from one run of a hook script.
+stamp_from() {
+  local script="$1" out="$STAMP_DIR/args" i
+  rm -f "$out"
+  printf '{}' | STAMP_OUT="$out" WORK_BIN="$STAMP_DIR/fake-work" TMUX_PANE=%0 bash "$script"
+  for ((i = 0; i < 50; i++)); do [[ -s "$out" ]] && break; sleep 0.05; done
+  grep -A1 '^--ts$' "$out" | tail -1
+}
+
+for target in claude cursor; do
+  SCRIPT="$WORK_DIR/dist/hooks/$target/work-event.sh"
+  NOW_US=$(($(date +%s) * 1000000))
+  TS=$(stamp_from "$SCRIPT")
+  [[ "$TS" =~ ^[0-9]{16}$ ]] && pass "$target stamps sixteen digits" \
+    || fail "$target stamps sixteen digits (got '$TS')"
+  if (( TS - NOW_US >= 0 && TS - NOW_US < 10000000 )) && [[ "$TS" != *000000 ]]; then
+    pass "$target stamps microseconds from EPOCHREALTIME"
+  else
+    fail "$target stamps microseconds from EPOCHREALTIME (got '$TS', now '$NOW_US')"
+  fi
+
+  NO_EPOCH="$STAMP_DIR/$target-no-epoch.sh"
+  sed '1a unset EPOCHREALTIME' "$SCRIPT" >"$NO_EPOCH"
+  NOW_US=$(($(date +%s) * 1000000))
+  TS=$(stamp_from "$NO_EPOCH")
+  if [[ "$TS" =~ ^[0-9]{10}000000$ ]] && (( TS - NOW_US >= 0 && TS - NOW_US < 10000000 )); then
+    pass "$target falls back to date +%s in the same unit"
+  else
+    fail "$target falls back to date +%s in the same unit (got '$TS', now '$NOW_US')"
+  fi
+
+  grep -v '^[[:space:]]*#' "$SCRIPT" | grep -q '%N' \
+    && fail "$target never uses %N" || pass "$target never uses %N"
+done
+
 section "Summary"
 echo "Passed: $PASS"
 echo "Failed: $FAIL"

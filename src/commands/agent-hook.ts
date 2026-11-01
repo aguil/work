@@ -15,6 +15,11 @@ function readHookInput(opts: { file?: string }): AgentHookInput {
   return parseHookInput(piped);
 }
 
+function parseEventTs(value: string | undefined): number | undefined {
+  const ts = Number(value);
+  return value && Number.isSafeInteger(ts) ? ts : undefined;
+}
+
 export function registerAgentHookCommand(agent: Command): void {
   agent
     .command("hook-event")
@@ -24,6 +29,10 @@ export function registerAgentHookCommand(agent: Command): void {
     .option("-f, --file <path>", "Read hook JSON from a file")
     .option("--pane <id>", "Tmux pane ID (%N) when TMUX is unavailable to hook")
     .option("--cli <name>", "CLI that fired the hook (claude|agent)")
+    .option(
+      "--ts <microseconds>",
+      "When the hook fired, for dropping late events",
+    )
     .option(
       "--status <status>",
       "Override mapped status (idle|working|blocked|done|error)",
@@ -35,6 +44,7 @@ export function registerAgentHookCommand(agent: Command): void {
         file?: string;
         pane?: string;
         cli?: string;
+        ts?: string;
         status?: string;
         json?: boolean;
         quiet?: boolean;
@@ -56,6 +66,7 @@ export function registerAgentHookCommand(agent: Command): void {
           paneId: opts.pane,
           statusOverride,
           cli: opts.cli,
+          eventTs: parseEventTs(opts.ts),
         });
 
         if (opts.json) {

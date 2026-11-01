@@ -31,7 +31,7 @@ import {
   resolveConversationId,
   resolveHookEventName,
 } from "./hook-events.js";
-import { correctAgentCli } from "./update-agent.js";
+import { correctAgentCli, isStaleHookEvent } from "./update-agent.js";
 
 export interface HookEventResult {
   applied: boolean;
@@ -332,7 +332,12 @@ function applyTmuxSideEffects(effects: TmuxPaneSideEffect[]): void {
 
 export function applyHookEvent(
   input: AgentHookInput,
-  opts?: { paneId?: string; statusOverride?: AgentStatus; cli?: string },
+  opts?: {
+    paneId?: string;
+    statusOverride?: AgentStatus;
+    cli?: string;
+    eventTs?: number;
+  },
 ): HookEventResult {
   const event = resolveHookEventName(input);
   const conversationId = resolveConversationId(input);
@@ -451,6 +456,9 @@ export function applyHookEvent(
     }
     if (!agent) return dirty;
 
+    // Before anything below, which would reattach an agent sessionEnd detached.
+    if (isStaleHookEvent(agent, opts?.eventTs)) return dirty;
+
     if (opts?.cli && correctAgentCli(agent, opts.cli)) {
       dirty = true;
     }
@@ -538,6 +546,11 @@ export function applyHookEvent(
         event,
       };
       dirty = dirty || changed || conversationId != null;
+    }
+
+    if (opts?.eventTs !== undefined && agent.lastEventTs !== opts.eventTs) {
+      agent.lastEventTs = opts.eventTs;
+      dirty = true;
     }
 
     if (dirty) persistedTarget = true;

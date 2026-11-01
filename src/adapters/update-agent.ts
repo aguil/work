@@ -72,6 +72,18 @@ export function applyPaneObservation(
   return applyObservation(agent, result);
 }
 
+/** A tie applies: two events in one tick land in arrival order. */
+export function isStaleHookEvent(
+  agent: AgentRecord,
+  eventTs: number | undefined,
+): boolean {
+  return (
+    eventTs !== undefined &&
+    agent.lastEventTs !== undefined &&
+    eventTs < agent.lastEventTs
+  );
+}
+
 /**
  * A hook-created record written before hooks reported their CLI has
  * `cli: "agent"`, which resolves to Cursor's manifest whatever fired the hook.
