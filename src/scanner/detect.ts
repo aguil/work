@@ -108,9 +108,8 @@ function hasAgentChildProcessUncached(pane: TmuxPane, cli: string): boolean {
   const names = processNamesForDetection(cli);
   if (names.length === 0 || pane.pid <= 0) return false;
 
-  // A failed read must not detach every agent at once for one poll.
   const table = processTableForPoll();
-  if (!table) return true;
+  if (!table) return false;
 
   return (
     findInProcessTree(table, pane.pid, (args) =>
@@ -214,9 +213,17 @@ function resolveAgentCli(pane: TmuxPane, cliSet: Set<string>): string | null {
   return null;
 }
 
+/**
+ * For an agent already tracked: a failed read must not detach every agent at
+ * once for one poll. Detection stays strict, so it cannot revive or invent one.
+ */
+function trackedAgentMayBeLive(pane: TmuxPane, cli: string): boolean {
+  return hasAgentChildProcess(pane, cli) || processTable === null;
+}
+
 /** Whether a tracked pane still runs an agent CLI (pane root or descendant). */
 export function paneHostsAgentProcess(pane: TmuxPane, cli: string): boolean {
-  return hasAgentChildProcess(pane, cli);
+  return trackedAgentMayBeLive(pane, cli);
 }
 
 /** Workspace sync: pane still bound to an agent CLI (process tree or foreground cmd). */
@@ -231,7 +238,7 @@ export function paneStillHostsAgent(
       return true;
     }
   }
-  return hasAgentChildProcess(pane, cli);
+  return trackedAgentMayBeLive(pane, cli);
 }
 
 export function clearAgentProcessCache(): void {

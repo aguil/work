@@ -192,6 +192,22 @@ describe("process table", { concurrency: false }, () => {
     assert.deepEqual(calls(), ["ps"]);
   });
 
+  it("does not detect an agent from a failed ps", () => {
+    fakeTool("ps", "exit 1");
+    const stale = pane("%1", PANE_PID);
+    const cursorTitle = {
+      ...pane("%2", 2000, false),
+      title: "Agent - ⏳ Working",
+    };
+    clearAgentProcessCache();
+    assert.deepEqual(
+      detectAgents([stale, cursorTitle], undefined, { preserveCache: true }),
+      [],
+    );
+    assert.equal(paneStillHostsAgent(stale, "claude"), true);
+    assert.deepEqual(calls(), ["ps"]);
+  });
+
   it("marks an agent detached once its process has gone", () => {
     const paneOne = pane("%1", PANE_PID);
     const ws: WorkspaceState = {
