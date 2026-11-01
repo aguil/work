@@ -24,6 +24,7 @@ export interface DetectedAgent {
 const CURSOR_AGENT_TITLE = /\bAgent\s+-/;
 
 const agentProcessCache = new Map<string, boolean>();
+let processTable: ProcessTable | null | undefined;
 
 function agentProcessCacheKey(pane: TmuxPane, cli: string): string {
   return `${pane.pid}:${cli}`;
@@ -35,21 +36,71 @@ function processNamesForDetection(cli: string): string[] {
   return agentProcessNames(cli);
 }
 
-function processArgsMatchNames(pid: number, names: string[]): boolean {
-  try {
-    const args = execFileSync("ps", ["-p", String(pid), "-o", "args="], {
-      encoding: "utf-8",
-      stdio: ["ignore", "pipe", "ignore"],
-    })
-      .trim()
-      .toLowerCase();
-    for (const name of names) {
-      if (args.includes(name)) return true;
-    }
-  } catch {
-    // process exited
+/** Every process on the host, read once a poll. */
+interface ProcessTable {
+  args: Map<number, string>;
+  children: Map<number, number[]>;
+}
+
+// Above execFileSync's 1 MiB default: `-ww` leaves every command line whole.
+const PROCESS_TABLE_MAX_BYTES = 64 * 1024 * 1024;
+
+function parseProcessTable(output: string): ProcessTable {
+  const table: ProcessTable = { args: new Map(), children: new Map() };
+  for (const line of output.split("\n")) {
+    const match = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line);
+    if (!match) continue;
+    const pid = Number(match[1]);
+    const ppid = Number(match[2]);
+    table.args.set(pid, match[3].toLowerCase());
+    const siblings = table.children.get(ppid);
+    if (siblings) siblings.push(pid);
+    else table.children.set(ppid, [pid]);
   }
-  return false;
+  return table;
+}
+
+/** Null when `ps` fails, which says nothing about whether any agent has gone. */
+function readProcessTable(): ProcessTable | null {
+  try {
+    const output = execFileSync(
+      "ps",
+      ["-A", "-ww", "-o", "pid=", "-o", "ppid=", "-o", "args="],
+      {
+        encoding: "utf-8",
+        stdio: ["ignore", "pipe", "ignore"],
+        maxBuffer: PROCESS_TABLE_MAX_BYTES,
+      },
+    );
+    return parseProcessTable(output);
+  } catch {
+    return null;
+  }
+}
+
+function processTableForPoll(): ProcessTable | null {
+  if (processTable === undefined) processTable = readProcessTable();
+  return processTable;
+}
+
+/** Walks a process and its descendants, nearest first, to the first match. */
+function findInProcessTree<T>(
+  table: ProcessTable,
+  rootPid: number,
+  match: (args: string) => T | null,
+): T | null {
+  const queue = [rootPid];
+  const seen = new Set<number>();
+  for (let i = 0; i < queue.length; i++) {
+    const pid = queue[i];
+    if (seen.has(pid)) continue;
+    seen.add(pid);
+    const args = table.args.get(pid);
+    const found = args === undefined ? null : match(args);
+    if (found !== null) return found;
+    queue.push(...(table.children.get(pid) ?? []));
+  }
+  return null;
 }
 
 /** True when the pane or a descendant process is an agent CLI. */
@@ -57,42 +108,14 @@ function hasAgentChildProcessUncached(pane: TmuxPane, cli: string): boolean {
   const names = processNamesForDetection(cli);
   if (names.length === 0 || pane.pid <= 0) return false;
 
-  if (processArgsMatchNames(pane.pid, names)) return true;
+  const table = processTableForPoll();
+  if (!table) return false;
 
-  const queue = [pane.pid];
-  const seen = new Set<number>();
-  let depth = 0;
-
-  while (queue.length > 0 && depth < 4) {
-    const levelSize = queue.length;
-    depth++;
-    for (let i = 0; i < levelSize; i++) {
-      const parentPid = queue.shift();
-      if (parentPid == null || seen.has(parentPid)) continue;
-      seen.add(parentPid);
-
-      let childPids: string[];
-      try {
-        childPids = execFileSync("pgrep", ["-P", String(parentPid)], {
-          encoding: "utf-8",
-          stdio: ["ignore", "pipe", "ignore"],
-        })
-          .trim()
-          .split("\n")
-          .filter(Boolean);
-      } catch {
-        continue;
-      }
-
-      for (const childPid of childPids) {
-        const pid = Number.parseInt(childPid, 10);
-        if (processArgsMatchNames(pid, names)) return true;
-        queue.push(pid);
-      }
-    }
-  }
-
-  return false;
+  return (
+    findInProcessTree(table, pane.pid, (args) =>
+      names.some((name) => args.includes(name)) ? true : null,
+    ) === true
+  );
 }
 
 function hasAgentChildProcess(pane: TmuxPane, cli: string): boolean {
@@ -105,78 +128,30 @@ function hasAgentChildProcess(pane: TmuxPane, cli: string): boolean {
   return live;
 }
 
-function processArgsMatchAnyCli(
-  pid: number,
-  namesByCli: Map<string, string[]>,
-): string | null {
-  try {
-    const args = execFileSync("ps", ["-p", String(pid), "-o", "args="], {
-      encoding: "utf-8",
-      stdio: ["ignore", "pipe", "ignore"],
-    })
-      .trim()
-      .toLowerCase();
-    for (const [cli, names] of namesByCli) {
-      for (const name of names) {
-        if (args.includes(name)) return cli;
-      }
-    }
-  } catch {
-    // process exited
-  }
-  return null;
-}
-
 /** One process-tree walk; returns the first configured agent CLI found. */
 function findAgentCliByProcessTree(
   pane: TmuxPane,
   cliSet: Set<string>,
 ): string | null {
   if (pane.pid <= 0) return null;
+  const table = processTableForPoll();
+  if (!table) return null;
 
   const namesByCli = new Map<string, string[]>();
   for (const cli of cliSet) {
     namesByCli.set(cli, processNamesForDetection(cli));
   }
 
-  const queue = [pane.pid];
-  const seen = new Set<number>();
-  let depth = 0;
-
-  while (queue.length > 0 && depth < 4) {
-    const levelSize = queue.length;
-    depth++;
-    for (let i = 0; i < levelSize; i++) {
-      const parentPid = queue.shift();
-      if (parentPid == null || seen.has(parentPid)) continue;
-      seen.add(parentPid);
-
-      const matchedCli = processArgsMatchAnyCli(parentPid, namesByCli);
-      if (matchedCli) {
-        agentProcessCache.set(agentProcessCacheKey(pane, matchedCli), true);
-        return matchedCli;
-      }
-
-      let childPids: string[];
-      try {
-        childPids = execFileSync("pgrep", ["-P", String(parentPid)], {
-          encoding: "utf-8",
-          stdio: ["ignore", "pipe", "ignore"],
-        })
-          .trim()
-          .split("\n")
-          .filter(Boolean);
-      } catch {
-        continue;
-      }
-
-      for (const childPid of childPids) {
-        queue.push(Number.parseInt(childPid, 10));
-      }
+  const matchedCli = findInProcessTree(table, pane.pid, (args) => {
+    for (const [cli, names] of namesByCli) {
+      if (names.some((name) => args.includes(name))) return cli;
     }
+    return null;
+  });
+  if (matchedCli) {
+    agentProcessCache.set(agentProcessCacheKey(pane, matchedCli), true);
   }
-
-  return null;
+  return matchedCli;
 }
 
 /** True when pane scrollback shows agent UI, not a stale restored title. */
@@ -238,9 +213,17 @@ function resolveAgentCli(pane: TmuxPane, cliSet: Set<string>): string | null {
   return null;
 }
 
+/**
+ * For an agent already tracked: a failed read must not detach every agent at
+ * once for one poll. Detection stays strict, so it cannot revive or invent one.
+ */
+function trackedAgentMayBeLive(pane: TmuxPane, cli: string): boolean {
+  return hasAgentChildProcess(pane, cli) || processTable === null;
+}
+
 /** Whether a tracked pane still runs an agent CLI (pane root or descendant). */
 export function paneHostsAgentProcess(pane: TmuxPane, cli: string): boolean {
-  return hasAgentChildProcess(pane, cli);
+  return trackedAgentMayBeLive(pane, cli);
 }
 
 /** Workspace sync: pane still bound to an agent CLI (process tree or foreground cmd). */
@@ -255,11 +238,12 @@ export function paneStillHostsAgent(
       return true;
     }
   }
-  return hasAgentChildProcess(pane, cli);
+  return trackedAgentMayBeLive(pane, cli);
 }
 
 export function clearAgentProcessCache(): void {
   agentProcessCache.clear();
+  processTable = undefined;
 }
 
 export function detectAgents(
@@ -267,7 +251,7 @@ export function detectAgents(
   excludePaneIds?: Set<string>,
   opts?: { preserveCache?: boolean },
 ): DetectedAgent[] {
-  if (!opts?.preserveCache) agentProcessCache.clear();
+  if (!opts?.preserveCache) clearAgentProcessCache();
   const agentClis = getConfigValue("agent-clis");
   const cliSet = new Set(agentClis.map((c) => c.toLowerCase()));
   const detected: DetectedAgent[] = [];
@@ -300,7 +284,7 @@ export function detectSinglePane(
   pane: TmuxPane,
   opts?: { preserveCache?: boolean },
 ): DetectedAgent | null {
-  if (!opts?.preserveCache) agentProcessCache.clear();
+  if (!opts?.preserveCache) clearAgentProcessCache();
   const agentClis = getConfigValue("agent-clis");
   const cliSet = new Set(agentClis.map((c) => c.toLowerCase()));
   const cli = resolveAgentCli(pane, cliSet);

@@ -5,6 +5,7 @@ import {
 } from "../adapters/debounce.js";
 import { getConfigValue } from "../config/store.js";
 import {
+  clearAgentProcessCache,
   detectAgents,
   detectSinglePane,
   paneStillHostsAgent,
@@ -24,7 +25,7 @@ import {
 
 function paneMatchesDetachedAgent(pane: TmuxPane, agent: AgentRecord): boolean {
   if (pane.workAgentLabel !== agent.label) return false;
-  if (detectSinglePane(pane)) return true;
+  if (detectSinglePane(pane, { preserveCache: true })) return true;
   const cliSet = new Set(
     getConfigValue("agent-clis").map((c) => c.toLowerCase()),
   );
@@ -48,6 +49,7 @@ export function registerReconcileCommand(program: Command): void {
       }
       const workspaces = allWorkspaces.filter((w) => !w.archived);
       const allPanes = tmux.listPanes();
+      clearAgentProcessCache();
 
       let totalFixed = 0;
       let totalDetached = 0;
@@ -82,7 +84,9 @@ export function registerReconcileCommand(program: Command): void {
         );
         const paneById = new Map(sessionPanes.map((p) => [p.id, p]));
         const livePaneIds = new Set(sessionPanes.map((p) => p.id));
-        const detected = detectAgents(sessionPanes);
+        const detected = detectAgents(sessionPanes, undefined, {
+          preserveCache: true,
+        });
         const detectedPaneIds = new Set(detected.map((p) => p.paneId));
         const agentCliSet = new Set(
           getConfigValue("agent-clis").map((c) => c.toLowerCase()),
