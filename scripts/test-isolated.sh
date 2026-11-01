@@ -7,7 +7,8 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 # tmux fails with "Filename too long" on a deep socket path.
-ISOLATED=$(mktemp -d /tmp/wt-XXXXXX)
+# With no directory, tmux would fall back to the live server, and cleanup kills it.
+ISOLATED=$(mktemp -d /tmp/wt-XXXXXX) || exit 1
 mkdir -p "$ISOLATED/config" "$ISOLATED/state" "$ISOLATED/runtime"
 chmod 700 "$ISOLATED/runtime"
 
