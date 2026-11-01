@@ -30,6 +30,7 @@ import {
 } from "./debounce.js";
 import {
   type AgentHookInput,
+  isCursorHookPayload,
   isTransientSessionEnd,
   mapHookEventToStatus,
   resolveConversationId,
@@ -352,6 +353,9 @@ export function applyHookEvent(
   const event = resolveHookEventName(input);
   const conversationId = resolveConversationId(input);
   const paneId = resolvePaneId(opts?.paneId);
+  // Cursor executes ~/.claude/settings.json hooks too, so an outdated Claude
+  // hook script can report --cli claude for a Cursor event.
+  const cli = isCursorHookPayload(input) ? "agent" : opts?.cli;
   const cwd =
     typeof input.cwd === "string"
       ? input.cwd
@@ -481,7 +485,7 @@ export function applyHookEvent(
       if (paneEndedAfter(Object.values(ws.agents), paneId, opts?.eventTs)) {
         return dirty;
       }
-      agent = createAgentForPane(ws, paneId, opts?.cli ?? "agent");
+      agent = createAgentForPane(ws, paneId, cli ?? "agent");
     } else if (target.agentLabel) {
       agent = ws.agents[target.agentLabel];
     } else if (paneId) {
@@ -494,7 +498,7 @@ export function applyHookEvent(
 
     if (isStaleHookEvent(agent, opts?.eventTs)) return dirty;
 
-    if (opts?.cli && correctAgentCli(agent, opts.cli)) {
+    if (cli && correctAgentCli(agent, cli)) {
       dirty = true;
     }
 

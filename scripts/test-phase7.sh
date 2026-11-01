@@ -425,6 +425,45 @@ fire_hook cursor "$PROMPT_PANE" '{"hook_event_name":"beforeSubmitPrompt","conver
 assert_eq "beforeSubmitPrompt reads working on the pane it fired from" "working" \
   "$(wait_pane_field "$PROMPT_PANE" status working)"
 
+section "Claude hook script ignores Cursor compatibility invocations"
+CURSOR_COMPAT_PANE=$(tmux new-window -d -t "$SESSION" -P -F '#{pane_id}' 'sleep 300')
+fire_hook cursor "$CURSOR_COMPAT_PANE" '{"hook_event_name":"preToolUse","conversation_id":"compat","cursor_version":"2026.11.19-test"}'
+assert_eq "Cursor hook registers cli agent" "agent" \
+  "$(wait_pane_field "$CURSOR_COMPAT_PANE" cli agent)"
+
+COMPAT_OUT="$STAMP_DIR/compat-args"
+rm -f "$COMPAT_OUT"
+printf '{"hook_event_name":"PreToolUse","session_id":"compat","cursor_version":"2026.11.19-test"}' \
+  | CURSOR_VERSION="2026.11.19-test" CLAUDECODE="" STAMP_OUT="$COMPAT_OUT" \
+    WORK_BIN="$STAMP_DIR/fake-work" TMUX_PANE="$CURSOR_COMPAT_PANE" \
+    bash "$WORK_DIR/dist/hooks/claude/work-event.sh"
+sleep 0.2
+if [[ ! -s "$COMPAT_OUT" ]]; then
+  pass "claude hook script exits early when CURSOR_VERSION is set without CLAUDECODE"
+else
+  fail "claude hook script exits early when CURSOR_VERSION is set without CLAUDECODE"
+fi
+
+rm -f "$COMPAT_OUT"
+printf '{"hook_event_name":"PreToolUse","session_id":"compat"}' \
+  | CURSOR_VERSION="2026.11.19-test" CLAUDECODE="1" STAMP_OUT="$COMPAT_OUT" \
+    WORK_BIN="$STAMP_DIR/fake-work" TMUX_PANE="$CURSOR_COMPAT_PANE" \
+    bash "$WORK_DIR/dist/hooks/claude/work-event.sh"
+for _ in $(seq 1 30); do [[ -s "$COMPAT_OUT" ]] && break; sleep 0.05; done
+if [[ -s "$COMPAT_OUT" ]]; then
+  pass "claude hook script still runs when CLAUDECODE=1"
+else
+  fail "claude hook script still runs when CLAUDECODE=1"
+fi
+
+# Even if an older claude hook script fires without the env guard, work ignores --cli claude on a Cursor payload.
+printf '{"hook_event_name":"PreToolUse","conversation_id":"compat","cursor_version":"2026.11.19-test"}' \
+  | $WORK agent hook-event --quiet --cli claude --pane "$CURSOR_COMPAT_PANE"
+assert_eq "Cursor payload with --cli claude keeps cli agent" "agent" \
+  "$(pane_field "$CURSOR_COMPAT_PANE" cli)"
+assert_eq "Cursor payload with --cli claude keeps pane option agent" "agent" \
+  "$(tmux display-message -p -t "$CURSOR_COMPAT_PANE" '#{@work-agent-cli}')"
+
 section "Summary"
 echo "Passed: $PASS"
 echo "Failed: $FAIL"

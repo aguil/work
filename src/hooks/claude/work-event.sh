@@ -4,6 +4,13 @@
 
 set -euo pipefail
 
+# Cursor executes ~/.claude/settings.json hooks for Claude Code compatibility.
+# Cursor has its own hook bundle (~/.cursor/hooks/work-event.sh); bail out here
+# so Cursor events are not reported a second time as --cli claude.
+if [[ -n "${CURSOR_VERSION:-}" && -z "${CLAUDECODE:-}" ]]; then
+  exit 0
+fi
+
 # Backgrounded hooks can reach `work` out of order, so stamp each one on arrival,
 # in microseconds. Bash before 5.0 has no EPOCHREALTIME, and BSD date has no %N.
 if [[ -n "${EPOCHREALTIME:-}" ]]; then

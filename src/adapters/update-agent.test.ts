@@ -897,6 +897,28 @@ describe("applyWorkspacePoll", { concurrency: false }, () => {
     assert.equal(stored("a")?.status, "detached");
     assert.equal(stored("a")?.paneId, null);
   });
+
+  it("unsets stale pane options when detaching from a live pane", () => {
+    seed({ ...explicitWorkingAgent("%9"), label: "a", cli: "claude" });
+    const livePane: TmuxPane = {
+      ...pane("%9", ""),
+      workAgentLabel: "a",
+      workAgentCli: "claude",
+    };
+    const { paneOptions } = applyWorkspacePoll(
+      "w",
+      poll({
+        paneById: new Map([["%9", livePane]]),
+        probes: new Map([["a\0%9", { hostsAgent: false, detected: false }]]),
+      }),
+    );
+
+    assert.equal(stored("a")?.status, "detached");
+    assert.deepEqual(paneOptions, [
+      { paneId: "%9", name: "@work-agent-label", value: null },
+      { paneId: "%9", name: "@work-agent-cli", value: null },
+    ]);
+  });
 });
 
 describe("hook event ordering", { concurrency: false }, () => {
@@ -1119,5 +1141,23 @@ describe("hook event ordering", { concurrency: false }, () => {
     assert.equal(fire("PreToolUse"), true);
     assert.equal(agent()?.status, "working");
     assert.equal(agent()?.lastEventTs, 200);
+  });
+
+  it("keeps cli as agent when a Cursor payload arrives with --cli claude", () => {
+    mutateWorkspace("w", (ws) => {
+      ws.agents.a.cli = "agent";
+      return true;
+    });
+
+    applyHookEvent(
+      {
+        hook_event_name: "PreToolUse",
+        conversation_id: "c",
+        cursor_version: "2026.11.19-f005e9d",
+      },
+      { cli: "claude" },
+    );
+
+    assert.equal(agent()?.cli, "agent");
   });
 });
