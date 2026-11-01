@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
+import { paths } from "../config/paths.js";
 import {
   applyWorkspacePoll,
   readWorkspacePoll,
@@ -366,6 +367,19 @@ describe("applyWorkspacePoll", { concurrency: false }, () => {
     );
 
     assert.equal(stored("a")?.status, "detached");
+  });
+
+  it("gives up on a held lock without throwing, leaving the record", () => {
+    seed({ ...explicitWorkingAgent("%1"), label: "a" });
+    const lock = join(paths.workspacesDir, "w.lock");
+    writeFileSync(lock, "");
+
+    const { state, paneOptions } = applyWorkspacePoll("w", poll({}));
+
+    unlinkSync(lock);
+    assert.equal(state, null);
+    assert.deepEqual(paneOptions, []);
+    assert.equal(stored("a")?.status, "working");
   });
 
   it("leaves a record alone when the poll's read never saw its pane", () => {

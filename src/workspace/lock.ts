@@ -11,6 +11,8 @@ function sleepMs(ms: number): void {
   Atomics.wait(new Int32Array(buffer), 0, 0, ms);
 }
 
+export class LockTimeoutError extends Error {}
+
 export function withFileLock<T>(lockPath: string, fn: () => T): T {
   let fd: number | undefined;
   for (let attempt = 0; attempt < MAX_LOCK_ATTEMPTS; attempt++) {
@@ -19,7 +21,7 @@ export function withFileLock<T>(lockPath: string, fn: () => T): T {
       break;
     } catch {
       if (attempt === MAX_LOCK_ATTEMPTS - 1) {
-        throw new Error(`Timed out acquiring lock: ${lockPath}`);
+        throw new LockTimeoutError(`Timed out acquiring lock: ${lockPath}`);
       }
       sleepMs(LOCK_RETRY_MS);
     }

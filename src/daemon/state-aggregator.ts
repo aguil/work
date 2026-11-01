@@ -19,6 +19,7 @@ import { enrichAgentView } from "../sidebar/enrich.js";
 import type { TmuxPane } from "../tmux/client.js";
 import * as tmux from "../tmux/client.js";
 import { enrichTree, type TreeView } from "../vcs/detect.js";
+import { LockTimeoutError } from "../workspace/lock.js";
 import { resolveWorkspaceForSession } from "../workspace/resolve-session.js";
 import {
   type AgentRecord,
@@ -278,35 +279,43 @@ export function applyWorkspacePoll(
   poll: WorkspacePoll,
 ): { state: WorkspaceState | null; paneOptions: PaneOption[] } {
   let paneOptions: PaneOption[] = [];
-  const state = mutateWorkspace(workspaceName, (fresh) => {
-    // Read ahead of sync, which moves `lastSeen` itself. A difference means
-    // the record changed after the read, so that read is older than the record:
-    // an idle capture must not override the hook that followed it (JC-24).
-    const movedSinceRead = new Set(
-      Object.values(fresh.agents)
-        .filter((a) => a.lastSeen !== poll.lastSeenAtRead.get(a.label))
-        .map((a) => a.label),
-    );
-    const sync = syncAgentsToWorkspace(
-      fresh,
-      poll.detected,
-      poll.paneById,
-      poll.probes,
-    );
-    paneOptions = sync.paneOptions;
-    let changed = sync.changed;
-    for (const agent of Object.values(fresh.agents)) {
-      if (movedSinceRead.has(agent.label)) continue;
-      const observation = agent.paneId
-        ? poll.observations.get(agent.paneId)
-        : undefined;
-      if (observation && applyPaneObservation(agent, observation)) {
-        changed = true;
+  try {
+    const state = mutateWorkspace(workspaceName, (fresh) => {
+      // Read ahead of sync, which moves `lastSeen` itself. A difference means
+      // the record changed after the read, so that read is older than the record:
+      // an idle capture must not override the hook that followed it (JC-24).
+      const movedSinceRead = new Set(
+        Object.values(fresh.agents)
+          .filter((a) => a.lastSeen !== poll.lastSeenAtRead.get(a.label))
+          .map((a) => a.label),
+      );
+      const sync = syncAgentsToWorkspace(
+        fresh,
+        poll.detected,
+        poll.paneById,
+        poll.probes,
+      );
+      paneOptions = sync.paneOptions;
+      let changed = sync.changed;
+      for (const agent of Object.values(fresh.agents)) {
+        if (movedSinceRead.has(agent.label)) continue;
+        const observation = agent.paneId
+          ? poll.observations.get(agent.paneId)
+          : undefined;
+        if (observation && applyPaneObservation(agent, observation)) {
+          changed = true;
+        }
       }
+      return changed;
+    });
+    return { state, paneOptions };
+  } catch (err) {
+    // One held lock must not cost every other session its poll.
+    if (err instanceof LockTimeoutError) {
+      return { state: null, paneOptions: [] };
     }
-    return changed;
-  });
-  return { state, paneOptions };
+    throw err;
+  }
 }
 
 function paneOptionsFor(
