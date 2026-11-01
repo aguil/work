@@ -28,11 +28,12 @@ jobs:
 
       - run: mise exec --locked -- npm run lint
 
-      - name: Typecheck, build, and test
+      - name: Typecheck, build, unit tests, and integration tests
         if: hashFiles('src/**/*.ts') != ''
         run: |
           mise exec --locked -- npm run typecheck
           mise exec --locked -- npm run build
+          mise exec --locked -- npm run test:unit
           mise exec --locked -- npm run test
 
       - name: Skip compile and integration tests (no src yet)

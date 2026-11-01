@@ -31,7 +31,12 @@ import {
   resolveConversationId,
   resolveHookEventName,
 } from "./hook-events.js";
-import { correctAgentCli } from "./update-agent.js";
+import {
+  correctAgentCli,
+  isStaleHookEvent,
+  paneEndedAfter,
+  recordHookActivity,
+} from "./update-agent.js";
 
 export interface HookEventResult {
   applied: boolean;
@@ -332,7 +337,12 @@ function applyTmuxSideEffects(effects: TmuxPaneSideEffect[]): void {
 
 export function applyHookEvent(
   input: AgentHookInput,
-  opts?: { paneId?: string; statusOverride?: AgentStatus; cli?: string },
+  opts?: {
+    paneId?: string;
+    statusOverride?: AgentStatus;
+    cli?: string;
+    eventTs?: number;
+  },
 ): HookEventResult {
   const event = resolveHookEventName(input);
   const conversationId = resolveConversationId(input);
@@ -348,7 +358,7 @@ export function applyHookEvent(
   const status = opts?.statusOverride ?? mapHookEventToStatus(event, input);
   const pendingUnarchiveSaves = new Set<string>();
 
-  if (!conversationId && status == null) {
+  if (!conversationId && !paneId && status == null) {
     return {
       applied: false,
       workspace: null,
@@ -362,8 +372,7 @@ export function applyHookEvent(
 
   const paneCtx = resolveHookPaneContext(paneId);
   const paneResolveOpts = hookPaneResolveOptions(paneCtx);
-  const allWorkspaces =
-    status != null || conversationId != null ? listWorkspaces() : [];
+  const allWorkspaces = listWorkspaces();
   const activeWorkspaces = allWorkspaces.filter((w) => !w.archived);
 
   if (conversationId) {
@@ -379,6 +388,27 @@ export function applyHookEvent(
   }
 
   if (status == null) {
+    const target = findHookTarget(
+      paneId,
+      paneCtx,
+      conversationId,
+      paneResolveOpts,
+      pendingUnarchiveSaves,
+      allWorkspaces,
+      activeWorkspaces,
+    );
+    // An event with no status still shows the agent is alive, so record it, but
+    // create nothing for it and leave `lastSeen` alone: JC-24 reads that as "a
+    // status was written".
+    const label = target?.agentLabel;
+    if (target && label) {
+      mutateWorkspace(target.workspaceName, (ws) => {
+        const agent = ws.agents[label];
+        if (!agent) return false;
+        recordHookActivity(agent, event, input, opts?.eventTs);
+        return true;
+      });
+    }
     return exitHook(
       {
         applied: false,
@@ -443,6 +473,9 @@ export function applyHookEvent(
 
     let agent: AgentRecord | undefined;
     if (target.createAgent && paneId) {
+      if (paneEndedAfter(Object.values(ws.agents), paneId, opts?.eventTs)) {
+        return dirty;
+      }
       agent = createAgentForPane(ws, paneId, opts?.cli ?? "agent");
     } else if (target.agentLabel) {
       agent = ws.agents[target.agentLabel];
@@ -450,6 +483,11 @@ export function applyHookEvent(
       agent = findAgentByPane(ws, paneId);
     }
     if (!agent) return dirty;
+
+    recordHookActivity(agent, event, input, opts?.eventTs);
+    dirty = true;
+
+    if (isStaleHookEvent(agent, opts?.eventTs)) return dirty;
 
     if (opts?.cli && correctAgentCli(agent, opts.cli)) {
       dirty = true;
@@ -509,6 +547,7 @@ export function applyHookEvent(
       agent.hookEvent = event;
       agent.pendingIdleCount = 0;
       agent.conversationId = null;
+      agent.endedPaneId = agent.paneId;
       agent.paneId = null;
       agent.detachedAt = new Date().toISOString();
       agent.lastSeen = new Date().toISOString();

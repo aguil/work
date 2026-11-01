@@ -29,6 +29,9 @@ export function applyObservation(
   const nextStatus = observed.status;
   const nextConfidence = observed.confidence;
 
+  // A frozen screen can keep showing a working hint, so it proves nothing.
+  if (agent.stalledAt && nextStatus === "working") return false;
+
   if (
     nextStatus === "idle" &&
     DEBOUNCE_FROM.has(agent.status) &&
@@ -68,9 +71,10 @@ export function resetObservation(agent: AgentRecord): void {
 /**
  * Screen-derived metadata is only valid for a live observed pane. Detach
  * paths must clear it so snapshots don't claim blocker chrome is visible
- * on a pane that no longer exists.
+ * on a pane that no longer exists. A stall ends with the pane too.
  */
 export function clearScreenMetadata(agent: AgentRecord): void {
+  agent.stalledAt = null;
   agent.statusReason = null;
   agent.statusEvidence = null;
   agent.visibleBlocker = false;

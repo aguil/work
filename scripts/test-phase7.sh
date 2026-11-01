@@ -314,6 +314,100 @@ fire_hook claude "$NOTIFY_PANE" '{"hook_event_name":"Notification","session_id":
 assert_eq "idle_prompt reads idle on the pane it fired from" "idle" \
   "$(wait_pane_field "$NOTIFY_PANE" status idle)"
 
+section "Hook event timestamps (#51)"
+# A fake `work` records the argv each script passes, so these read the stamp
+# itself instead of inferring it from a status.
+STAMP_DIR="$TEST_ROOT/stamp"
+mkdir -p "$STAMP_DIR"
+cat >"$STAMP_DIR/fake-work" <<'FAKE'
+#!/usr/bin/env bash
+cat >/dev/null
+printf '%s\n' "$@" >"$STAMP_OUT"
+FAKE
+chmod +x "$STAMP_DIR/fake-work"
+
+# Prints the value of --ts from one run of a hook script.
+stamp_from() {
+  local script="$1" out="$STAMP_DIR/args" i
+  rm -f "$out"
+  printf '{}' | STAMP_OUT="$out" WORK_BIN="$STAMP_DIR/fake-work" TMUX_PANE=%0 bash "$script"
+  for ((i = 0; i < 50; i++)); do [[ -s "$out" ]] && break; sleep 0.05; done
+  grep -A1 '^--ts$' "$out" | tail -1
+}
+
+for target in claude cursor; do
+  SCRIPT="$WORK_DIR/dist/hooks/$target/work-event.sh"
+  NOW_US=$(($(date +%s) * 1000000))
+  TS=$(stamp_from "$SCRIPT")
+  [[ "$TS" =~ ^[0-9]{16}$ ]] && pass "$target stamps sixteen digits" \
+    || fail "$target stamps sixteen digits (got '$TS')"
+  if (( TS - NOW_US >= 0 && TS - NOW_US < 10000000 )) && [[ "$TS" != *000000 ]]; then
+    pass "$target stamps microseconds from EPOCHREALTIME"
+  else
+    fail "$target stamps microseconds from EPOCHREALTIME (got '$TS', now '$NOW_US')"
+  fi
+
+  NO_EPOCH="$STAMP_DIR/$target-no-epoch.sh"
+  sed '1a unset EPOCHREALTIME' "$SCRIPT" >"$NO_EPOCH"
+  NOW_US=$(($(date +%s) * 1000000))
+  TS=$(stamp_from "$NO_EPOCH")
+  if [[ "$TS" =~ ^[0-9]{10}000000$ ]] && (( TS - NOW_US >= 0 && TS - NOW_US < 10000000 )); then
+    pass "$target falls back to date +%s in the same unit"
+  else
+    fail "$target falls back to date +%s in the same unit (got '$TS', now '$NOW_US')"
+  fi
+
+  grep -v '^[[:space:]]*#' "$SCRIPT" | grep -q '%N' \
+    && fail "$target never uses %N" || pass "$target never uses %N"
+done
+
+section "A late event after sessionEnd (#51)"
+# Passes --ts directly so the order is fixed, from a real pane: an event with no
+# pane never reaches the agent lookup, so it could not show this.
+fire_at() {
+  local pane="$1" ts="$2" json="$3"
+  printf '%s' "$json" | TMUX="$(tmux display-message -p '#{socket_path},0,0')" \
+    $WORK agent hook-event --quiet --cli claude --pane "$pane" --ts "$ts"
+}
+
+ORDER_PANE=$(tmux new-window -d -t "$SESSION" -P -F '#{pane_id}' 'sleep 300')
+fire_at "$ORDER_PANE" 2000 '{"hook_event_name":"PreToolUse","session_id":"order"}'
+assert_eq "agent works before its session ends" "working" "$(pane_status "$ORDER_PANE")"
+fire_at "$ORDER_PANE" 3000 '{"hook_event_name":"SessionEnd","session_id":"order"}'
+assert_eq "sessionEnd detaches the agent" "missing" "$(pane_status "$ORDER_PANE")"
+BEFORE=$($WORK agents --json | node -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf-8")).length)')
+fire_at "$ORDER_PANE" 1000 '{"hook_event_name":"PreToolUse","session_id":"order"}'
+assert_eq "an older event does not bring the pane back" "missing" "$(pane_status "$ORDER_PANE")"
+AFTER=$($WORK agents --json | node -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf-8")).length)')
+assert_eq "an older event creates no record" "$BEFORE" "$AFTER"
+fire_at "$ORDER_PANE" 4000 '{"hook_event_name":"PreToolUse","session_id":"order-2"}'
+assert_eq "a newer event in that pane starts a new agent" "working" "$(pane_status "$ORDER_PANE")"
+
+section "Every hook event is recorded (#52)"
+QUIET_PANE=$(tmux new-window -d -t "$SESSION" -P -F '#{pane_id}' 'sleep 300')
+fire_hook claude "$QUIET_PANE" '{"hook_event_name":"Stop","session_id":"quiet"}'
+assert_eq "agent is idle before PostToolUse" "idle" "$(wait_pane_field "$QUIET_PANE" status idle)"
+FIRST_EVENT_AT=$(pane_field "$QUIET_PANE" lastHookEventAt)
+[[ "$FIRST_EVENT_AT" == 20* ]] && pass "a status event records lastHookEventAt" \
+  || fail "a status event records lastHookEventAt (got '$FIRST_EVENT_AT')"
+fire_hook claude "$QUIET_PANE" '{"hook_event_name":"PostToolUse","tool_name":"Read"}'
+for _ in {1..40}; do
+  [[ "$(pane_field "$QUIET_PANE" lastHookEventAt)" != "$FIRST_EVENT_AT" ]] && break
+  sleep 0.05
+done
+[[ "$(pane_field "$QUIET_PANE" lastHookEventAt)" != "$FIRST_EVENT_AT" ]] \
+  && pass "PostToolUse moves lastHookEventAt on the pane it fired from" \
+  || fail "PostToolUse moves lastHookEventAt on the pane it fired from"
+assert_eq "PostToolUse leaves the status" "idle" "$(pane_status "$QUIET_PANE")"
+
+section "A hook carries the transcript and turn (#48)"
+TURN_PANE=$(tmux new-window -d -t "$SESSION" -P -F '#{pane_id}' 'sleep 300')
+fire_hook claude "$TURN_PANE" '{"hook_event_name":"PreToolUse","session_id":"turn","tool_name":"Read","transcript_path":"/tmp/turn-only.jsonl","prompt_id":"prompt-only"}'
+assert_eq "transcript path lands on the pane it fired from" "/tmp/turn-only.jsonl" \
+  "$(wait_pane_field "$TURN_PANE" transcriptPath /tmp/turn-only.jsonl)"
+assert_eq "prompt_id lands on the pane it fired from" "prompt-only" \
+  "$(pane_field "$TURN_PANE" promptId)"
+
 section "Summary"
 echo "Passed: $PASS"
 echo "Failed: $FAIL"

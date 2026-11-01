@@ -2,7 +2,13 @@ import {
   clearScreenMetadata,
   hasExplicitHookStatus,
 } from "../adapters/debounce.js";
-import { observeAgentsInWorkspace } from "../adapters/update-agent.js";
+import {
+  ageHookConfidence,
+  applyPaneObservation,
+  checkStall,
+  observeAgents,
+  type PaneObservation,
+} from "../adapters/update-agent.js";
 import { getConfigValue } from "../config/store.js";
 import {
   clearAgentProcessCache,
@@ -15,12 +21,14 @@ import { enrichAgentView } from "../sidebar/enrich.js";
 import type { TmuxPane } from "../tmux/client.js";
 import * as tmux from "../tmux/client.js";
 import { enrichTree, type TreeView } from "../vcs/detect.js";
+import { LockTimeoutError } from "../workspace/lock.js";
 import { resolveWorkspaceForSession } from "../workspace/resolve-session.js";
 import {
+  type AgentRecord,
   autoLabel,
   findAgentByPane,
   listWorkspaces,
-  saveWorkspace,
+  mutateWorkspace,
   upsertAgent,
   type WorkspaceState,
 } from "../workspace/state.js";
@@ -140,11 +148,12 @@ export function aggregateState(): AggregatedState {
     let agents: SessionSnapshot["agents"] = [];
 
     if (ws) {
-      syncAgentsToWorkspace(ws, detected, paneById);
-      if (observeAgentsInWorkspace(Object.values(ws.agents), paneById)) {
-        saveWorkspace(ws);
+      const poll = readWorkspacePoll(ws, detected, paneById);
+      const { state, paneOptions } = applyWorkspacePoll(ws.name, poll);
+      for (const { paneId, name, value } of paneOptions) {
+        tmux.setOption("pane", name, value, paneId);
       }
-      agents = Object.values(ws.agents).map((a) =>
+      agents = Object.values((state ?? ws).agents).map((a) =>
         enrichAgentView(a, session, paneById),
       );
     } else {
@@ -184,29 +193,184 @@ export function aggregateState(): AggregatedState {
   };
 }
 
-function syncAgentsToWorkspace(
+/** What one poll read for a workspace, before taking its lock. */
+export interface WorkspacePoll {
+  detected: ReturnType<typeof detectAgents>;
+  paneById: Map<string, TmuxPane>;
+  probes: Map<string, PaneProbe | null>;
+  observations: Map<string, PaneObservation>;
+  /** Each agent's `lastSeen` at the read, by label, before anything moved it. */
+  lastSeenAtRead: Map<string, string>;
+}
+
+/** Whether an undetected agent's pane still hosts one, read outside the lock. */
+export interface PaneProbe {
+  hostsAgent: boolean;
+  detected: boolean;
+}
+
+interface PaneOption {
+  paneId: string;
+  name: string;
+  value: string;
+}
+
+function probeKey(agent: AgentRecord): string {
+  return `${agent.label}\0${agent.paneId}`;
+}
+
+function probeUndetectedAgents(
   ws: WorkspaceState,
   detected: ReturnType<typeof detectAgents>,
   paneById: Map<string, TmuxPane>,
-): void {
+): Map<string, PaneProbe | null> {
   const detectedPaneIds = new Set(detected.map((d) => d.paneId));
   const agentCliSet = new Set(
     getConfigValue("agent-clis").map((c) => c.toLowerCase()),
   );
+  const probes = new Map<string, PaneProbe | null>();
+  for (const agent of Object.values(ws.agents)) {
+    if (!agent.paneId || detectedPaneIds.has(agent.paneId)) continue;
+    const pane = paneById.get(agent.paneId);
+    // Sync detaches this agent without reading its pane, unless a hook has
+    // confirmed it since: then null leaves it for the next poll.
+    if (pane && !pane.workAgentLabel && !hasExplicitHookStatus(agent)) {
+      probes.set(probeKey(agent), null);
+      continue;
+    }
+    const hostsAgent = pane
+      ? paneStillHostsAgent(pane, agent.cli, agentCliSet)
+      : false;
+    probes.set(probeKey(agent), {
+      hostsAgent,
+      detected:
+        pane && !hostsAgent
+          ? detectSinglePane(pane, { preserveCache: true }) != null
+          : false,
+    });
+  }
+  return probes;
+}
+
+/**
+ * All of a poll's tmux reads. `ws` is an unlocked snapshot: syncing it only
+ * decides which panes to observe, and nothing in it is ever saved.
+ */
+export function readWorkspacePoll(
+  ws: WorkspaceState,
+  detected: ReturnType<typeof detectAgents>,
+  paneById: Map<string, TmuxPane>,
+): WorkspacePoll {
+  const lastSeenAtRead = new Map(
+    Object.values(ws.agents).map((a) => [a.label, a.lastSeen]),
+  );
+  const probes = probeUndetectedAgents(ws, detected, paneById);
+  syncAgentsToWorkspace(ws, detected, paneById, probes);
+  return {
+    detected,
+    paneById,
+    probes,
+    lastSeenAtRead,
+    observations: observeAgents(Object.values(ws.agents), paneById),
+  };
+}
+
+/**
+ * Re-applies a poll to the workspace as it is now, so a hook that landed since
+ * the poll's read is kept. No tmux call happens under the lock: the pane
+ * options come back for the caller to write afterwards.
+ */
+export function applyWorkspacePoll(
+  workspaceName: string,
+  poll: WorkspacePoll,
+): { state: WorkspaceState | null; paneOptions: PaneOption[] } {
+  let paneOptions: PaneOption[] = [];
+  try {
+    const state = mutateWorkspace(workspaceName, (fresh) => {
+      // Read ahead of sync, which moves `lastSeen` itself. A difference means
+      // the record changed after the read, so that read is older than the record:
+      // an idle capture must not override the hook that followed it (JC-24).
+      const movedSinceRead = new Set(
+        Object.values(fresh.agents)
+          .filter((a) => a.lastSeen !== poll.lastSeenAtRead.get(a.label))
+          .map((a) => a.label),
+      );
+      // A probe is as old as the read, so it cannot detach a record moved since.
+      const probes = new Map(poll.probes);
+      for (const agent of Object.values(fresh.agents)) {
+        if (movedSinceRead.has(agent.label)) probes.delete(probeKey(agent));
+      }
+      const sync = syncAgentsToWorkspace(
+        fresh,
+        poll.detected,
+        poll.paneById,
+        probes,
+      );
+      paneOptions = sync.paneOptions;
+      let changed = sync.changed;
+      const now = Date.now();
+      for (const agent of Object.values(fresh.agents)) {
+        if (agent.paneId && poll.paneById.has(agent.paneId)) {
+          if (ageHookConfidence(agent, now)) changed = true;
+          if (checkStall(agent, now)) changed = true;
+        }
+        if (movedSinceRead.has(agent.label)) continue;
+        const observation = agent.paneId
+          ? poll.observations.get(agent.paneId)
+          : undefined;
+        if (observation && applyPaneObservation(agent, observation)) {
+          changed = true;
+        }
+      }
+      return changed;
+    });
+    return { state, paneOptions };
+  } catch (err) {
+    // One held lock must not cost every other session its poll.
+    if (err instanceof LockTimeoutError) {
+      return { state: null, paneOptions: [] };
+    }
+    throw err;
+  }
+}
+
+function paneOptionsFor(
+  pane: TmuxPane,
+  agent: Pick<AgentRecord, "label" | "cli">,
+): PaneOption[] {
+  const options: PaneOption[] = [];
+  if (pane.workAgentLabel !== agent.label) {
+    options.push({
+      paneId: pane.id,
+      name: "@work-agent-label",
+      value: agent.label,
+    });
+  }
+  if (pane.workAgentCli !== agent.cli) {
+    options.push({
+      paneId: pane.id,
+      name: "@work-agent-cli",
+      value: agent.cli,
+    });
+  }
+  return options;
+}
+
+function syncAgentsToWorkspace(
+  ws: WorkspaceState,
+  detected: ReturnType<typeof detectAgents>,
+  paneById: Map<string, TmuxPane>,
+  probes: Map<string, PaneProbe | null>,
+): { changed: boolean; paneOptions: PaneOption[] } {
+  const detectedPaneIds = new Set(detected.map((d) => d.paneId));
+  const paneOptions: PaneOption[] = [];
   let changed = false;
 
   for (const d of detected) {
     const existing = findAgentByPane(ws, d.paneId);
     if (existing) {
       const pane = paneById.get(d.paneId);
-      if (pane) {
-        if (pane.workAgentLabel !== existing.label) {
-          tmux.setOption("pane", "@work-agent-label", existing.label, pane.id);
-        }
-        if (pane.workAgentCli !== existing.cli) {
-          tmux.setOption("pane", "@work-agent-cli", existing.cli, pane.id);
-        }
-      }
+      if (pane) paneOptions.push(...paneOptionsFor(pane, existing));
       if (existing.status === "detached") {
         existing.status = "unknown";
         existing.detachedAt = null;
@@ -247,8 +411,10 @@ function syncAgentsToWorkspace(
         });
         const pane = paneById.get(d.paneId);
         if (pane) {
-          tmux.setOption("pane", "@work-agent-label", label, pane.id);
-          tmux.setOption("pane", "@work-agent-cli", d.cli, pane.id);
+          paneOptions.push(
+            { paneId: pane.id, name: "@work-agent-label", value: label },
+            { paneId: pane.id, name: "@work-agent-cli", value: d.cli },
+          );
         }
         changed = true;
       }
@@ -272,6 +438,10 @@ function syncAgentsToWorkspace(
       agent.status !== "detached" &&
       !detectedPaneIds.has(agent.paneId)
     ) {
+      // A record created or moved since the poll's read has no entry. Nothing
+      // says its pane is gone, so the next poll decides.
+      const key = probeKey(agent);
+      if (!probes.has(key)) continue;
       const pane = paneById.get(agent.paneId);
       if (!pane?.workAgentLabel && !hasExplicitHookStatus(agent)) {
         agent.status = "detached";
@@ -282,26 +452,13 @@ function syncAgentsToWorkspace(
         changed = true;
         continue;
       }
-      if (pane && paneStillHostsAgent(pane, agent.cli, agentCliSet)) {
-        if (pane.workAgentLabel !== agent.label) {
-          tmux.setOption("pane", "@work-agent-label", agent.label, pane.id);
-        }
-        if (pane.workAgentCli !== agent.cli) {
-          tmux.setOption("pane", "@work-agent-cli", agent.cli, pane.id);
-        }
-        continue;
-      }
+      const probe = probes.get(key);
+      if (!probe) continue;
       if (
         pane &&
-        hasExplicitHookStatus(agent) &&
-        detectSinglePane(pane, { preserveCache: true })
+        (probe.hostsAgent || (hasExplicitHookStatus(agent) && probe.detected))
       ) {
-        if (pane.workAgentLabel !== agent.label) {
-          tmux.setOption("pane", "@work-agent-label", agent.label, pane.id);
-        }
-        if (pane.workAgentCli !== agent.cli) {
-          tmux.setOption("pane", "@work-agent-cli", agent.cli, pane.id);
-        }
+        paneOptions.push(...paneOptionsFor(pane, agent));
         continue;
       }
       agent.status = "detached";
@@ -313,7 +470,5 @@ function syncAgentsToWorkspace(
     }
   }
 
-  if (changed) {
-    saveWorkspace(ws);
-  }
+  return { changed, paneOptions };
 }
