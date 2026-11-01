@@ -32,7 +32,16 @@ trap cleanup EXIT
 # a job, whose own process group lets a signal reach everything npm started.
 child=""
 stop() {
-  [[ -n "$child" ]] && kill -- "-$child" 2>/dev/null
+  local waited=0
+  if [[ -n "$child" ]]; then
+    kill -- "-$child" 2>/dev/null
+    # Cleanup removes the server, so nothing may outlive it. Phase 5 traps TERM
+    # and carries on.
+    while kill -0 -- "-$child" 2>/dev/null && ((waited++ < 20)); do
+      sleep 0.1
+    done
+    kill -KILL -- "-$child" 2>/dev/null
+  fi
   exit "$1"
 }
 trap 'stop 130' INT
