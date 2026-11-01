@@ -122,10 +122,22 @@ export function checkStall(agent: AgentRecord, now: number): boolean {
     agent.stalledAt = null;
     return true;
   }
-  if (agent.status !== "working" || !agent.lastHookEventAt) return false;
+  if (agent.status !== "working") {
+    if (!agent.workingSince) return false;
+    agent.workingSince = null;
+    return true;
+  }
+  if (!agent.lastHookEventAt) return false;
   const lastHook = Date.parse(agent.lastHookEventAt);
   if (CURSOR_CLIS.has(agent.cli)) {
-    if (now - lastHook < HOOK_TTL_MS) return false;
+    // Cursor has no prompt hook, so a turn after a break starts with an old
+    // lastHookEventAt: quiet time cannot count from before it read working.
+    if (!agent.workingSince) {
+      agent.workingSince = new Date(now).toISOString();
+      return true;
+    }
+    const quietSince = Math.max(lastHook, Date.parse(agent.workingSince));
+    if (now - quietSince < HOOK_TTL_MS) return false;
   } else {
     if (mtime === null || !agent.promptId) return false;
     // Measured on 2.1.316: the transcript does not move during a tool call.

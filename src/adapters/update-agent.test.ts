@@ -279,6 +279,7 @@ describe("applyWorkspacePoll", { concurrency: false }, () => {
       transcriptPath: transcript(ageMs),
       promptId: "p1",
       lastHookEventAt: ago(ageMs),
+      workingSince: ago(ageMs),
       ...fields,
     });
   }
@@ -288,6 +289,7 @@ describe("applyWorkspacePoll", { concurrency: false }, () => {
       ...explicitWorkingAgent("%1"),
       label: "a",
       lastHookEventAt: ago(minutes(16)),
+      workingSince: ago(minutes(16)),
       ...fields,
     });
   }
@@ -416,6 +418,22 @@ describe("applyWorkspacePoll", { concurrency: false }, () => {
       assert.ok(stored("a")?.stalledAt);
     });
   }
+
+  it("does not stall a Cursor turn that starts after a long break", () => {
+    cursorWorking({ workingSince: undefined, confidence: "heuristic" });
+    applyWorkspacePoll("w", pollPane());
+    applyWorkspacePoll("w", pollPane());
+
+    assert.equal(stored("a")?.status, "working");
+    assert.ok(stored("a")?.workingSince);
+  });
+
+  it("forgets when an agent began working once it stops", () => {
+    cursorWorking({ status: "idle" });
+    applyWorkspacePoll("w", pollPane());
+
+    assert.ok(!stored("a")?.workingSince);
+  });
 
   it("does not stall a Cursor agent inside 15 minutes", () => {
     cursorWorking({ lastHookEventAt: ago(minutes(14)) });
