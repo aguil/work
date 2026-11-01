@@ -347,7 +347,10 @@ describe("applyWorkspacePoll", { concurrency: false }, () => {
 
   it("keeps an agent a hook made explicit after the read skipped its probe", () => {
     seed({ ...explicitWorkingAgent("%1"), label: "a" });
-    const read = poll({ paneById: new Map([["%1", pane("%1", "")]]) });
+    const read = poll({
+      paneById: new Map([["%1", pane("%1", "")]]),
+      probes: new Map([["a\0%1", null]]),
+    });
 
     applyWorkspacePoll("w", read);
 
@@ -363,10 +366,26 @@ describe("applyWorkspacePoll", { concurrency: false }, () => {
     });
     applyWorkspacePoll(
       "w",
-      poll({ paneById: new Map([["%1", pane("%1", "")]]) }),
+      poll({
+        paneById: new Map([["%1", pane("%1", "")]]),
+        probes: new Map([["a\0%1", null]]),
+      }),
     );
 
     assert.equal(stored("a")?.status, "detached");
+  });
+
+  it("leaves an agent launched during the poll for the next poll", () => {
+    seed({
+      ...explicitWorkingAgent("%7"),
+      label: "a",
+      status: "unknown",
+      confidence: "none",
+    });
+    applyWorkspacePoll("w", poll({}));
+
+    assert.equal(stored("a")?.status, "unknown");
+    assert.equal(stored("a")?.paneId, "%7");
   });
 
   it("gives up on a held lock without throwing, leaving the record", () => {

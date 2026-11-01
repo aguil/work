@@ -195,7 +195,7 @@ export function aggregateState(): AggregatedState {
 export interface WorkspacePoll {
   detected: ReturnType<typeof detectAgents>;
   paneById: Map<string, TmuxPane>;
-  probes: Map<string, PaneProbe>;
+  probes: Map<string, PaneProbe | null>;
   observations: Map<string, PaneObservation>;
   /** Each agent's `lastSeen` at the read, by label, before anything moved it. */
   lastSeenAtRead: Map<string, string>;
@@ -221,17 +221,21 @@ function probeUndetectedAgents(
   ws: WorkspaceState,
   detected: ReturnType<typeof detectAgents>,
   paneById: Map<string, TmuxPane>,
-): Map<string, PaneProbe> {
+): Map<string, PaneProbe | null> {
   const detectedPaneIds = new Set(detected.map((d) => d.paneId));
   const agentCliSet = new Set(
     getConfigValue("agent-clis").map((c) => c.toLowerCase()),
   );
-  const probes = new Map<string, PaneProbe>();
+  const probes = new Map<string, PaneProbe | null>();
   for (const agent of Object.values(ws.agents)) {
     if (!agent.paneId || detectedPaneIds.has(agent.paneId)) continue;
     const pane = paneById.get(agent.paneId);
-    // Sync detaches this agent without reading its pane.
-    if (pane && !pane.workAgentLabel && !hasExplicitHookStatus(agent)) continue;
+    // Sync detaches this agent without reading its pane, unless a hook has
+    // confirmed it since: then null leaves it for the next poll.
+    if (pane && !pane.workAgentLabel && !hasExplicitHookStatus(agent)) {
+      probes.set(probeKey(agent), null);
+      continue;
+    }
     const hostsAgent = pane
       ? paneStillHostsAgent(pane, agent.cli, agentCliSet)
       : false;
@@ -344,7 +348,7 @@ function syncAgentsToWorkspace(
   ws: WorkspaceState,
   detected: ReturnType<typeof detectAgents>,
   paneById: Map<string, TmuxPane>,
-  probes: Map<string, PaneProbe>,
+  probes: Map<string, PaneProbe | null>,
 ): { changed: boolean; paneOptions: PaneOption[] } {
   const detectedPaneIds = new Set(detected.map((d) => d.paneId));
   const paneOptions: PaneOption[] = [];
@@ -422,6 +426,10 @@ function syncAgentsToWorkspace(
       agent.status !== "detached" &&
       !detectedPaneIds.has(agent.paneId)
     ) {
+      // A record created or moved since the poll's read has no entry. Nothing
+      // says its pane is gone, so the next poll decides.
+      const key = probeKey(agent);
+      if (!probes.has(key)) continue;
       const pane = paneById.get(agent.paneId);
       if (!pane?.workAgentLabel && !hasExplicitHookStatus(agent)) {
         agent.status = "detached";
@@ -432,9 +440,7 @@ function syncAgentsToWorkspace(
         changed = true;
         continue;
       }
-      // A record a hook created or moved since the poll's read was never
-      // probed. Nothing says its pane is gone, so the next poll decides.
-      const probe = probes.get(probeKey(agent));
+      const probe = probes.get(key);
       if (!probe) continue;
       if (
         pane &&
