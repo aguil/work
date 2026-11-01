@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import { clearScreenMetadata } from "../adapters/debounce.js";
+import { clearScreenMetadata, resetAgentStatus } from "../adapters/debounce.js";
 import {
   type AgentRecord,
   findAgentByPane,
@@ -86,7 +86,7 @@ export function registerAgentsCommands(program: Command): void {
         const agent = findAgentByPane(ws, paneId);
         if (!agent) continue;
 
-        agent.status = "detached";
+        resetAgentStatus(agent, "detached");
         agent.detachedAt = new Date().toISOString();
         agent.paneId = null;
         agent.pendingIdleCount = 0;

@@ -55,13 +55,28 @@ export function applyObservation(
     agent.statusEvidence !== (observed.evidence ?? null) ||
     agent.visibleBlocker !== (observed.visibleBlocker ?? false);
 
-  agent.status = nextStatus;
+  setAgentStatus(agent, nextStatus);
   agent.confidence = nextConfidence;
   agent.statusReason = observed.ruleId ?? null;
   agent.statusEvidence = observed.evidence ?? null;
   agent.visibleBlocker = observed.visibleBlocker ?? false;
   agent.lastSeen = new Date().toISOString();
   return changed;
+}
+
+/** Starts the status's clock only if the value changes: what its age measures. */
+export function setAgentStatus(agent: AgentRecord, status: AgentStatus): void {
+  if (agent.status === status) return;
+  resetAgentStatus(agent, status);
+}
+
+/** For detach and reattach, which start a new state whatever the value was. */
+export function resetAgentStatus(
+  agent: AgentRecord,
+  status: AgentStatus,
+): void {
+  agent.status = status;
+  agent.statusSince = new Date().toISOString();
 }
 
 export function resetObservation(agent: AgentRecord): void {
@@ -95,7 +110,7 @@ export function applyHookStatus(
     agent.confidence !== "explicit" ||
     agent.hookEvent !== eventName;
 
-  agent.status = status;
+  setAgentStatus(agent, status);
   agent.confidence = "explicit";
   agent.hookEvent = eventName;
   // Screen-derived metadata no longer describes the (explicit) status.

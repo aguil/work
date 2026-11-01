@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import {
   clearScreenMetadata,
   hasExplicitHookStatus,
+  resetAgentStatus,
 } from "../adapters/debounce.js";
 import { getConfigValue } from "../config/store.js";
 import {
@@ -61,7 +62,7 @@ export function registerReconcileCommand(program: Command): void {
           let changed = false;
           for (const agent of Object.values(ws.agents)) {
             if (agent.status !== "detached") {
-              agent.status = "detached";
+              resetAgentStatus(agent, "detached");
               agent.detachedAt = new Date().toISOString();
               agent.paneId = null;
               clearScreenMetadata(agent);
@@ -95,7 +96,7 @@ export function registerReconcileCommand(program: Command): void {
         // Re-map agents whose pane IDs are stale
         for (const agent of Object.values(ws.agents)) {
           if (!agent.paneId && agent.status !== "detached") {
-            agent.status = "detached";
+            resetAgentStatus(agent, "detached");
             if (!agent.detachedAt) {
               agent.detachedAt = new Date().toISOString();
             }
@@ -113,7 +114,7 @@ export function registerReconcileCommand(program: Command): void {
           ) {
             const pane = paneById.get(agent.paneId);
             if (!pane?.workAgentLabel && !hasExplicitHookStatus(agent)) {
-              agent.status = "detached";
+              resetAgentStatus(agent, "detached");
               agent.detachedAt = new Date().toISOString();
               agent.paneId = null;
               agent.confidence = "none";
@@ -156,7 +157,7 @@ export function registerReconcileCommand(program: Command): void {
               continue;
             }
 
-            agent.status = "detached";
+            resetAgentStatus(agent, "detached");
             agent.detachedAt = new Date().toISOString();
             agent.paneId = null;
             agent.confidence = "none";
@@ -173,7 +174,7 @@ export function registerReconcileCommand(program: Command): void {
 
             if (match) {
               agent.paneId = match.id;
-              agent.status = "unknown";
+              resetAgentStatus(agent, "unknown");
               agent.detachedAt = null;
               totalFixed++;
               if (!opts.quiet)
@@ -181,7 +182,7 @@ export function registerReconcileCommand(program: Command): void {
                   `${ws.name}: re-mapped ${agent.label} → ${match.id}`,
                 );
             } else {
-              agent.status = "detached";
+              resetAgentStatus(agent, "detached");
               agent.detachedAt = new Date().toISOString();
               agent.paneId = null;
               clearScreenMetadata(agent);
@@ -201,7 +202,7 @@ export function registerReconcileCommand(program: Command): void {
 
           if (match) {
             agent.paneId = match.id;
-            agent.status = "unknown";
+            resetAgentStatus(agent, "unknown");
             agent.detachedAt = null;
             agent.lastSeen = new Date().toISOString();
             totalFixed++;
@@ -245,7 +246,7 @@ export function registerReconcileCommand(program: Command): void {
 
           if (detachedMatch) {
             detachedMatch.paneId = d.paneId;
-            detachedMatch.status = "unknown";
+            resetAgentStatus(detachedMatch, "unknown");
             detachedMatch.detachedAt = null;
             detachedMatch.lastSeen = new Date().toISOString();
             totalFixed++;
@@ -260,6 +261,7 @@ export function registerReconcileCommand(program: Command): void {
               cli: d.cli,
               paneId: d.paneId,
               status: "unknown",
+              statusSince: new Date().toISOString(),
               confidence: "none",
               detachedAt: null,
               lastSeen: new Date().toISOString(),

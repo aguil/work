@@ -408,6 +408,78 @@ describe("sidebar render", () => {
     assert.match(plain, /general-harness\/agents · wlpkksunlkry/);
   });
 
+  describe("confidence and age", () => {
+    const NOW = Date.parse("2026-06-01T12:00:00.000Z");
+    const minutes = (n: number) => new Date(NOW - n * 60_000).toISOString();
+    const row = (partial: Partial<AgentView>, width = 50): string => {
+      const out = render(
+        [
+          session({
+            name: "proj",
+            agents: [agent({ label: "a1", status: "working", ...partial })],
+          }),
+        ],
+        width,
+        30,
+        true,
+        NOW,
+      );
+      const line = out.split("\n").find((l) => l.includes("a1"));
+      assert.ok(line);
+      return line;
+    };
+    const plain = (line: string): string =>
+      line.replace(
+        new RegExp(`${String.fromCharCode(0x1b)}\\[[0-9;]*m`, "g"),
+        "",
+      );
+
+    it("renders a confirmed status at full strength", () => {
+      assert.ok(!row({ confidence: "explicit" }).includes("\x1b[2m"));
+    });
+
+    for (const confidence of ["inferred", "heuristic", "none"] as const) {
+      it(`dims the glyph of a ${confidence} status, keeping its color`, () => {
+        const line = row({ confidence });
+        assert.ok(line.includes("\x1b[2m\x1b[33m"));
+        assert.notEqual(line, row({ confidence: "explicit" }));
+      });
+    }
+
+    it("shows the age of a state held over 10 minutes", () => {
+      assert.match(plain(row({ statusSince: minutes(23) })), /a1 23m /);
+    });
+
+    it("shows no age at exactly 10 minutes", () => {
+      assert.doesNotMatch(plain(row({ statusSince: minutes(10) })), /a1 \d/);
+    });
+
+    it("shows an age just past 10 minutes", () => {
+      assert.match(plain(row({ statusSince: minutes(10.5) })), /a1 10m /);
+    });
+
+    it("counts long ages in hours and days", () => {
+      assert.match(plain(row({ statusSince: minutes(125) })), /a1 2h /);
+      assert.match(plain(row({ statusSince: minutes(3 * 1440) })), /a1 3d /);
+    });
+
+    it("shows no age for a record with no statusSince", () => {
+      assert.doesNotMatch(plain(row({ lastSeen: minutes(60) })), /a1 \d/);
+    });
+
+    it("shows no age for an unreadable statusSince", () => {
+      assert.doesNotMatch(plain(row({ statusSince: "soon" })), /a1 \S/);
+    });
+
+    it("keeps the row within its width with an age", () => {
+      const line = plain(
+        row({ label: "a1-long-label-here", statusSince: minutes(23) }, 26),
+      );
+      assert.ok([...line.trimEnd()].length <= 25, line);
+      assert.match(line, /23m/);
+    });
+  });
+
   it("produces identical output for identical sessions", () => {
     const sessions: SessionSnapshot[] = [
       session({

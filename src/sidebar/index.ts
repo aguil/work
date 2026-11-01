@@ -9,6 +9,9 @@ let cols = 40;
 let rows = 24;
 let lastRenderedOutput = "";
 
+// The daemon sends nothing while state holds, which is when an age matters.
+const AGE_REDRAW_MS = 30_000;
+
 function updateSize(): void {
   cols = process.stdout.columns ?? 40;
   rows = process.stdout.rows ?? 24;
@@ -64,6 +67,7 @@ export async function startSidebar(): Promise<void> {
 
   updateSize();
   redraw();
+  setInterval(redraw, AGE_REDRAW_MS).unref();
 
   const client = new IpcClient();
 

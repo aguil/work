@@ -7,6 +7,7 @@ import {
   clearScreenMetadata,
   hasExplicitHookStatus,
   observationOverridesExplicit,
+  setAgentStatus,
 } from "./debounce.js";
 import type { AgentHookInput } from "./hook-events.js";
 import { observeAgentPane, observePane } from "./observe.js";
@@ -103,7 +104,7 @@ function transcriptMtimeMs(agent: AgentRecord): number | null {
 }
 
 function markStalled(agent: AgentRecord, now: number): void {
-  agent.status = "unknown";
+  setAgentStatus(agent, "unknown");
   agent.confidence = "heuristic";
   clearScreenMetadata(agent);
   agent.stalledAt = new Date(now).toISOString();

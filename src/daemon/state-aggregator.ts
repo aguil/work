@@ -1,6 +1,7 @@
 import {
   clearScreenMetadata,
   hasExplicitHookStatus,
+  resetAgentStatus,
 } from "../adapters/debounce.js";
 import {
   ageHookConfidence,
@@ -372,7 +373,7 @@ function syncAgentsToWorkspace(
       const pane = paneById.get(d.paneId);
       if (pane) paneOptions.push(...paneOptionsFor(pane, existing));
       if (existing.status === "detached") {
-        existing.status = "unknown";
+        resetAgentStatus(existing, "unknown");
         existing.detachedAt = null;
         existing.lastSeen = new Date().toISOString();
         changed = true;
@@ -394,7 +395,7 @@ function syncAgentsToWorkspace(
       }
       if (detachedMatch) {
         detachedMatch.paneId = d.paneId;
-        detachedMatch.status = "unknown";
+        resetAgentStatus(detachedMatch, "unknown");
         detachedMatch.detachedAt = null;
         detachedMatch.lastSeen = new Date().toISOString();
         changed = true;
@@ -405,6 +406,7 @@ function syncAgentsToWorkspace(
           cli: d.cli,
           paneId: d.paneId,
           status: "unknown",
+          statusSince: new Date().toISOString(),
           confidence: "none",
           detachedAt: null,
           lastSeen: new Date().toISOString(),
@@ -423,7 +425,7 @@ function syncAgentsToWorkspace(
 
   for (const agent of Object.values(ws.agents)) {
     if (!agent.paneId && agent.status !== "detached") {
-      agent.status = "detached";
+      resetAgentStatus(agent, "detached");
       if (!agent.detachedAt) {
         agent.detachedAt = new Date().toISOString();
       }
@@ -444,7 +446,7 @@ function syncAgentsToWorkspace(
       if (!probes.has(key)) continue;
       const pane = paneById.get(agent.paneId);
       if (!pane?.workAgentLabel && !hasExplicitHookStatus(agent)) {
-        agent.status = "detached";
+        resetAgentStatus(agent, "detached");
         agent.detachedAt = new Date().toISOString();
         agent.paneId = null;
         agent.confidence = "none";
@@ -461,7 +463,7 @@ function syncAgentsToWorkspace(
         paneOptions.push(...paneOptionsFor(pane, agent));
         continue;
       }
-      agent.status = "detached";
+      resetAgentStatus(agent, "detached");
       agent.detachedAt = new Date().toISOString();
       agent.paneId = null;
       agent.confidence = "none";

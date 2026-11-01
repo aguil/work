@@ -23,7 +23,11 @@ import {
   removeConversationBinding,
   upsertConversationBinding,
 } from "./conversation-map.js";
-import { applyHookStatus, clearScreenMetadata } from "./debounce.js";
+import {
+  applyHookStatus,
+  clearScreenMetadata,
+  resetAgentStatus,
+} from "./debounce.js";
 import {
   type AgentHookInput,
   isTransientSessionEnd,
@@ -314,6 +318,7 @@ function createAgentForPane(
     cli,
     paneId,
     status: "unknown",
+    statusSince: new Date().toISOString(),
     confidence: "none",
     detachedAt: null,
     lastSeen: new Date().toISOString(),
@@ -522,7 +527,7 @@ export function applyHookEvent(
       agent.paneId = paneId;
       agent.detachedAt = null;
       if (agent.status === "detached") {
-        agent.status = "unknown";
+        resetAgentStatus(agent, "unknown");
         agent.confidence = "none";
       }
       dirty = true;
@@ -542,7 +547,7 @@ export function applyHookEvent(
     }
 
     if (event === "sessionEnd") {
-      agent.status = "detached";
+      resetAgentStatus(agent, "detached");
       agent.confidence = "none";
       agent.hookEvent = event;
       agent.pendingIdleCount = 0;
