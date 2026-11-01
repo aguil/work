@@ -26,12 +26,22 @@ cleanup() {
   rm -rf -- "$ISOLATED"
 }
 trap cleanup EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
+
+# Bash runs a trap only once the foreground command ends, so the command runs in
+# the background, where a signal can reach it.
+child=""
+stop() {
+  [[ -n "$child" ]] && kill "$child" 2>/dev/null
+  exit "$1"
+}
+trap 'stop 130' INT
+trap 'stop 143' TERM
 
 tmux -f /dev/null new-session -d -s keepalive 'sleep 86400'
 
 if [[ $# -eq 0 ]]; then
   set -- npm run check
 fi
-"$@"
+"$@" &
+child=$!
+wait "$child"
