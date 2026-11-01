@@ -7,6 +7,7 @@ import {
   observationOverridesExplicit,
 } from "./debounce.js";
 import { observeAgentPane, observePane } from "./observe.js";
+import type { ObservationResult } from "./types.js";
 
 export function updateAgentFromPane(
   agent: AgentRecord,
@@ -24,29 +25,51 @@ export function updateAgentFromPane(
   return applyObservation(agent, result);
 }
 
-export function observeAgentsInWorkspace(
+/** A pane read taken outside the workspace lock, applied under it later. */
+export interface PaneObservation {
+  pane: TmuxPane;
+  result: ObservationResult;
+}
+
+function titleVouchesForWorking(agent: AgentRecord, pane: TmuxPane): boolean {
+  return (
+    hasExplicitHookStatus(agent) &&
+    agent.status === "working" &&
+    isActiveAgentTitle(pane.title)
+  );
+}
+
+/** Reads each agent's pane. Changes no record, so it needs no lock. */
+export function observeAgents(
   agents: Iterable<AgentRecord>,
   paneById: Map<string, TmuxPane>,
-): boolean {
-  let changed = false;
+): Map<string, PaneObservation> {
+  const observations = new Map<string, PaneObservation>();
   for (const agent of agents) {
     if (!agent.paneId || agent.status === "detached") continue;
     const pane = paneById.get(agent.paneId);
-    if (!pane) continue;
-    if (hasExplicitHookStatus(agent)) {
-      if (agent.status === "working" && isActiveAgentTitle(pane.title)) {
-        continue;
-      }
-      const result = observePane(pane, agent.cli);
-      if (!result || !observationOverridesExplicit(result)) continue;
-      if (applyObservation(agent, result, { trustIdle: true })) changed = true;
-      continue;
-    }
+    if (!pane || titleVouchesForWorking(agent, pane)) continue;
     const result = observePane(pane, agent.cli);
-    if (!result) continue;
-    if (applyObservation(agent, result)) changed = true;
+    if (result) observations.set(pane.id, { pane, result });
   }
-  return changed;
+  return observations;
+}
+
+/**
+ * Applies a read to the current record, which a hook may have changed since
+ * the read, so the same gate runs against what is there now.
+ */
+export function applyPaneObservation(
+  agent: AgentRecord,
+  { pane, result }: PaneObservation,
+): boolean {
+  if (agent.status === "detached" || agent.paneId !== pane.id) return false;
+  if (hasExplicitHookStatus(agent)) {
+    if (titleVouchesForWorking(agent, pane)) return false;
+    if (!observationOverridesExplicit(result)) return false;
+    return applyObservation(agent, result, { trustIdle: true });
+  }
+  return applyObservation(agent, result);
 }
 
 /**
