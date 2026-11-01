@@ -45,3 +45,9 @@ describe("mapHookEventToStatus: Notification", () => {
     assert.equal(mapNotification(), null);
   });
 });
+
+describe("mapHookEventToStatus: beforeSubmitPrompt", () => {
+  it("maps Cursor's prompt hook to working", () => {
+    assert.equal(mapHookEventToStatus("beforeSubmitPrompt", {}), "working");
+  });
+});

@@ -13,6 +13,7 @@ import type { Command } from "commander";
 const CURSOR_HOOK_EVENTS = [
   "sessionStart",
   "sessionEnd",
+  "beforeSubmitPrompt",
   "preToolUse",
   "postToolUse",
   "postToolUseFailure",

@@ -408,6 +408,23 @@ assert_eq "transcript path lands on the pane it fired from" "/tmp/turn-only.json
 assert_eq "prompt_id lands on the pane it fired from" "prompt-only" \
   "$(pane_field "$TURN_PANE" promptId)"
 
+section "Cursor's prompt hook (JC-28)"
+PROMPT_HOME="$TEST_ROOT/prompt-home"
+mkdir -p "$PROMPT_HOME"
+HOME="$PROMPT_HOME" $WORK hooks install cursor >/dev/null 2>&1
+OUT=$(node -e '
+  const { hooks } = JSON.parse(require("fs").readFileSync(process.argv[1], "utf-8"));
+  console.log((hooks.beforeSubmitPrompt ?? []).length);
+' "$PROMPT_HOME/.cursor/hooks.json" 2>&1)
+assert_eq "work hooks install registers beforeSubmitPrompt" "1" "$OUT"
+
+PROMPT_PANE=$(tmux new-window -d -t "$SESSION" -P -F '#{pane_id}' 'sleep 300')
+fire_hook cursor "$PROMPT_PANE" '{"hook_event_name":"stop","conversation_id":"prompt","status":"completed"}'
+assert_eq "agent is idle before its prompt" "idle" "$(wait_pane_field "$PROMPT_PANE" status idle)"
+fire_hook cursor "$PROMPT_PANE" '{"hook_event_name":"beforeSubmitPrompt","conversation_id":"prompt","prompt":"x"}'
+assert_eq "beforeSubmitPrompt reads working on the pane it fired from" "working" \
+  "$(wait_pane_field "$PROMPT_PANE" status working)"
+
 section "Summary"
 echo "Passed: $PASS"
 echo "Failed: $FAIL"
