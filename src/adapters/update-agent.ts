@@ -77,6 +77,12 @@ export function applyPaneObservation(
 
 export const HOOK_TTL_MS = 15 * 60_000;
 export const STALL_TIMEOUT_MS = 120_000;
+/** Cursor's `process_names`: detection records whichever one the pane runs. */
+export const CURSOR_CLIS: ReadonlySet<string> = new Set([
+  "agent",
+  "cursor",
+  "cursor-agent",
+]);
 
 function transcriptMtimeMs(agent: AgentRecord): number | null {
   if (!agent.transcriptPath) return null;
@@ -109,7 +115,7 @@ export function checkStall(agent: AgentRecord, now: number): boolean {
   }
   if (agent.status !== "working" || !agent.lastHookEventAt) return false;
   const lastHook = Date.parse(agent.lastHookEventAt);
-  if (agent.cli === "agent") {
+  if (CURSOR_CLIS.has(agent.cli)) {
     if (now - lastHook < HOOK_TTL_MS) return false;
   } else {
     if (mtime === null || !agent.promptId) return false;

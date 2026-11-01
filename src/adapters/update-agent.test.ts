@@ -26,8 +26,9 @@ import {
 } from "../workspace/state.js";
 import { applyHookEvent } from "./apply-hook-event.js";
 import { applyHookStatus, applyObservation } from "./debounce.js";
+import { parseManifestFile } from "./loader.js";
 import type { ObservationResult } from "./types.js";
-import { correctAgentCli, observeAgents } from "./update-agent.js";
+import { CURSOR_CLIS, correctAgentCli, observeAgents } from "./update-agent.js";
 
 function pane(id: string, title: string): TmuxPane {
   return {
@@ -95,6 +96,14 @@ describe("applyObservation", () => {
 
     assert.equal(applyObservation(agent, observed("working")), false);
     assert.equal(agent.status, "unknown");
+  });
+});
+
+describe("CURSOR_CLIS", () => {
+  it("matches the Cursor manifest's process names", () => {
+    const manifest = parseManifestFile("src/adapters/manifests/cursor.toml");
+
+    assert.deepEqual([...CURSOR_CLIS].sort(), manifest?.processNames.sort());
   });
 });
 
@@ -382,6 +391,16 @@ describe("applyWorkspacePoll", { concurrency: false }, () => {
     assert.equal(stored("a")?.status, "unknown");
     assert.ok(stored("a")?.stalledAt);
   });
+
+  for (const cli of ["cursor", "cursor-agent"]) {
+    it(`stalls a Cursor agent recorded as ${cli}`, () => {
+      cursorWorking({ cli });
+      applyWorkspacePoll("w", pollPane());
+
+      assert.equal(stored("a")?.status, "unknown");
+      assert.ok(stored("a")?.stalledAt);
+    });
+  }
 
   it("does not stall a Cursor agent inside 15 minutes", () => {
     cursorWorking({ lastHookEventAt: ago(minutes(14)) });
