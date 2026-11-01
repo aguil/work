@@ -48,8 +48,6 @@ export interface AgentRecord {
   promptId?: string;
   /** The last hook was `preToolUse`: a tool is running, so its file is quiet. */
   toolInFlight?: boolean;
-  /** The poll that first found this agent reading `working`, for a stall. */
-  workingSince?: string | null;
   /** When this agent read as stalled; only a file change or a hook clears it. */
   stalledAt?: string | null;
   /** The pane `sessionEnd` took this agent from, which detach otherwise loses. */

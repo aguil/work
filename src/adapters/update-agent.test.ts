@@ -279,7 +279,6 @@ describe("applyWorkspacePoll", { concurrency: false }, () => {
       transcriptPath: transcript(ageMs),
       promptId: "p1",
       lastHookEventAt: ago(ageMs),
-      workingSince: ago(ageMs),
       ...fields,
     });
   }
@@ -289,7 +288,6 @@ describe("applyWorkspacePoll", { concurrency: false }, () => {
       ...explicitWorkingAgent("%1"),
       label: "a",
       lastHookEventAt: ago(minutes(16)),
-      workingSince: ago(minutes(16)),
       ...fields,
     });
   }
@@ -418,22 +416,6 @@ describe("applyWorkspacePoll", { concurrency: false }, () => {
       assert.ok(stored("a")?.stalledAt);
     });
   }
-
-  it("does not stall a Cursor turn that starts after a long break", () => {
-    cursorWorking({ workingSince: undefined, confidence: "heuristic" });
-    applyWorkspacePoll("w", pollPane());
-    applyWorkspacePoll("w", pollPane());
-
-    assert.equal(stored("a")?.status, "working");
-    assert.ok(stored("a")?.workingSince);
-  });
-
-  it("forgets when an agent began working once it stops", () => {
-    cursorWorking({ status: "idle" });
-    applyWorkspacePoll("w", pollPane());
-
-    assert.ok(!stored("a")?.workingSince);
-  });
 
   it("does not stall a Cursor agent inside 15 minutes", () => {
     cursorWorking({ lastHookEventAt: ago(minutes(14)) });
@@ -912,6 +894,28 @@ describe("hook event ordering", { concurrency: false }, () => {
       assert.equal(agent()?.toolInFlight, false);
     });
   }
+
+  it("does not stall a Cursor agent that takes a prompt after a long break", () => {
+    mutateWorkspace("w", (ws) => {
+      ws.agents.a.cli = "agent";
+      ws.agents.a.status = "idle";
+      ws.agents.a.confidence = "heuristic";
+      ws.agents.a.lastHookEventAt = "2026-01-01T00:00:00.000Z";
+      return true;
+    });
+
+    assert.equal(fire("beforeSubmitPrompt"), true);
+    applyWorkspacePoll("w", {
+      detected: [],
+      paneById: new Map([["%1", pane("%1", "")]]),
+      probes: new Map(),
+      observations: new Map(),
+      lastSeenAtRead: new Map(),
+    });
+
+    assert.equal(agent()?.status, "working");
+    assert.ok(!agent()?.stalledAt);
+  });
 
   it("clears a stall on an event with no status", () => {
     mutateWorkspace("w", (ws) => {

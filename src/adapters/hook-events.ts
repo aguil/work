@@ -101,6 +101,7 @@ export function mapHookEventToStatus(
       return "blocked";
     case "permissionDenied":
       return "blocked";
+    case "beforeSubmitPrompt":
     case "userPromptSubmit":
       return "working";
     case "stop":
