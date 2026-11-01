@@ -1,14 +1,68 @@
-import { closeSync, openSync, unlinkSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import {
+  closeSync,
+  linkSync,
+  openSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+} from "node:fs";
 import { join } from "node:path";
 import { paths } from "../config/paths.js";
 
 const MAX_LOCK_ATTEMPTS = 100;
 const LOCK_RETRY_MS = 5;
+export const STALE_LOCK_MS = 30_000;
 
 function sleepMs(ms: number): void {
   if (ms <= 0) return;
   const buffer = new SharedArrayBuffer(4);
   Atomics.wait(new Int32Array(buffer), 0, 0, ms);
+}
+
+function isStale(path: string): boolean {
+  try {
+    return Date.now() - statSync(path).mtimeMs > STALE_LOCK_MS;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A process killed under a lock leaves its file for good. `rename` is atomic,
+ * so of two waiters only one claims it. A waiter that read the age just before
+ * another took over can claim that fresh lock, so it checks what it got and
+ * puts back anything fresh; a small window remains there (JC-25).
+ */
+function claimStaleLock(lockPath: string): boolean {
+  if (!isStale(lockPath)) return false;
+  const claim = `${lockPath}.${randomUUID()}`;
+  try {
+    renameSync(lockPath, claim);
+  } catch {
+    return false;
+  }
+  const stale = settleClaim(claim, lockPath);
+  if (stale) console.error(`work: recovered stale lock ${lockPath}`);
+  return stale;
+}
+
+/** Returns whether the claimed file was stale, restoring it if it was not. */
+export function settleClaim(claim: string, lockPath: string): boolean {
+  const stale = isStale(claim);
+  if (!stale) {
+    try {
+      linkSync(claim, lockPath);
+    } catch {
+      // Another waiter holds the lock now, so this one has nothing to restore.
+    }
+  }
+  try {
+    unlinkSync(claim);
+  } catch {
+    // already gone
+  }
+  return stale;
 }
 
 export class LockTimeoutError extends Error {}
@@ -20,7 +74,9 @@ export function withFileLock<T>(lockPath: string, fn: () => T): T {
       fd = openSync(lockPath, "wx");
       break;
     } catch {
+      if (claimStaleLock(lockPath)) continue;
       if (attempt === MAX_LOCK_ATTEMPTS - 1) {
+        console.error(`work: timed out acquiring lock ${lockPath}`);
         throw new LockTimeoutError(`Timed out acquiring lock: ${lockPath}`);
       }
       sleepMs(LOCK_RETRY_MS);
