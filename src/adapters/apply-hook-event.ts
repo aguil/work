@@ -31,7 +31,11 @@ import {
   resolveConversationId,
   resolveHookEventName,
 } from "./hook-events.js";
-import { correctAgentCli, isStaleHookEvent } from "./update-agent.js";
+import {
+  correctAgentCli,
+  isStaleHookEvent,
+  paneEndedAfter,
+} from "./update-agent.js";
 
 export interface HookEventResult {
   applied: boolean;
@@ -448,6 +452,9 @@ export function applyHookEvent(
 
     let agent: AgentRecord | undefined;
     if (target.createAgent && paneId) {
+      if (paneEndedAfter(Object.values(ws.agents), paneId, opts?.eventTs)) {
+        return dirty;
+      }
       agent = createAgentForPane(ws, paneId, opts?.cli ?? "agent");
     } else if (target.agentLabel) {
       agent = ws.agents[target.agentLabel];
@@ -456,7 +463,6 @@ export function applyHookEvent(
     }
     if (!agent) return dirty;
 
-    // Before anything below, which would reattach an agent sessionEnd detached.
     if (isStaleHookEvent(agent, opts?.eventTs)) return dirty;
 
     if (opts?.cli && correctAgentCli(agent, opts.cli)) {
@@ -517,6 +523,7 @@ export function applyHookEvent(
       agent.hookEvent = event;
       agent.pendingIdleCount = 0;
       agent.conversationId = null;
+      agent.endedPaneId = agent.paneId;
       agent.paneId = null;
       agent.detachedAt = new Date().toISOString();
       agent.lastSeen = new Date().toISOString();

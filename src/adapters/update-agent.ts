@@ -85,6 +85,23 @@ export function isStaleHookEvent(
 }
 
 /**
+ * `sessionEnd` unlinks its agent from the pane, so a late event from that pane
+ * finds no record to compare against and would create a new one.
+ */
+export function paneEndedAfter(
+  agents: Iterable<AgentRecord>,
+  paneId: string,
+  eventTs: number | undefined,
+): boolean {
+  for (const agent of agents) {
+    if (agent.endedPaneId === paneId && isStaleHookEvent(agent, eventTs)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * A hook-created record written before hooks reported their CLI has
  * `cli: "agent"`, which resolves to Cursor's manifest whatever fired the hook.
  * Only a hook can correct it: detection echoes a registered pane's

@@ -361,6 +361,28 @@ for target in claude cursor; do
     && fail "$target never uses %N" || pass "$target never uses %N"
 done
 
+section "A late event after sessionEnd (#51)"
+# Passes --ts directly so the order is fixed, from a real pane: an event with no
+# pane never reaches the agent lookup, so it could not show this.
+fire_at() {
+  local pane="$1" ts="$2" json="$3"
+  printf '%s' "$json" | TMUX="$(tmux display-message -p '#{socket_path},0,0')" \
+    $WORK agent hook-event --quiet --cli claude --pane "$pane" --ts "$ts"
+}
+
+ORDER_PANE=$(tmux new-window -d -t "$SESSION" -P -F '#{pane_id}' 'sleep 300')
+fire_at "$ORDER_PANE" 2000 '{"hook_event_name":"PreToolUse","session_id":"order"}'
+assert_eq "agent works before its session ends" "working" "$(pane_status "$ORDER_PANE")"
+fire_at "$ORDER_PANE" 3000 '{"hook_event_name":"SessionEnd","session_id":"order"}'
+assert_eq "sessionEnd detaches the agent" "missing" "$(pane_status "$ORDER_PANE")"
+BEFORE=$($WORK agents --json | node -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf-8")).length)')
+fire_at "$ORDER_PANE" 1000 '{"hook_event_name":"PreToolUse","session_id":"order"}'
+assert_eq "an older event does not bring the pane back" "missing" "$(pane_status "$ORDER_PANE")"
+AFTER=$($WORK agents --json | node -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf-8")).length)')
+assert_eq "an older event creates no record" "$BEFORE" "$AFTER"
+fire_at "$ORDER_PANE" 4000 '{"hook_event_name":"PreToolUse","session_id":"order-2"}'
+assert_eq "a newer event in that pane starts a new agent" "working" "$(pane_status "$ORDER_PANE")"
+
 section "Summary"
 echo "Passed: $PASS"
 echo "Failed: $FAIL"

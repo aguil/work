@@ -570,13 +570,4 @@ describe("hook event ordering", { concurrency: false }, () => {
     assert.equal(agent()?.status, "working");
     assert.equal(agent()?.lastEventTs, 200);
   });
-
-  it("does not reattach an agent when an older event follows sessionEnd", () => {
-    fire("SessionEnd", 200);
-    assert.equal(agent()?.status, "detached");
-
-    fire("PreToolUse", 100);
-
-    assert.equal(agent()?.status, "detached");
-  });
 });
