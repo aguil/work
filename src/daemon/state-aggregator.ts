@@ -229,13 +229,17 @@ function probeUndetectedAgents(
   for (const agent of Object.values(ws.agents)) {
     if (!agent.paneId || detectedPaneIds.has(agent.paneId)) continue;
     const pane = paneById.get(agent.paneId);
+    // Sync detaches this agent without reading its pane.
+    if (pane && !pane.workAgentLabel && !hasExplicitHookStatus(agent)) continue;
+    const hostsAgent = pane
+      ? paneStillHostsAgent(pane, agent.cli, agentCliSet)
+      : false;
     probes.set(probeKey(agent), {
-      hostsAgent: pane
-        ? paneStillHostsAgent(pane, agent.cli, agentCliSet)
-        : false,
-      detected: pane
-        ? detectSinglePane(pane, { preserveCache: true }) != null
-        : false,
+      hostsAgent,
+      detected:
+        pane && !hostsAgent
+          ? detectSinglePane(pane, { preserveCache: true }) != null
+          : false,
     });
   }
   return probes;
@@ -409,10 +413,6 @@ function syncAgentsToWorkspace(
       agent.status !== "detached" &&
       !detectedPaneIds.has(agent.paneId)
     ) {
-      // A record a hook created or moved since the poll's read was never
-      // probed. Nothing says its pane is gone, so the next poll decides.
-      const probe = probes.get(probeKey(agent));
-      if (!probe) continue;
       const pane = paneById.get(agent.paneId);
       if (!pane?.workAgentLabel && !hasExplicitHookStatus(agent)) {
         agent.status = "detached";
@@ -423,6 +423,10 @@ function syncAgentsToWorkspace(
         changed = true;
         continue;
       }
+      // A record a hook created or moved since the poll's read was never
+      // probed. Nothing says its pane is gone, so the next poll decides.
+      const probe = probes.get(probeKey(agent));
+      if (!probe) continue;
       if (
         pane &&
         (probe.hostsAgent || (hasExplicitHookStatus(agent) && probe.detected))

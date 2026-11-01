@@ -344,6 +344,30 @@ describe("applyWorkspacePoll", { concurrency: false }, () => {
     assert.equal(read.lastSeenAtRead.get("a"), lastSeen);
   });
 
+  it("keeps an agent a hook made explicit after the read skipped its probe", () => {
+    seed({ ...explicitWorkingAgent("%1"), label: "a" });
+    const read = poll({ paneById: new Map([["%1", pane("%1", "")]]) });
+
+    applyWorkspacePoll("w", read);
+
+    assert.equal(stored("a")?.status, "working");
+    assert.equal(stored("a")?.paneId, "%1");
+  });
+
+  it("detaches an unlabelled, unconfirmed agent without a probe", () => {
+    seed({
+      ...explicitWorkingAgent("%1"),
+      label: "a",
+      confidence: "heuristic",
+    });
+    applyWorkspacePoll(
+      "w",
+      poll({ paneById: new Map([["%1", pane("%1", "")]]) }),
+    );
+
+    assert.equal(stored("a")?.status, "detached");
+  });
+
   it("leaves a record alone when the poll's read never saw its pane", () => {
     seed({ ...explicitWorkingAgent("%9"), label: "a" });
     applyWorkspacePoll("w", poll({}));
