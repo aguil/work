@@ -25,7 +25,7 @@ import {
   mutateWorkspace,
 } from "../workspace/state.js";
 import { applyHookEvent } from "./apply-hook-event.js";
-import { applyHookStatus } from "./debounce.js";
+import { applyHookStatus, applyObservation } from "./debounce.js";
 import type { ObservationResult } from "./types.js";
 import { correctAgentCli, observeAgents } from "./update-agent.js";
 
@@ -74,6 +74,27 @@ describe("observeAgents", () => {
     assert.equal(observations.size, 0);
     assert.equal(agent.status, "working");
     assert.equal(agent.confidence, "explicit");
+  });
+});
+
+describe("applyObservation", () => {
+  const observed = (status: AgentStatus): ObservationResult => ({
+    status,
+    confidence: "inferred",
+    manifestState: "working",
+    rulePriority: 1,
+  });
+
+  it("ignores working on a stalled agent, for every caller", () => {
+    const agent: AgentRecord = {
+      ...explicitWorkingAgent("%1"),
+      status: "unknown",
+      confidence: "heuristic",
+      stalledAt: new Date().toISOString(),
+    };
+
+    assert.equal(applyObservation(agent, observed("working")), false);
+    assert.equal(agent.status, "unknown");
   });
 });
 

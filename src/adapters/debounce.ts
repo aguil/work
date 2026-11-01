@@ -29,6 +29,9 @@ export function applyObservation(
   const nextStatus = observed.status;
   const nextConfidence = observed.confidence;
 
+  // A frozen screen can keep showing a working hint, so it proves nothing.
+  if (agent.stalledAt && nextStatus === "working") return false;
+
   if (
     nextStatus === "idle" &&
     DEBOUNCE_FROM.has(agent.status) &&

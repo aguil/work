@@ -12,11 +12,6 @@ import type { AgentHookInput } from "./hook-events.js";
 import { observeAgentPane, observePane } from "./observe.js";
 import type { ObservationResult } from "./types.js";
 
-/** A frozen screen can keep showing a working hint, so it proves nothing. */
-function stallIgnores(agent: AgentRecord, result: ObservationResult): boolean {
-  return Boolean(agent.stalledAt) && result.status === "working";
-}
-
 export function updateAgentFromPane(
   agent: AgentRecord,
   paneId: string,
@@ -29,7 +24,7 @@ export function updateAgentFromPane(
   }
 
   const result = observeAgentPane(paneId, agent.cli);
-  if (!result || stallIgnores(agent, result)) return false;
+  if (!result) return false;
   return applyObservation(agent, result);
 }
 
@@ -72,7 +67,6 @@ export function applyPaneObservation(
   { pane, result }: PaneObservation,
 ): boolean {
   if (agent.status === "detached" || agent.paneId !== pane.id) return false;
-  if (stallIgnores(agent, result)) return false;
   if (hasExplicitHookStatus(agent)) {
     if (titleVouchesForWorking(agent, pane)) return false;
     if (!observationOverridesExplicit(result)) return false;
