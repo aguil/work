@@ -35,6 +35,8 @@ export interface AgentRecord {
   confidence: "explicit" | "inferred" | "heuristic" | "none";
   detachedAt: string | null;
   lastSeen: string;
+  /** When `status` took its value. `lastSeen` moves on every observation. */
+  statusSince?: string;
   pendingIdleCount?: number;
   conversationId?: string | null;
   hookEvent?: string | null;

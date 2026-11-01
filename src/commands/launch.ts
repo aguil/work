@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import { resetAgentStatus } from "../adapters/debounce.js";
 import { shellQuote } from "../shell-quote.js";
 import * as tmux from "../tmux/client.js";
 import { requireWorkspace } from "../workspace/helpers.js";
@@ -31,6 +32,7 @@ function registerAgent(
     cli,
     paneId,
     status: "unknown",
+    statusSince: new Date().toISOString(),
     confidence: "none",
     detachedAt: null,
     lastSeen: new Date().toISOString(),
@@ -124,7 +126,7 @@ export function registerAgentRelaunch(agent: Command): void {
         });
 
         agentRecord.paneId = paneId;
-        agentRecord.status = "unknown";
+        resetAgentStatus(agentRecord, "unknown");
         agentRecord.detachedAt = null;
         agentRecord.lastSeen = new Date().toISOString();
         saveWorkspace(ws);

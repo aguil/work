@@ -28,7 +28,13 @@ import { applyHookEvent } from "./apply-hook-event.js";
 import { applyHookStatus, applyObservation } from "./debounce.js";
 import { parseManifestFile } from "./loader.js";
 import type { ObservationResult } from "./types.js";
-import { CURSOR_CLIS, correctAgentCli, observeAgents } from "./update-agent.js";
+import {
+  CURSOR_CLIS,
+  checkStall,
+  correctAgentCli,
+  HOOK_TTL_MS,
+  observeAgents,
+} from "./update-agent.js";
 
 function pane(id: string, title: string): TmuxPane {
   return {
@@ -132,6 +138,77 @@ describe("correctAgentCli", () => {
   });
 });
 
+describe("statusSince", () => {
+  const SINCE = "2026-01-01T00:00:00.000Z";
+  const held = (status: AgentStatus): AgentRecord => ({
+    ...explicitWorkingAgent("%1"),
+    status,
+    statusSince: SINCE,
+  });
+  const observation = (
+    status: AgentStatus,
+    evidence = "first",
+  ): ObservationResult => ({
+    status,
+    confidence: "inferred",
+    manifestState: "working",
+    rulePriority: 1,
+    evidence,
+  });
+
+  it("holds across repeated observations of one status", () => {
+    const agent = held("working");
+    applyObservation(agent, observation("working"));
+    applyObservation(agent, observation("working", "second"));
+
+    assert.equal(agent.statusSince, SINCE);
+    assert.equal(agent.statusEvidence, "second");
+  });
+
+  it("holds when only the confidence changes", () => {
+    const agent = { ...held("working"), confidence: "heuristic" as const };
+    applyHookStatus(agent, "working", "preToolUse");
+
+    assert.equal(agent.confidence, "explicit");
+    assert.equal(agent.statusSince, SINCE);
+  });
+
+  it("resets when an observation changes the status", () => {
+    const agent = held("working");
+    applyObservation(agent, observation("blocked"));
+
+    assert.notEqual(agent.statusSince, SINCE);
+  });
+
+  it("resets when a hook changes the status", () => {
+    const agent = held("working");
+    applyHookStatus(agent, "idle", "stop");
+
+    assert.notEqual(agent.statusSince, SINCE);
+  });
+
+  it("resets when an agent stalls", () => {
+    const agent: AgentRecord = {
+      ...held("working"),
+      cli: "cursor-agent",
+      lastHookEventAt: SINCE,
+    };
+    assert.equal(checkStall(agent, Date.parse(SINCE) + HOOK_TTL_MS), true);
+
+    assert.equal(agent.status, "unknown");
+    assert.notEqual(agent.statusSince, SINCE);
+  });
+
+  it("stays absent on a record from before the field until the status changes", () => {
+    const agent = explicitWorkingAgent("%1");
+    applyObservation(agent, observation("working"));
+    assert.equal(agent.statusSince, undefined);
+
+    applyObservation(agent, observation("blocked"));
+    assert.equal(typeof agent.statusSince, "string");
+  });
+});
+
 describe("applyWorkspacePoll", { concurrency: false }, () => {
   const saved = {
     XDG_STATE_HOME: process.env.XDG_STATE_HOME,
@@ -211,6 +288,65 @@ describe("applyWorkspacePoll", { concurrency: false }, () => {
       paneById: new Map([[paneId, pane(paneId, "")]]),
     });
   }
+
+  it("resets statusSince when a poll detaches an agent", () => {
+    const since = ago(minutes(30));
+    seed({
+      ...explicitWorkingAgent("%1"),
+      label: "a",
+      confidence: "heuristic",
+      statusSince: since,
+    });
+    applyWorkspacePoll(
+      "w",
+      poll({
+        paneById: new Map([["%1", pane("%1", "")]]),
+        probes: new Map([["a\0%1", null]]),
+      }),
+    );
+
+    assert.equal(stored("a")?.status, "detached");
+    assert.notEqual(stored("a")?.statusSince, since);
+  });
+
+  it("resets statusSince when a poll reattaches an agent on its pane", () => {
+    const since = ago(minutes(30));
+    seed({
+      ...explicitWorkingAgent("%1"),
+      label: "a",
+      status: "detached",
+      confidence: "none",
+      statusSince: since,
+    });
+    applyWorkspacePoll("w", pollPane());
+
+    assert.notEqual(stored("a")?.status, "detached");
+    assert.notEqual(stored("a")?.statusSince, since);
+  });
+
+  it("resets statusSince when a poll reattaches an agent to a new pane", () => {
+    const since = ago(minutes(30));
+    seed({
+      ...explicitWorkingAgent("%9"),
+      label: "a",
+      cli: "claude",
+      paneId: null,
+      status: "detached",
+      confidence: "none",
+      statusSince: since,
+    });
+    applyWorkspacePoll("w", pollPane());
+
+    assert.equal(stored("a")?.paneId, "%1");
+    assert.notEqual(stored("a")?.statusSince, since);
+  });
+
+  it("starts statusSince on a record a poll creates", () => {
+    applyWorkspacePoll("w", pollPane());
+
+    const created = Object.values(loadWorkspace("w")?.agents ?? {})[0];
+    assert.equal(typeof created?.statusSince, "string");
+  });
 
   it("drops an explicit status to heuristic once hooks are quiet for 15 minutes", () => {
     seed({
@@ -808,6 +944,21 @@ describe("hook event ordering", { concurrency: false }, () => {
   }
 
   const agent = () => loadWorkspace("w")?.agents.a;
+
+  it("resets statusSince on sessionEnd", () => {
+    const since = "2026-01-01T00:00:00.000Z";
+    mutateWorkspace("w", (ws) => {
+      ws.agents.a.statusSince = since;
+      return true;
+    });
+    applyHookEvent({
+      hook_event_name: "SessionEnd",
+      session_id: "c",
+      reason: "other",
+    });
+    assert.equal(agent()?.status, "detached");
+    assert.notEqual(agent()?.statusSince, since);
+  });
 
   it("drops an event older than the last applied one", () => {
     assert.equal(fire("Stop", 200), true);

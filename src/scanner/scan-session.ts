@@ -71,6 +71,7 @@ function registerDetectedAgent(
     cli: detected.cli,
     paneId: detected.paneId,
     status: "unknown",
+    statusSince: new Date().toISOString(),
     confidence: "none",
     detachedAt: null,
     lastSeen: new Date().toISOString(),

@@ -20,6 +20,9 @@ const { dim, bold, reset, green } = colors;
 
 const ANSI_ESCAPE = String.fromCharCode(0x1b);
 const FOOTER_LINES = 2;
+// `colors.dim` is a grey, which a status color would replace.
+const FAINT = "\x1b[2m";
+const STATUS_AGE_AFTER_MS = 10 * 60_000;
 
 function truncateVisible(s: string, maxVisible: number): string {
   if (maxVisible <= 0) return "";
@@ -61,33 +64,58 @@ function hr(width: number): string {
   return dim + "─".repeat(width) + reset;
 }
 
+function formatStatusAge(agent: AgentView, now: number): string {
+  if (!agent.statusSince) return "";
+  const held = now - Date.parse(agent.statusSince);
+  if (!(held > STATUS_AGE_AFTER_MS)) return "";
+  const minutes = Math.floor(held / 60_000);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
+
 function renderAgentRow(
   agent: AgentView,
   width: number,
+  now: number,
   session?: SessionSnapshot,
   shortcutContext?: ReturnType<typeof createSessionShortcutContext>,
 ): string {
-  const icon = coloredStatus(agent.status);
+  const glyph = coloredStatus(agent.status);
+  const icon = agent.confidence === "explicit" ? glyph : `${FAINT}${glyph}`;
+  const age = formatStatusAge(agent, now);
+  const ageText = age ? ` ${age}` : "";
   const location = formatWindowLocation(agent, session, shortcutContext);
   const iconLen = 1;
   const minLocation = 8;
   const gap = "  ";
   const maxLabel = Math.max(
     0,
-    width - iconLen - gap.length - minLocation - gap.length,
+    width - iconLen - gap.length - ageText.length - minLocation - gap.length,
   );
   const label = truncateVisible(agent.label, maxLabel);
   let loc = location;
   const used =
-    iconLen + gap.length + visibleLength(label) + gap.length + loc.length;
+    iconLen +
+    gap.length +
+    visibleLength(label) +
+    ageText.length +
+    gap.length +
+    loc.length;
   if (used > width) {
     const locBudget = Math.max(
       minLocation,
-      width - iconLen - gap.length - visibleLength(label) - gap.length,
+      width -
+        iconLen -
+        gap.length -
+        visibleLength(label) -
+        ageText.length -
+        gap.length,
     );
     loc = truncateVisible(location, locBudget);
   }
-  return `${icon}${gap}${label}${gap}${dim}${loc}${reset}`;
+  return `${icon}${gap}${label}${dim}${ageText}${reset}${gap}${dim}${loc}${reset}`;
 }
 
 function renderCountBadge(icon: string, count: number, color: string): string {
@@ -178,6 +206,7 @@ export function render(
   cols: number,
   rows: number,
   daemonConnected: boolean,
+  now: number = Date.now(),
 ): string {
   const lines: string[] = [];
   const normalized = normalizeSessions(sessions);
@@ -221,7 +250,7 @@ export function render(
       continue;
     }
     const session = findAgentSession(agent);
-    lines.push(renderAgentRow(agent, w, session, shortcutContext));
+    lines.push(renderAgentRow(agent, w, now, session, shortcutContext));
   }
   if (agentsTruncated > 0 && lines.length < maxBody) {
     lines.push(`${dim}… +${agentsTruncated} agents${reset}`);
