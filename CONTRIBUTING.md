@@ -31,7 +31,8 @@ npm run pre-commit   # markdown + biome via pre-commit framework
 npm run test         # phases 1–7; requires tmux
 ```
 
-`npm run check` runs typecheck, lint, build, and the full integration suite.
+`npm run check` runs typecheck, lint, build, the unit tests, and the full
+integration suite.
 
 Unit tests only (no tmux):
 
