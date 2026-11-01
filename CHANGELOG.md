@@ -9,6 +9,17 @@ Entries from the next release onward are updated by
 [release-please](https://github.com/googleapis/release-please) when the release
 PR merges. See [CONTRIBUTING.md](./CONTRIBUTING.md#releasing).
 
+## [0.1.11](https://github.com/aguil/work/compare/v0.1.10...v0.1.11) (2026-11-01)
+
+
+### Fixed
+
+* abort the wrapper when it has no private directory ([f2b6830](https://github.com/aguil/work/commit/f2b6830bf90f8af6237f64da91761b46a26e4acf))
+* let nothing outlive the wrapper after a signal ([c6d0690](https://github.com/aguil/work/commit/c6d069073b2f0afce6aebad14307a1e189c31469))
+* signal the wrapped command's whole process group ([540d1fd](https://github.com/aguil/work/commit/540d1fd16cc7568a99dddca0860f97f3310a53c1))
+* stop the wrapped command when the wrapper is hung up ([d37a09f](https://github.com/aguil/work/commit/d37a09fe4242e207ebd5f0ad49f80531d3e79298))
+* stop the wrapped command when the wrapper is signalled ([604b496](https://github.com/aguil/work/commit/604b49635bfc8350bcceb84bec1e2792f9221665))
+
 ## [0.1.10](https://github.com/aguil/work/compare/v0.1.9...v0.1.10) (2026-11-01)
 
 
