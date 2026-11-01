@@ -1,13 +1,21 @@
+import { statSync } from "node:fs";
 import type { TmuxPane } from "../tmux/client.js";
 import type { AgentRecord } from "../workspace/state.js";
 import { isActiveAgentTitle } from "./agent-title.js";
 import {
   applyObservation,
+  clearScreenMetadata,
   hasExplicitHookStatus,
   observationOverridesExplicit,
 } from "./debounce.js";
+import type { AgentHookInput } from "./hook-events.js";
 import { observeAgentPane, observePane } from "./observe.js";
 import type { ObservationResult } from "./types.js";
+
+/** A frozen screen can keep showing a working hint, so it proves nothing. */
+function stallIgnores(agent: AgentRecord, result: ObservationResult): boolean {
+  return Boolean(agent.stalledAt) && result.status === "working";
+}
 
 export function updateAgentFromPane(
   agent: AgentRecord,
@@ -21,7 +29,7 @@ export function updateAgentFromPane(
   }
 
   const result = observeAgentPane(paneId, agent.cli);
-  if (!result) return false;
+  if (!result || stallIgnores(agent, result)) return false;
   return applyObservation(agent, result);
 }
 
@@ -64,6 +72,7 @@ export function applyPaneObservation(
   { pane, result }: PaneObservation,
 ): boolean {
   if (agent.status === "detached" || agent.paneId !== pane.id) return false;
+  if (stallIgnores(agent, result)) return false;
   if (hasExplicitHookStatus(agent)) {
     if (titleVouchesForWorking(agent, pane)) return false;
     if (!observationOverridesExplicit(result)) return false;
@@ -73,6 +82,63 @@ export function applyPaneObservation(
 }
 
 export const HOOK_TTL_MS = 15 * 60_000;
+export const STALL_TIMEOUT_MS = 120_000;
+
+function transcriptMtimeMs(agent: AgentRecord): number | null {
+  if (!agent.transcriptPath) return null;
+  try {
+    return statSync(agent.transcriptPath).mtimeMs;
+  } catch {
+    return null;
+  }
+}
+
+function markStalled(agent: AgentRecord, now: number): void {
+  agent.status = "unknown";
+  agent.confidence = "heuristic";
+  clearScreenMetadata(agent);
+  agent.stalledAt = new Date(now).toISOString();
+}
+
+/**
+ * Clears a stall whose file moved, then stalls an agent reading `working` with
+ * no sign of life. Claude Code's signal is its transcript within a turn, and
+ * Cursor's is the hook TTL, since no Cursor file tracks a turn. A hook counts as
+ * a sign of life on both, or the hook that clears a stall would re-stall it.
+ */
+export function checkStall(agent: AgentRecord, now: number): boolean {
+  const mtime = transcriptMtimeMs(agent);
+  if (agent.stalledAt) {
+    if (mtime === null || mtime <= Date.parse(agent.stalledAt)) return false;
+    agent.stalledAt = null;
+    return true;
+  }
+  if (agent.status !== "working" || !agent.lastHookEventAt) return false;
+  const lastHook = Date.parse(agent.lastHookEventAt);
+  if (agent.cli === "agent") {
+    if (now - lastHook < HOOK_TTL_MS) return false;
+  } else {
+    if (mtime === null || !agent.promptId) return false;
+    if (now - Math.max(mtime, lastHook) < STALL_TIMEOUT_MS) return false;
+  }
+  markStalled(agent, now);
+  return true;
+}
+
+/** Records one hook event of any kind: the agent is alive, whatever it said. */
+export function recordHookActivity(
+  agent: AgentRecord,
+  input: AgentHookInput,
+): void {
+  agent.lastHookEventAt = new Date().toISOString();
+  agent.stalledAt = null;
+  if (typeof input.transcript_path === "string") {
+    agent.transcriptPath = input.transcript_path;
+  }
+  if (typeof input.prompt_id === "string") {
+    agent.promptId = input.prompt_id;
+  }
+}
 
 /**
  * A hook status is only as good as the hooks behind it: once they go quiet on

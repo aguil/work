@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  rmSync,
+  unlinkSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
@@ -180,6 +186,7 @@ describe("applyWorkspacePoll", { concurrency: false }, () => {
     seed({
       ...explicitWorkingAgent("%1"),
       label: "a",
+      cli: "claude",
       lastHookEventAt: ago(minutes(15) + 1000),
     });
     applyWorkspacePoll("w", pollPane());
@@ -211,7 +218,7 @@ describe("applyWorkspacePoll", { concurrency: false }, () => {
   });
 
   it("starts the clock on a record from before the field, then ages it", () => {
-    seed({ ...explicitWorkingAgent("%1"), label: "a" });
+    seed({ ...explicitWorkingAgent("%1"), label: "a", cli: "claude" });
     applyWorkspacePoll("w", pollPane());
 
     assert.equal(stored("a")?.confidence, "explicit");
@@ -224,6 +231,161 @@ describe("applyWorkspacePoll", { concurrency: false }, () => {
     applyWorkspacePoll("w", pollPane());
 
     assert.equal(stored("a")?.confidence, "heuristic");
+  });
+
+  function transcript(ageMs: number): string {
+    const path = join(home, "transcript.jsonl");
+    writeFileSync(path, "{}\n");
+    const when = new Date(Date.now() - ageMs);
+    utimesSync(path, when, when);
+    return path;
+  }
+
+  function claudeWorking(ageMs: number, fields?: Partial<AgentRecord>): void {
+    seed({
+      ...explicitWorkingAgent("%1"),
+      label: "a",
+      cli: "claude",
+      transcriptPath: transcript(ageMs),
+      promptId: "p1",
+      lastHookEventAt: ago(ageMs),
+      ...fields,
+    });
+  }
+
+  function cursorWorking(fields?: Partial<AgentRecord>): void {
+    seed({
+      ...explicitWorkingAgent("%1"),
+      label: "a",
+      lastHookEventAt: ago(minutes(16)),
+      ...fields,
+    });
+  }
+
+  function pollWith(status: AgentStatus): WorkspacePoll {
+    const p = pane("%1", "");
+    return poll({
+      detected: [detected("%1")],
+      paneById: new Map([["%1", p]]),
+      observations: new Map([["%1", { pane: p, result: observed(status) }]]),
+    });
+  }
+
+  it("stalls a working Claude agent after 120s of an unchanged transcript", () => {
+    claudeWorking(minutes(3));
+    applyWorkspacePoll("w", pollPane());
+
+    assert.equal(stored("a")?.status, "unknown");
+    assert.equal(stored("a")?.confidence, "heuristic");
+    assert.ok(stored("a")?.stalledAt);
+  });
+
+  it("stalls at any confidence", () => {
+    claudeWorking(minutes(3), { confidence: "heuristic" });
+    applyWorkspacePoll("w", pollPane());
+
+    assert.equal(stored("a")?.status, "unknown");
+  });
+
+  it("does not stall inside 120s of the transcript changing", () => {
+    claudeWorking(minutes(1));
+    applyWorkspacePoll("w", pollPane());
+
+    assert.equal(stored("a")?.status, "working");
+  });
+
+  it("does not stall inside 120s of a hook, even with an old transcript", () => {
+    claudeWorking(minutes(3), { lastHookEventAt: ago(minutes(1)) });
+    applyWorkspacePoll("w", pollPane());
+
+    assert.equal(stored("a")?.status, "working");
+  });
+
+  it("does not stall a Claude agent with no turn", () => {
+    claudeWorking(minutes(3), { promptId: undefined });
+    applyWorkspacePoll("w", pollPane());
+
+    assert.equal(stored("a")?.status, "working");
+  });
+
+  it("stalls only an agent reading working", () => {
+    claudeWorking(minutes(3), { status: "idle" });
+    applyWorkspacePoll("w", pollPane());
+
+    assert.equal(stored("a")?.status, "idle");
+    assert.ok(!stored("a")?.stalledAt);
+  });
+
+  for (const status of ["blocked", "idle", "done", "error"] as const) {
+    it(`applies an observation of ${status} while stalled`, () => {
+      claudeWorking(minutes(3));
+      applyWorkspacePoll("w", pollPane());
+
+      // Three reads: idle takes three confirmations from unknown.
+      applyWorkspacePoll("w", pollWith(status));
+      applyWorkspacePoll("w", pollWith(status));
+      applyWorkspacePoll("w", pollWith(status));
+
+      assert.equal(stored("a")?.status, status);
+    });
+  }
+
+  it("ignores an observation of working while stalled", () => {
+    claudeWorking(minutes(3));
+    applyWorkspacePoll("w", pollPane());
+
+    applyWorkspacePoll("w", pollWith("working"));
+
+    assert.equal(stored("a")?.status, "unknown");
+    assert.ok(stored("a")?.stalledAt);
+  });
+
+  it("clears the stall when the transcript changes", () => {
+    claudeWorking(minutes(3));
+    applyWorkspacePoll("w", pollPane());
+    const path = stored("a")?.transcriptPath;
+    assert.ok(path);
+    const later = new Date(Date.now() + 5000);
+    utimesSync(path, later, later);
+
+    applyWorkspacePoll("w", pollWith("working"));
+
+    assert.ok(!stored("a")?.stalledAt);
+    assert.equal(stored("a")?.status, "working");
+  });
+
+  it("stalls a working Cursor agent after 15 quiet minutes, with no file", () => {
+    cursorWorking();
+    applyWorkspacePoll("w", pollPane());
+
+    assert.equal(stored("a")?.status, "unknown");
+    assert.ok(stored("a")?.stalledAt);
+  });
+
+  it("does not stall a Cursor agent inside 15 minutes", () => {
+    cursorWorking({ lastHookEventAt: ago(minutes(14)) });
+    applyWorkspacePoll("w", pollPane());
+
+    assert.equal(stored("a")?.status, "working");
+  });
+
+  it("ignores a transcript on a Cursor agent", () => {
+    cursorWorking({
+      lastHookEventAt: ago(minutes(14)),
+      transcriptPath: transcript(minutes(14)),
+      promptId: "p1",
+    });
+    applyWorkspacePoll("w", pollPane());
+
+    assert.equal(stored("a")?.status, "working");
+  });
+
+  it("never stalls a Cursor agent no hook has reached", () => {
+    cursorWorking({ lastHookEventAt: undefined, confidence: "heuristic" });
+    applyWorkspacePoll("w", pollPane());
+
+    assert.equal(stored("a")?.status, "working");
+    assert.ok(!stored("a")?.stalledAt);
   });
 
   it("keeps a hook status that landed after the poll's read", () => {
@@ -630,6 +792,41 @@ describe("hook event ordering", { concurrency: false }, () => {
 
     assert.notEqual(agent()?.lastHookEventAt, "2026-01-01T00:00:00.000Z");
     assert.equal(agent()?.status, "idle");
+  });
+
+  it("stores the transcript and turn from a hook payload", () => {
+    applyHookEvent({
+      hook_event_name: "PreToolUse",
+      session_id: "c",
+      transcript_path: "/tmp/t.jsonl",
+      prompt_id: "p1",
+    });
+
+    assert.equal(agent()?.transcriptPath, "/tmp/t.jsonl");
+    assert.equal(agent()?.promptId, "p1");
+  });
+
+  it("clears a stall on an event with no status", () => {
+    mutateWorkspace("w", (ws) => {
+      ws.agents.a.stalledAt = new Date().toISOString();
+      return true;
+    });
+
+    fire("PostToolUse");
+
+    assert.ok(!agent()?.stalledAt);
+  });
+
+  it("clears a stall on an event with a status", () => {
+    mutateWorkspace("w", (ws) => {
+      ws.agents.a.stalledAt = new Date().toISOString();
+      return true;
+    });
+
+    fire("PreToolUse");
+
+    assert.ok(!agent()?.stalledAt);
+    assert.equal(agent()?.status, "working");
   });
 
   it("applies an event with an equal timestamp", () => {

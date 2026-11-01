@@ -42,6 +42,12 @@ export interface AgentRecord {
   lastEventTs?: number;
   /** When a hook last fired for this agent, whether or not it set a status. */
   lastHookEventAt?: string;
+  /** Claude Code's transcript for this agent; its mtime tracks a turn. */
+  transcriptPath?: string;
+  /** Claude Code's current turn. */
+  promptId?: string;
+  /** When this agent read as stalled; only a file change or a hook clears it. */
+  stalledAt?: string | null;
   /** The pane `sessionEnd` took this agent from, which detach otherwise loses. */
   endedPaneId?: string | null;
   // Screen-derived metadata below is only meaningful while `status` came

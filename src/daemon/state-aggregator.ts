@@ -5,6 +5,7 @@ import {
 import {
   ageHookConfidence,
   applyPaneObservation,
+  checkStall,
   observeAgents,
   type PaneObservation,
 } from "../adapters/update-agent.js";
@@ -309,12 +310,9 @@ export function applyWorkspacePoll(
       let changed = sync.changed;
       const now = Date.now();
       for (const agent of Object.values(fresh.agents)) {
-        if (
-          agent.paneId &&
-          poll.paneById.has(agent.paneId) &&
-          ageHookConfidence(agent, now)
-        ) {
-          changed = true;
+        if (agent.paneId && poll.paneById.has(agent.paneId)) {
+          if (ageHookConfidence(agent, now)) changed = true;
+          if (checkStall(agent, now)) changed = true;
         }
         if (movedSinceRead.has(agent.label)) continue;
         const observation = agent.paneId

@@ -400,6 +400,14 @@ done
   || fail "PostToolUse moves lastHookEventAt on the pane it fired from"
 assert_eq "PostToolUse leaves the status" "idle" "$(pane_status "$QUIET_PANE")"
 
+section "A hook carries the transcript and turn (#48)"
+TURN_PANE=$(tmux new-window -d -t "$SESSION" -P -F '#{pane_id}' 'sleep 300')
+fire_hook claude "$TURN_PANE" '{"hook_event_name":"PreToolUse","session_id":"turn","tool_name":"Read","transcript_path":"/tmp/turn-only.jsonl","prompt_id":"prompt-only"}'
+assert_eq "transcript path lands on the pane it fired from" "/tmp/turn-only.jsonl" \
+  "$(wait_pane_field "$TURN_PANE" transcriptPath /tmp/turn-only.jsonl)"
+assert_eq "prompt_id lands on the pane it fired from" "prompt-only" \
+  "$(pane_field "$TURN_PANE" promptId)"
+
 section "Summary"
 echo "Passed: $PASS"
 echo "Failed: $FAIL"

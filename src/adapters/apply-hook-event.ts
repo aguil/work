@@ -35,6 +35,7 @@ import {
   correctAgentCli,
   isStaleHookEvent,
   paneEndedAfter,
+  recordHookActivity,
 } from "./update-agent.js";
 
 export interface HookEventResult {
@@ -404,7 +405,7 @@ export function applyHookEvent(
       mutateWorkspace(target.workspaceName, (ws) => {
         const agent = ws.agents[label];
         if (!agent) return false;
-        agent.lastHookEventAt = new Date().toISOString();
+        recordHookActivity(agent, input);
         return true;
       });
     }
@@ -483,7 +484,7 @@ export function applyHookEvent(
     }
     if (!agent) return dirty;
 
-    agent.lastHookEventAt = new Date().toISOString();
+    recordHookActivity(agent, input);
     dirty = true;
 
     if (isStaleHookEvent(agent, opts?.eventTs)) return dirty;
