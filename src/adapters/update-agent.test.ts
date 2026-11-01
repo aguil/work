@@ -167,7 +167,11 @@ describe("applyWorkspacePoll", { concurrency: false }, () => {
 
   it("keeps a hook status that landed after the poll's read", () => {
     const record = { ...explicitWorkingAgent("%1"), label: "a", cli: "claude" };
-    seed({ ...record, confidence: "heuristic" });
+    seed({
+      ...record,
+      confidence: "heuristic",
+      lastSeen: "2026-01-01T00:00:00.000Z",
+    });
     const p = pane("%1", "");
     const read = poll({
       detected: [detected("%1")],
@@ -406,6 +410,26 @@ describe("applyWorkspacePoll", { concurrency: false }, () => {
     applyWorkspacePoll("w", poll({}));
 
     assert.equal(stored("a")?.status, "working");
+    assert.equal(stored("a")?.paneId, "%9");
+  });
+
+  it("keeps a hook status that landed after a negative probe", () => {
+    seed({
+      ...explicitWorkingAgent("%9"),
+      label: "a",
+      lastSeen: "2026-01-01T00:00:00.000Z",
+    });
+    const read = poll({
+      probes: new Map([["a\0%9", { hostsAgent: false, detected: false }]]),
+    });
+
+    mutateWorkspace("w", (ws) => {
+      applyHookStatus(ws.agents.a, "blocked", "permissionRequest");
+      return true;
+    });
+    applyWorkspacePoll("w", read);
+
+    assert.equal(stored("a")?.status, "blocked");
     assert.equal(stored("a")?.paneId, "%9");
   });
 

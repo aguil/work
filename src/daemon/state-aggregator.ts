@@ -293,11 +293,16 @@ export function applyWorkspacePoll(
           .filter((a) => a.lastSeen !== poll.lastSeenAtRead.get(a.label))
           .map((a) => a.label),
       );
+      // A probe is as old as the read, so it cannot detach a record moved since.
+      const probes = new Map(poll.probes);
+      for (const agent of Object.values(fresh.agents)) {
+        if (movedSinceRead.has(agent.label)) probes.delete(probeKey(agent));
+      }
       const sync = syncAgentsToWorkspace(
         fresh,
         poll.detected,
         poll.paneById,
-        poll.probes,
+        probes,
       );
       paneOptions = sync.paneOptions;
       let changed = sync.changed;
