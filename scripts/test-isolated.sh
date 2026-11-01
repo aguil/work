@@ -37,6 +37,7 @@ stop() {
 }
 trap 'stop 130' INT
 trap 'stop 143' TERM
+trap 'stop 129' HUP
 
 tmux -f /dev/null new-session -d -s keepalive 'sleep 86400'
 
