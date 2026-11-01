@@ -267,6 +267,44 @@ describe("applyWorkspacePoll", { concurrency: false }, () => {
     assert.equal(stored("a")?.status, "blocked");
   });
 
+  it("does not let an observation of working replace an explicit status", () => {
+    seed({ ...explicitWorkingAgent("%1"), label: "a", status: "blocked" });
+    const p = pane("%1", "");
+    applyWorkspacePoll(
+      "w",
+      poll({
+        detected: [detected("%1")],
+        paneById: new Map([["%1", p]]),
+        observations: new Map([
+          ["%1", { pane: p, result: observed("working") }],
+        ]),
+      }),
+    );
+
+    assert.equal(stored("a")?.status, "blocked");
+    assert.equal(stored("a")?.confidence, "explicit");
+  });
+
+  for (const status of ["idle", "blocked", "done", "error"] as const) {
+    it(`lets a fresh observation of ${status} replace an explicit status`, () => {
+      seed({ ...explicitWorkingAgent("%1"), label: "a", cli: "claude" });
+      const p = pane("%1", "");
+      applyWorkspacePoll(
+        "w",
+        poll({
+          detected: [detected("%1")],
+          paneById: new Map([["%1", p]]),
+          observations: new Map([
+            ["%1", { pane: p, result: observed(status) }],
+          ]),
+        }),
+      );
+
+      assert.equal(stored("a")?.status, status);
+      assert.equal(stored("a")?.confidence, "inferred");
+    });
+  }
+
   it("applies an observation when no hook landed", () => {
     seed({
       ...explicitWorkingAgent("%1"),
