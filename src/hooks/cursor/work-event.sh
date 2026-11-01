@@ -22,7 +22,9 @@ if [[ -z "$pane_id" && -n "${TMUX:-}" ]]; then
   pane_id=$(tmux display-message -p '#{pane_id}' 2>/dev/null || true)
 fi
 
-args=(agent hook-event --quiet)
+# `agent` is the CLI's binary name and what detection records; `cursor` is the
+# editor launcher, which `work relaunch` would run.
+args=(agent hook-event --quiet --cli agent)
 if [[ -n "$pane_id" ]]; then
   args+=(--pane "$pane_id")
 fi

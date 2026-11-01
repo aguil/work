@@ -23,6 +23,7 @@ export function registerAgentHookCommand(agent: Command): void {
     )
     .option("-f, --file <path>", "Read hook JSON from a file")
     .option("--pane <id>", "Tmux pane ID (%N) when TMUX is unavailable to hook")
+    .option("--cli <name>", "CLI that fired the hook (claude|agent)")
     .option(
       "--status <status>",
       "Override mapped status (idle|working|blocked|done|error)",
@@ -33,6 +34,7 @@ export function registerAgentHookCommand(agent: Command): void {
       (opts: {
         file?: string;
         pane?: string;
+        cli?: string;
         status?: string;
         json?: boolean;
         quiet?: boolean;
@@ -53,6 +55,7 @@ export function registerAgentHookCommand(agent: Command): void {
         const result = applyHookEvent(input, {
           paneId: opts.pane,
           statusOverride,
+          cli: opts.cli,
         });
 
         if (opts.json) {

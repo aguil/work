@@ -41,7 +41,7 @@ function parseMatch(raw: RawMatch | undefined): ManifestRule["match"] {
   };
 }
 
-function parseManifestFile(filePath: string): AgentManifest | null {
+export function parseManifestFile(filePath: string): AgentManifest | null {
   let raw: RawManifest;
   try {
     raw = TOML.parse(readFileSync(filePath, "utf-8")) as RawManifest;

@@ -48,3 +48,15 @@ export function observeAgentsInWorkspace(
   }
   return changed;
 }
+
+/**
+ * A hook-created record written before hooks reported their CLI has
+ * `cli: "agent"`, which resolves to Cursor's manifest whatever fired the hook.
+ * Only a hook can correct it: detection echoes a registered pane's
+ * `@work-agent-cli`. The label stays, since records are keyed by it.
+ */
+export function correctAgentCli(agent: AgentRecord, cli: string): boolean {
+  if (agent.cli !== "agent" || cli === "agent") return false;
+  agent.cli = cli;
+  return true;
+}

@@ -31,6 +31,7 @@ import {
   resolveConversationId,
   resolveHookEventName,
 } from "./hook-events.js";
+import { correctAgentCli } from "./update-agent.js";
 
 export interface HookEventResult {
   applied: boolean;
@@ -295,13 +296,17 @@ function findHookTarget(
   return null;
 }
 
-function createAgentForPane(ws: WorkspaceState, paneId: string): AgentRecord {
+function createAgentForPane(
+  ws: WorkspaceState,
+  paneId: string,
+  cli: string,
+): AgentRecord {
   const existing = findAgentByPane(ws, paneId);
   if (existing) return existing;
 
   const record: AgentRecord = {
-    label: autoLabel("agent", ws),
-    cli: "agent",
+    label: autoLabel(cli, ws),
+    cli,
     paneId,
     status: "unknown",
     confidence: "none",
@@ -327,7 +332,7 @@ function applyTmuxSideEffects(effects: TmuxPaneSideEffect[]): void {
 
 export function applyHookEvent(
   input: AgentHookInput,
-  opts?: { paneId?: string; statusOverride?: AgentStatus },
+  opts?: { paneId?: string; statusOverride?: AgentStatus; cli?: string },
 ): HookEventResult {
   const event = resolveHookEventName(input);
   const conversationId = resolveConversationId(input);
@@ -438,13 +443,17 @@ export function applyHookEvent(
 
     let agent: AgentRecord | undefined;
     if (target.createAgent && paneId) {
-      agent = createAgentForPane(ws, paneId);
+      agent = createAgentForPane(ws, paneId, opts?.cli ?? "agent");
     } else if (target.agentLabel) {
       agent = ws.agents[target.agentLabel];
     } else if (paneId) {
       agent = findAgentByPane(ws, paneId);
     }
     if (!agent) return dirty;
+
+    if (opts?.cli && correctAgentCli(agent, opts.cli)) {
+      dirty = true;
+    }
 
     if (paneId) {
       tmuxSideEffects.push({

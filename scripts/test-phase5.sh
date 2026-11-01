@@ -138,7 +138,7 @@ IDLE_PANE=$(tmux split-window -t "$SESSION" -h -P -F '#{pane_id}' \
 sleep 0.3
 $WORK scan --pane "$IDLE_PANE" --quiet
 
-tmux select-pane -t "$IDLE_PANE" -T '⢀ busy'
+tmux select-pane -t "$IDLE_PANE" -T 'Cursor Agent - ⏳ Working ···'
 $WORK agent observe "$IDLE_PANE" --apply --quiet
 tmux select-pane -t "$IDLE_PANE" -T 'ready'
 

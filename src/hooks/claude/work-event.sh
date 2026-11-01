@@ -22,7 +22,7 @@ if [[ -z "$pane_id" && -n "${TMUX:-}" ]]; then
   pane_id=$(tmux display-message -p '#{pane_id}' 2>/dev/null || true)
 fi
 
-args=(agent hook-event --quiet)
+args=(agent hook-event --quiet --cli claude)
 if [[ -n "$pane_id" ]]; then
   args+=(--pane "$pane_id")
 fi

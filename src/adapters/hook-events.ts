@@ -11,6 +11,7 @@ export interface AgentHookInput {
   permission?: string;
   workspace_roots?: string[];
   is_interrupt?: boolean;
+  notification_type?: string;
   [key: string]: unknown;
 }
 
@@ -46,6 +47,24 @@ export function isTransientSessionEnd(input: AgentHookInput): boolean {
   return input.reason === "clear" || input.reason === "resume";
 }
 
+/**
+ * Claude Code's `Notification` fires late, about 6 s into a dialog and 60 s
+ * after `Stop`, but it survives UI copy changes, unlike the manifest's strings.
+ */
+function mapNotificationToStatus(type: unknown): AgentStatus | null {
+  switch (type) {
+    case "permission_prompt":
+    case "elicitation_dialog":
+    case "elicitation_url_dialog":
+    case "quota_auto_resume_stale":
+      return "blocked";
+    case "idle_prompt":
+      return "idle";
+    default:
+      return null;
+  }
+}
+
 /** Map Cursor / Claude Code hook events to work agent status (Tier 1). */
 export function mapHookEventToStatus(
   eventName: string,
@@ -76,6 +95,8 @@ export function mapHookEventToStatus(
     case "beforeMCPExecution":
       if (input.permission === "ask") return "blocked";
       return null;
+    case "notification":
+      return mapNotificationToStatus(input.notification_type);
     case "permissionRequest":
       return "blocked";
     case "permissionDenied":
