@@ -14,7 +14,6 @@ PR merges. See [CONTRIBUTING.md](./CONTRIBUTING.md#releasing).
 
 ### Fixed
 
-* attribute hook events to $TMUX_PANE (re-run work hooks install) ([d8b97ff](https://github.com/aguil/work/commit/d8b97ffe233eb130647d51ab771055b701b2a0a8))
 * attribute hook events to $TMUX_PANE (re-run work hooks install) ([4e2486f](https://github.com/aguil/work/commit/4e2486f73dae3e178c31eb598bf1d1450c117dfa)), closes [#42](https://github.com/aguil/work/issues/42)
 * contain a held workspace lock to its own workspace ([5a15a95](https://github.com/aguil/work/commit/5a15a9583bc4b55383f31778225ab10c98197b61))
 * count a Cursor stall from when the agent began working ([d4ee3f2](https://github.com/aguil/work/commit/d4ee3f24695d175cbb7ce06fa56ddf8c0a3f038d))
@@ -22,11 +21,9 @@ PR merges. See [CONTRIBUTING.md](./CONTRIBUTING.md#releasing).
 * do not restore a lock claimed by mistake ([6c33868](https://github.com/aguil/work/commit/6c33868ef593d9f2abf168a3f77ce3e8b5f9bf32))
 * drop a late event from a pane whose session ended ([a53d5b4](https://github.com/aguil/work/commit/a53d5b46f2ced8aea837425e5d006a6c9f7f7677))
 * drop out-of-order hook events (re-run work hooks install) ([2d5e7a3](https://github.com/aguil/work/commit/2d5e7a3c377243d17d8d06619dbf00e5b2fbcb29))
-* find agents at any process depth with one ps per poll ([e91abe3](https://github.com/aguil/work/commit/e91abe311d5e4f2ca0680c01adb2c9baf8b9e02d))
 * find agents at any process depth with one ps per poll ([61b5882](https://github.com/aguil/work/commit/61b5882edd2a506f11bac70a843693c17c01182a))
 * give a tool in flight the hook TTL, not the stall timeout ([97b3832](https://github.com/aguil/work/commit/97b38324bd1437d949c5014f8c314f89098a4e81))
 * ignore working on a stalled agent on every observation path ([1293219](https://github.com/aguil/work/commit/1293219e7f59e0d76dc9411e58908a86e983e7d8))
-* install Cursor's prompt hook (re-run work hooks install) ([3bc04e1](https://github.com/aguil/work/commit/3bc04e17dd337d39345e7d90c9ad2c935db2b6c5))
 * install Cursor's prompt hook (re-run work hooks install) ([f68502b](https://github.com/aguil/work/commit/f68502b4a460b11abde2cbbdf21f72627a7dafc8))
 * keep a hook status when the poll read a negative probe ([3b02c2c](https://github.com/aguil/work/commit/3b02c2cc9f312e4b8f42cb2e23974ebf932dc9f9))
 * keep a tool in flight until something ends it ([24c1afd](https://github.com/aguil/work/commit/24c1afd86f3ab6200ac342dd4852c6fcda163c0d))
@@ -41,10 +38,8 @@ PR merges. See [CONTRIBUTING.md](./CONTRIBUTING.md#releasing).
 * register Claude Code hooks by absolute path (re-run work hooks install) ([e67033e](https://github.com/aguil/work/commit/e67033e162b87e6962bdae65697d5b3cc7a7833f)), closes [#57](https://github.com/aguil/work/issues/57)
 * report Claude Code waiting states via Notification (re-run work hooks install) ([ce885ad](https://github.com/aguil/work/commit/ce885ad4e7d3c51ef329ed6b7093aa6e2fddf909))
 * require the question mark on the Cursor sandbox prompt ([4403670](https://github.com/aguil/work/commit/44036704d5ec2a0820b9ca6c4e53617d9f4c7111))
-* show unconfirmed statuses and long-held states in the sidebar ([25eca25](https://github.com/aguil/work/commit/25eca2549ded2056d81004c14bd2574c6a1ef5b4))
 * show unconfirmed statuses and long-held states in the sidebar ([7b711a3](https://github.com/aguil/work/commit/7b711a3532659ddf5a2eeef89cfc42d67ef3ec30))
 * stall a Cursor agent under any of its process names ([b7ff9b1](https://github.com/aguil/work/commit/b7ff9b1705f4c42576077b63d7be061d8e560b73))
-* stop an agent with no sign of life reading working ([1f5fba8](https://github.com/aguil/work/commit/1f5fba826406927ac062848d8eb3718132dacbfd))
 * stop an agent with no sign of life reading working ([4b864b6](https://github.com/aguil/work/commit/4b864b6ac0fc5209c1a3ccf0a6da21b59ea882da))
 * stop trusting a hook status once hooks go quiet ([83117cb](https://github.com/aguil/work/commit/83117cbd907c8158cf14849646c3942823e81578))
 
