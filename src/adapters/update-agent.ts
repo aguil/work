@@ -77,6 +77,15 @@ export function applyPaneObservation(
 
 export const HOOK_TTL_MS = 15 * 60_000;
 export const STALL_TIMEOUT_MS = 120_000;
+const TOOL_ENDING_EVENTS: ReadonlySet<string> = new Set([
+  "postToolUse",
+  "postToolUseFailure",
+  "stop",
+  "stopFailure",
+  "userPromptSubmit",
+  "sessionEnd",
+]);
+
 /** Cursor's `process_names`: detection records whichever one the pane runs. */
 export const CURSOR_CLIS: ReadonlySet<string> = new Set([
   "agent",
@@ -138,7 +147,9 @@ export function recordHookActivity(
   agent.stalledAt = null;
   // A late event shows the agent is alive, but not what it is doing now.
   if (isStaleHookEvent(agent, eventTs)) return;
-  agent.toolInFlight = event === "preToolUse";
+  if (event === "preToolUse") agent.toolInFlight = true;
+  // A subagent or a notification lands while its tool is still running.
+  else if (TOOL_ENDING_EVENTS.has(event)) agent.toolInFlight = false;
   if (eventTs !== undefined) agent.lastEventTs = eventTs;
   if (typeof input.transcript_path === "string") {
     agent.transcriptPath = input.transcript_path;

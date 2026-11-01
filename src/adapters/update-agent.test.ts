@@ -879,6 +879,22 @@ describe("hook event ordering", { concurrency: false }, () => {
     assert.equal(agent()?.lastEventTs, 300);
   });
 
+  it("keeps a tool in flight through SubagentStart", () => {
+    fire("PreToolUse");
+    fire("SubagentStart");
+
+    assert.equal(agent()?.toolInFlight, true);
+  });
+
+  for (const event of ["PostToolUseFailure", "Stop", "StopFailure"]) {
+    it(`ends a tool in flight on ${event}`, () => {
+      fire("PreToolUse");
+      fire(event);
+
+      assert.equal(agent()?.toolInFlight, false);
+    });
+  }
+
   it("clears a stall on an event with no status", () => {
     mutateWorkspace("w", (ws) => {
       ws.agents.a.stalledAt = new Date().toISOString();
