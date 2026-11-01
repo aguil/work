@@ -33,6 +33,7 @@ npm install
 npm run build
 npm run typecheck
 npm test    # requires tmux; uses isolated XDG dirs
+npm run check:isolated    # the full check on a private tmux server
 ```
 
 Before committing: `npm run typecheck`, `npm run lint`, and `npm run pre-commit`

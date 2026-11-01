@@ -34,6 +34,13 @@ npm run test         # phases 1–7; requires tmux
 `npm run check` runs typecheck, lint, build, the unit tests, and the full
 integration suite.
 
+`npm run check:isolated` runs the same check on a private tmux server with
+isolated XDG dirs, and `bash scripts/test-isolated.sh <command>` runs another
+non-interactive command there: it runs in the background, so it cannot use the
+terminal. Use it on a machine with a live tmux server. Don't start a private
+server by hand: it would load `~/.tmux.conf`, and the `tmux-tmuxr` plugin then
+starts a detached `workd` that outlives the server.
+
 Unit tests only (no tmux):
 
 ```bash
