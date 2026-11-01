@@ -69,13 +69,13 @@ export class LockTimeoutError extends Error {}
 
 export function withFileLock<T>(lockPath: string, fn: () => T): T {
   let fd: number | undefined;
-  for (let attempt = 0; attempt < MAX_LOCK_ATTEMPTS; attempt++) {
+  let attempts = 0;
+  while (fd === undefined) {
     try {
       fd = openSync(lockPath, "wx");
-      break;
     } catch {
       if (claimStaleLock(lockPath)) continue;
-      if (attempt === MAX_LOCK_ATTEMPTS - 1) {
+      if (++attempts === MAX_LOCK_ATTEMPTS) {
         console.error(`work: timed out acquiring lock ${lockPath}`);
         throw new LockTimeoutError(`Timed out acquiring lock: ${lockPath}`);
       }
@@ -85,7 +85,7 @@ export function withFileLock<T>(lockPath: string, fn: () => T): T {
   try {
     return fn();
   } finally {
-    if (fd !== undefined) closeSync(fd);
+    closeSync(fd);
     try {
       unlinkSync(lockPath);
     } catch {
