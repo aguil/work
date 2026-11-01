@@ -119,7 +119,9 @@ export function checkStall(agent: AgentRecord, now: number): boolean {
     if (now - lastHook < HOOK_TTL_MS) return false;
   } else {
     if (mtime === null || !agent.promptId) return false;
-    if (now - Math.max(mtime, lastHook) < STALL_TIMEOUT_MS) return false;
+    // Measured on 2.1.316: the transcript does not move during a tool call.
+    const timeout = agent.toolInFlight ? HOOK_TTL_MS : STALL_TIMEOUT_MS;
+    if (now - Math.max(mtime, lastHook) < timeout) return false;
   }
   markStalled(agent, now);
   return true;
@@ -128,10 +130,16 @@ export function checkStall(agent: AgentRecord, now: number): boolean {
 /** Records one hook event of any kind: the agent is alive, whatever it said. */
 export function recordHookActivity(
   agent: AgentRecord,
+  event: string,
   input: AgentHookInput,
+  eventTs?: number,
 ): void {
   agent.lastHookEventAt = new Date().toISOString();
   agent.stalledAt = null;
+  // A late event shows the agent is alive, but not what it is doing now.
+  if (isStaleHookEvent(agent, eventTs)) return;
+  agent.toolInFlight = event === "preToolUse";
+  if (eventTs !== undefined) agent.lastEventTs = eventTs;
   if (typeof input.transcript_path === "string") {
     agent.transcriptPath = input.transcript_path;
   }

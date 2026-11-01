@@ -46,6 +46,8 @@ export interface AgentRecord {
   transcriptPath?: string;
   /** Claude Code's current turn. */
   promptId?: string;
+  /** The last hook was `preToolUse`: a tool is running, so its file is quiet. */
+  toolInFlight?: boolean;
   /** When this agent read as stalled; only a file change or a hook clears it. */
   stalledAt?: string | null;
   /** The pane `sessionEnd` took this agent from, which detach otherwise loses. */

@@ -405,7 +405,7 @@ export function applyHookEvent(
       mutateWorkspace(target.workspaceName, (ws) => {
         const agent = ws.agents[label];
         if (!agent) return false;
-        recordHookActivity(agent, input);
+        recordHookActivity(agent, event, input, opts?.eventTs);
         return true;
       });
     }
@@ -484,7 +484,7 @@ export function applyHookEvent(
     }
     if (!agent) return dirty;
 
-    recordHookActivity(agent, input);
+    recordHookActivity(agent, event, input, opts?.eventTs);
     dirty = true;
 
     if (isStaleHookEvent(agent, opts?.eventTs)) return dirty;
@@ -577,11 +577,6 @@ export function applyHookEvent(
         event,
       };
       dirty = dirty || changed || conversationId != null;
-    }
-
-    if (opts?.eventTs !== undefined && agent.lastEventTs !== opts.eventTs) {
-      agent.lastEventTs = opts.eventTs;
-      dirty = true;
     }
 
     if (dirty) persistedTarget = true;

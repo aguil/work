@@ -331,6 +331,21 @@ describe("applyWorkspacePoll", { concurrency: false }, () => {
     assert.equal(stored("a")?.status, "working");
   });
 
+  it("gives an agent with a tool in flight 15 minutes, not 120 seconds", () => {
+    claudeWorking(minutes(14), { toolInFlight: true });
+    applyWorkspacePoll("w", pollPane());
+
+    assert.equal(stored("a")?.status, "working");
+  });
+
+  it("stalls an agent whose tool has been in flight for 15 minutes", () => {
+    claudeWorking(minutes(16), { toolInFlight: true });
+    applyWorkspacePoll("w", pollPane());
+
+    assert.equal(stored("a")?.status, "unknown");
+    assert.ok(stored("a")?.stalledAt);
+  });
+
   it("does not stall a Claude agent with no turn", () => {
     claudeWorking(minutes(3), { promptId: undefined });
     applyWorkspacePoll("w", pollPane());
@@ -844,6 +859,24 @@ describe("hook event ordering", { concurrency: false }, () => {
 
     assert.equal(agent()?.transcriptPath, "/tmp/t.jsonl");
     assert.equal(agent()?.promptId, "p1");
+  });
+
+  it("marks a tool in flight on PreToolUse and clears it on PostToolUse", () => {
+    fire("PreToolUse");
+    assert.equal(agent()?.toolInFlight, true);
+
+    fire("PostToolUse");
+    assert.equal(agent()?.toolInFlight, false);
+  });
+
+  it("ignores a PreToolUse that arrives after the PostToolUse following it", () => {
+    fire("PreToolUse", 100);
+    fire("PostToolUse", 300);
+
+    fire("PreToolUse", 200);
+
+    assert.equal(agent()?.toolInFlight, false);
+    assert.equal(agent()?.lastEventTs, 300);
   });
 
   it("clears a stall on an event with no status", () => {
