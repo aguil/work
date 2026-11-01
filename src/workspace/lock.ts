@@ -1,12 +1,5 @@
 import { randomUUID } from "node:crypto";
-import {
-  closeSync,
-  linkSync,
-  openSync,
-  renameSync,
-  statSync,
-  unlinkSync,
-} from "node:fs";
+import { closeSync, openSync, renameSync, statSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { paths } from "../config/paths.js";
 
@@ -31,8 +24,9 @@ function isStale(path: string): boolean {
 /**
  * A process killed under a lock leaves its file for good. `rename` is atomic,
  * so of two waiters only one claims it. A waiter that read the age just before
- * another took over can claim that fresh lock, so it checks what it got and
- * puts back anything fresh; a small window remains there (JC-25).
+ * another took over can still claim that fresh lock, and both then hold it:
+ * the small window JC-25 accepts. Restoring the file would be worse, since its
+ * owner may already have finished, leaving a lock nobody holds.
  */
 function claimStaleLock(lockPath: string): boolean {
   if (!isStale(lockPath)) return false;
@@ -42,26 +36,13 @@ function claimStaleLock(lockPath: string): boolean {
   } catch {
     return false;
   }
-  const stale = settleClaim(claim, lockPath);
-  if (stale) console.error(`work: recovered stale lock ${lockPath}`);
-  return stale;
-}
-
-/** Returns whether the claimed file was stale, restoring it if it was not. */
-export function settleClaim(claim: string, lockPath: string): boolean {
   const stale = isStale(claim);
-  if (!stale) {
-    try {
-      linkSync(claim, lockPath);
-    } catch {
-      // Another waiter holds the lock now, so this one has nothing to restore.
-    }
-  }
   try {
     unlinkSync(claim);
   } catch {
     // already gone
   }
+  if (stale) console.error(`work: recovered stale lock ${lockPath}`);
   return stale;
 }
 

@@ -13,12 +13,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, it, mock } from "node:test";
 import { fileURLToPath } from "node:url";
 import { paths } from "../config/paths.js";
-import {
-  LockTimeoutError,
-  settleClaim,
-  withFileLock,
-  withWorkspaceLock,
-} from "./lock.js";
+import { LockTimeoutError, withFileLock, withWorkspaceLock } from "./lock.js";
 import { syncSessionIndexEntry } from "./session-index.js";
 import { createWorkspace, loadWorkspace, mutateWorkspace } from "./state.js";
 
@@ -92,26 +87,6 @@ describe("withFileLock", { concurrency: false }, () => {
     assert.equal(ran, false);
     assert.equal(existsSync(lock), true);
     assert.deepEqual(logged, [`work: timed out acquiring lock ${lock}`]);
-  });
-
-  it("puts back a fresh lock it claimed by mistake", () => {
-    const claim = `${lock}.claim`;
-    backdate(claim, 1000);
-
-    assert.equal(settleClaim(claim, lock), false);
-
-    assert.equal(existsSync(lock), true);
-    assert.equal(existsSync(claim), false);
-  });
-
-  it("does not restore a stale lock it claimed", () => {
-    const claim = `${lock}.claim`;
-    backdate(claim, 31_000);
-
-    assert.equal(settleClaim(claim, lock), true);
-
-    assert.equal(existsSync(lock), false);
-    assert.equal(existsSync(claim), false);
   });
 
   it("recovers a stale workspace lock", () => {
