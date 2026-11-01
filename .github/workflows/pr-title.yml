@@ -1,0 +1,23 @@
+name: PR title
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions: {}
+
+jobs:
+  pr-title:
+    runs-on: ubuntu-latest
+    steps:
+      # A conventional title on a merge commit is listed twice in the changelog.
+      - name: Reject a Conventional Commit title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [[ "$HEAD_REF" == release-please--* ]]; then exit 0; fi
+          if [[ "$TITLE" =~ ^[a-z]+(\([^\)]*\))?\!?:\  ]]; then
+            echo "::error::Use a plain-language PR title; keep the conventional subject on the commits. See CONTRIBUTING.md, Duplicate changelog entries."
+            exit 1
+          fi

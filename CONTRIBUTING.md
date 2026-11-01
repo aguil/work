@@ -75,9 +75,10 @@ Releases are automated with
 
 ### Day to day
 
-1. Merge PRs to `main` with **Conventional Commit** titles (`feat:`, `fix:`,
-   `perf:`, etc.). The commit subject becomes the changelog bullet; the body is
-   not included.
+1. Merge PRs to `main` with **Conventional Commit** subjects (`feat:`, `fix:`,
+   `perf:`, etc.) on the commits inside them. Each subject becomes a changelog
+   bullet; the body is not included. Give the PR itself a plain-language title
+   (see [Duplicate changelog entries](#duplicate-changelog-entries)).
 2. release-please opens or updates a **Release PR** (`chore: release X.Y.Z`)
    that bumps `package.json`, `.release-please-manifest.json`, and `CHANGELOG.md`.
    `CHANGELOG.md` is excluded from pre-commit (release-please owns its format).
@@ -85,6 +86,22 @@ Releases are automated with
 4. Merging the Release PR creates the `vX.Y.Z` tag and GitHub Release.
 5. The tag triggers [Release workflow](.github/workflows/release.yml), which
    runs checks and publishes `@aguil/work` to npm with provenance.
+
+### Duplicate changelog entries
+
+release-please lists a change twice when a PR with a Conventional Commit title
+lands as a merge commit. GitHub writes the PR title into the merge commit's
+message, release-please reads it as a second change, and it also lists the
+commit inside the PR. No repository setting avoids this, so title the PR in plain
+language ("Find agents at any process depth") and keep the conventional subject
+on its commits. The [PR title](.github/workflows/pr-title.yml) check fails on a
+conventional title, except on a Release PR. GitHub reads the title at merge time,
+so renaming the PR and re-running the check is enough.
+
+To clean up a Release PR that already lists a duplicate, delete the line linking
+to the merge commit from both `CHANGELOG.md` on the release branch and the PR's
+description, since the GitHub Release notes come from the description. Do it
+right before merging: release-please regenerates both on every push to `main`.
 
 ### Pre-1.0 semver
 

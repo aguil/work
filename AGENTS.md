@@ -49,6 +49,8 @@ This repo uses **Jujutsu** colocated with git (`jj git init --colocate`).
 - Commit descriptions use **Conventional Commits** (`type: subject`) and always
   include a body paragraph after a blank line explaining why the change was made.
   Set with `jj desc -m` before `jj new`.
+- PR titles are plain language, not Conventional Commits, or release-please lists
+  the change twice. See `CONTRIBUTING.md`, "Duplicate changelog entries".
 
 ## Conventions
 
