@@ -383,6 +383,23 @@ assert_eq "an older event creates no record" "$BEFORE" "$AFTER"
 fire_at "$ORDER_PANE" 4000 '{"hook_event_name":"PreToolUse","session_id":"order-2"}'
 assert_eq "a newer event in that pane starts a new agent" "working" "$(pane_status "$ORDER_PANE")"
 
+section "Every hook event is recorded (#52)"
+QUIET_PANE=$(tmux new-window -d -t "$SESSION" -P -F '#{pane_id}' 'sleep 300')
+fire_hook claude "$QUIET_PANE" '{"hook_event_name":"Stop","session_id":"quiet"}'
+assert_eq "agent is idle before PostToolUse" "idle" "$(wait_pane_field "$QUIET_PANE" status idle)"
+FIRST_EVENT_AT=$(pane_field "$QUIET_PANE" lastHookEventAt)
+[[ "$FIRST_EVENT_AT" == 20* ]] && pass "a status event records lastHookEventAt" \
+  || fail "a status event records lastHookEventAt (got '$FIRST_EVENT_AT')"
+fire_hook claude "$QUIET_PANE" '{"hook_event_name":"PostToolUse","tool_name":"Read"}'
+for _ in {1..40}; do
+  [[ "$(pane_field "$QUIET_PANE" lastHookEventAt)" != "$FIRST_EVENT_AT" ]] && break
+  sleep 0.05
+done
+[[ "$(pane_field "$QUIET_PANE" lastHookEventAt)" != "$FIRST_EVENT_AT" ]] \
+  && pass "PostToolUse moves lastHookEventAt on the pane it fired from" \
+  || fail "PostToolUse moves lastHookEventAt on the pane it fired from"
+assert_eq "PostToolUse leaves the status" "idle" "$(pane_status "$QUIET_PANE")"
+
 section "Summary"
 echo "Passed: $PASS"
 echo "Failed: $FAIL"

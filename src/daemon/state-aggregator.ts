@@ -3,6 +3,7 @@ import {
   hasExplicitHookStatus,
 } from "../adapters/debounce.js";
 import {
+  ageHookConfidence,
   applyPaneObservation,
   observeAgents,
   type PaneObservation,
@@ -306,7 +307,15 @@ export function applyWorkspacePoll(
       );
       paneOptions = sync.paneOptions;
       let changed = sync.changed;
+      const now = Date.now();
       for (const agent of Object.values(fresh.agents)) {
+        if (
+          agent.paneId &&
+          poll.paneById.has(agent.paneId) &&
+          ageHookConfidence(agent, now)
+        ) {
+          changed = true;
+        }
         if (movedSinceRead.has(agent.label)) continue;
         const observation = agent.paneId
           ? poll.observations.get(agent.paneId)

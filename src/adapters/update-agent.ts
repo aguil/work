@@ -72,6 +72,24 @@ export function applyPaneObservation(
   return applyObservation(agent, result);
 }
 
+export const HOOK_TTL_MS = 15 * 60_000;
+
+/**
+ * A hook status is only as good as the hooks behind it: once they go quiet on
+ * a live pane, screen observation owns the status again. A record from before
+ * this field has no clock, so its first poll starts one.
+ */
+export function ageHookConfidence(agent: AgentRecord, now: number): boolean {
+  if (!hasExplicitHookStatus(agent)) return false;
+  if (!agent.lastHookEventAt) {
+    agent.lastHookEventAt = new Date(now).toISOString();
+    return true;
+  }
+  if (now - Date.parse(agent.lastHookEventAt) <= HOOK_TTL_MS) return false;
+  agent.confidence = "heuristic";
+  return true;
+}
+
 /** A tie applies: two events in one tick land in arrival order. */
 export function isStaleHookEvent(
   agent: AgentRecord,

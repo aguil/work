@@ -40,6 +40,8 @@ export interface AgentRecord {
   hookEvent?: string | null;
   /** Stamp of the last applied hook event, in microseconds since the epoch. */
   lastEventTs?: number;
+  /** When a hook last fired for this agent, whether or not it set a status. */
+  lastHookEventAt?: string;
   /** The pane `sessionEnd` took this agent from, which detach otherwise loses. */
   endedPaneId?: string | null;
   // Screen-derived metadata below is only meaningful while `status` came

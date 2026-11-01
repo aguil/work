@@ -166,6 +166,66 @@ describe("applyWorkspacePoll", { concurrency: false }, () => {
 
   const stored = (label: string) => loadWorkspace("w")?.agents[label];
 
+  const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
+  const minutes = (n: number) => n * 60_000;
+
+  function pollPane(paneId = "%1"): WorkspacePoll {
+    return poll({
+      detected: [detected(paneId)],
+      paneById: new Map([[paneId, pane(paneId, "")]]),
+    });
+  }
+
+  it("drops an explicit status to heuristic once hooks are quiet for 15 minutes", () => {
+    seed({
+      ...explicitWorkingAgent("%1"),
+      label: "a",
+      lastHookEventAt: ago(minutes(15) + 1000),
+    });
+    applyWorkspacePoll("w", pollPane());
+
+    assert.equal(stored("a")?.confidence, "heuristic");
+    assert.equal(stored("a")?.status, "working");
+  });
+
+  it("keeps an explicit status inside the 15 minutes", () => {
+    seed({
+      ...explicitWorkingAgent("%1"),
+      label: "a",
+      lastHookEventAt: ago(minutes(14)),
+    });
+    applyWorkspacePoll("w", pollPane());
+
+    assert.equal(stored("a")?.confidence, "explicit");
+  });
+
+  it("does not age an agent whose pane is gone from the read", () => {
+    seed({
+      ...explicitWorkingAgent("%1"),
+      label: "a",
+      lastHookEventAt: ago(minutes(20)),
+    });
+    applyWorkspacePoll("w", poll({}));
+
+    assert.equal(stored("a")?.confidence, "explicit");
+  });
+
+  it("starts the clock on a record from before the field, then ages it", () => {
+    seed({ ...explicitWorkingAgent("%1"), label: "a" });
+    applyWorkspacePoll("w", pollPane());
+
+    assert.equal(stored("a")?.confidence, "explicit");
+    assert.ok(stored("a")?.lastHookEventAt);
+
+    mutateWorkspace("w", (ws) => {
+      ws.agents.a.lastHookEventAt = ago(minutes(16));
+      return true;
+    });
+    applyWorkspacePoll("w", pollPane());
+
+    assert.equal(stored("a")?.confidence, "heuristic");
+  });
+
   it("keeps a hook status that landed after the poll's read", () => {
     const record = { ...explicitWorkingAgent("%1"), label: "a", cli: "claude" };
     seed({
@@ -538,7 +598,38 @@ describe("hook event ordering", { concurrency: false }, () => {
 
     assert.equal(fire("PreToolUse", 100), false);
 
-    assert.deepEqual(agent(), before);
+    // Only the liveness stamp moves, which every event updates (AC-15).
+    assert.deepEqual(
+      { ...agent(), lastHookEventAt: before?.lastHookEventAt },
+      before,
+    );
+  });
+
+  it("records every event, one with no status included, without moving lastSeen", () => {
+    fire("Stop", 200);
+    mutateWorkspace("w", (ws) => {
+      ws.agents.a.lastHookEventAt = "2026-01-01T00:00:00.000Z";
+      return true;
+    });
+    const lastSeen = agent()?.lastSeen;
+
+    assert.equal(fire("PostToolUse"), false);
+
+    assert.notEqual(agent()?.lastHookEventAt, "2026-01-01T00:00:00.000Z");
+    assert.equal(agent()?.lastSeen, lastSeen);
+  });
+
+  it("records an event it drops as older, since the agent is still alive", () => {
+    fire("Stop", 200);
+    mutateWorkspace("w", (ws) => {
+      ws.agents.a.lastHookEventAt = "2026-01-01T00:00:00.000Z";
+      return true;
+    });
+
+    assert.equal(fire("PreToolUse", 100), false);
+
+    assert.notEqual(agent()?.lastHookEventAt, "2026-01-01T00:00:00.000Z");
+    assert.equal(agent()?.status, "idle");
   });
 
   it("applies an event with an equal timestamp", () => {
