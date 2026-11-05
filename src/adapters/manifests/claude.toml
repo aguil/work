@@ -60,9 +60,9 @@ state = "idle"
 visible_idle = true
 [rules.match]
 region = "bottom_lines"
-lines = 3
+lines = 5
 any = [
-  { line_regex = ['^\s*>\s*$'] },
+  { line_regex = ['^\s*(>|❯)(?:\s.*)?$'] },
   { contains = ["type a message"] },
   { contains = ["ask anything"] },
 ]

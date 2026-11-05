@@ -67,8 +67,9 @@ Common settings:
 # Where work new / repos / new-window picker find repositories
 work config set repo-scan-dir ~/dev/repos,~/dev/other
 
-# Base directory for project checkouts (window use-repo, new-window picker)
-work config set checkout-base ~/dev/projects/my-project
+# Root for project checkouts (window use-repo, new-window picker). Checkouts go
+# in <root>/<session>/; a path already ending in the session name is used as-is.
+work config set checkout-base ~/dev/projects
 
 # Opt-in repo picker when creating a new window in tracked sessions
 work config set prompt-repos-on-new-window true
