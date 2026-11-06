@@ -46,7 +46,8 @@ This repo uses **Jujutsu** colocated with git (`jj git init --colocate`).
 - Use `jj` for all mutations. Do **not** run `git commit`, `git rebase`, or
   other git write commands in this checkout.
 - Dev workspace checkout: `~/dev/projects/tmuxr/work`
-- Canonical store: `~/dev/repos/github.com/aguil/work`
+- Canonical store: `~/dev/repos/github.com/aguil/workctl`. The dev checkout is
+  a jj workspace of it, with no `.git`, so `git` commands fail there.
 - Commit descriptions use **Conventional Commits** (`type: subject`) and always
   include a body paragraph after a blank line explaining why the change was made.
   Set with `jj desc -m` before `jj new`.
