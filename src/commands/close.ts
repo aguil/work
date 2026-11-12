@@ -12,11 +12,12 @@ import {
 
 async function cleanupTree(
   tree: TreeRecord,
-  opts: { yes?: boolean; noCleanup?: boolean; quiet?: boolean },
+  opts: { yes?: boolean; cleanup?: boolean; quiet?: boolean },
 ): Promise<boolean> {
   if (!tree.createdByWork) return false;
 
-  if (opts.noCleanup) return false;
+  // Commander maps --no-cleanup to `cleanup: false`.
+  if (opts.cleanup === false) return false;
 
   const shouldRemove =
     opts.yes || (await promptConfirm(`Remove checkout ${tree.path}?`, false));
@@ -44,7 +45,7 @@ export function registerCloseCommand(program: Command): void {
     .action(
       async (
         name: string,
-        opts: { yes?: boolean; noCleanup?: boolean; quiet?: boolean },
+        opts: { yes?: boolean; cleanup?: boolean; quiet?: boolean },
       ) => {
         const ws = loadWorkspace(name);
         if (!ws) {
