@@ -115,7 +115,7 @@ export function registerTreeCommands(program: Command): void {
         path: string,
         opts: {
           session?: string;
-          noCleanup?: boolean;
+          cleanup?: boolean;
           force?: boolean;
           quiet?: boolean;
         },
@@ -128,7 +128,7 @@ export function registerTreeCommands(program: Command): void {
 
         const removed = ws.trees[idx];
         const willCleanup =
-          !opts.noCleanup &&
+          opts.cleanup !== false &&
           canRemoveCheckout(
             removed.path,
             removed.vcsType,
