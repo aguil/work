@@ -143,7 +143,7 @@ export function createCheckout(
   branch: string,
 ): void {
   if (backend === "jj") {
-    jj.createJjWorkspace(repoPath, destPath);
+    jj.createJjWorkspace(repoPath, destPath, branch);
     return;
   }
   git.createGitWorktree(repoPath, destPath, branch);

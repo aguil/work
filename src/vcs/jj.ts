@@ -122,13 +122,64 @@ export function jjDirty(cwd: string): boolean {
   return /Working copy changes:/m.test(status);
 }
 
-export function createJjWorkspace(repoPath: string, destPath: string): void {
+function jjWorkspaceNames(repoPath: string): Set<string> {
+  const raw = tryCommand(
+    "jj",
+    ["workspace", "list", "-T", 'name ++ "\\n"', "--ignore-working-copy"],
+    { cwd: repoPath },
+  );
+  return new Set(
+    (raw ?? "")
+      .split("\n")
+      .map((n) => n.trim())
+      .filter(Boolean),
+  );
+}
+
+/**
+ * jj names a workspace after its folder by default, so a second checkout of
+ * the same repo in another project fails with "Workspace named '<repo>' already
+ * exists". Try the folder name, then `<prefix>-<folder>`, then a number suffix.
+ */
+export function pickJjWorkspaceName(
+  taken: Set<string>,
+  destPath: string,
+  prefix?: string,
+): string {
+  const base = basename(destPath);
+  const candidates = [base];
+  const safePrefix = prefix?.replace(/[^A-Za-z0-9._-]+/g, "-");
+  if (safePrefix && safePrefix !== base) {
+    candidates.push(`${safePrefix}-${base}`);
+  }
+  for (const name of candidates) {
+    if (!taken.has(name)) return name;
+  }
+  const stem = candidates[candidates.length - 1];
+  for (let i = 2; ; i++) {
+    const name = `${stem}-${i}`;
+    if (!taken.has(name)) return name;
+  }
+}
+
+export function createJjWorkspace(
+  repoPath: string,
+  destPath: string,
+  namePrefix?: string,
+): void {
   if (!commandExists("jj")) {
     throw new Error("jj is not installed");
   }
 
   mkdirSync(dirname(destPath), { recursive: true });
-  runCommand("jj", ["workspace", "add", destPath], { cwd: repoPath });
+  const name = pickJjWorkspaceName(
+    jjWorkspaceNames(repoPath),
+    destPath,
+    namePrefix,
+  );
+  runCommand("jj", ["workspace", "add", "--name", name, destPath], {
+    cwd: repoPath,
+  });
 }
 
 export function isJjSecondaryWorkspace(path: string): boolean {
@@ -193,7 +244,7 @@ export function removeJjWorkspace(workspacePath: string): void {
     throw new Error(`Not a jj workspace: ${workspacePath}`);
   }
 
-  runCommand("jj", ["workspace", "forget", basename(workspacePath)], {
-    cwd: root,
-  });
+  // No name: forget the workspace that `root` is. Its name need not match the
+  // folder, and another project's checkout may own the folder's name.
+  runCommand("jj", ["workspace", "forget"], { cwd: root });
 }
