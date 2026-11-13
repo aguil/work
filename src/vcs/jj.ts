@@ -1,6 +1,11 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
-import { commandExists, runCommand, tryCommand } from "./exec.js";
+import {
+  CHECKOUT_TIMEOUT_MS,
+  commandExists,
+  runCommand,
+  tryCommand,
+} from "./exec.js";
 
 export function jjRoot(cwd: string): string | null {
   if (!commandExists("jj")) return null;
@@ -179,6 +184,7 @@ export function createJjWorkspace(
   );
   runCommand("jj", ["workspace", "add", "--name", name, destPath], {
     cwd: repoPath,
+    timeout: CHECKOUT_TIMEOUT_MS,
   });
 }
 

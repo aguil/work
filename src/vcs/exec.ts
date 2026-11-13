@@ -18,6 +18,12 @@ export function commandExists(cmd: string): boolean {
   }
 }
 
+/**
+ * Creating a checkout writes every file in the repo, which can take well over
+ * the 10s default on a large repo (ts-grc is ~12k files).
+ */
+export const CHECKOUT_TIMEOUT_MS = 120_000;
+
 export function runCommand(
   cmd: string,
   args: string[],

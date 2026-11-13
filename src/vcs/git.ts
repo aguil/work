@@ -1,6 +1,11 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { commandExists, runCommand, tryCommand } from "./exec.js";
+import {
+  CHECKOUT_TIMEOUT_MS,
+  commandExists,
+  runCommand,
+  tryCommand,
+} from "./exec.js";
 
 export function gitRoot(cwd: string): string | null {
   if (!commandExists("git")) return null;
@@ -64,20 +69,17 @@ export function createGitWorktree(
   mkdirSync(dirname(destPath), { recursive: true });
 
   if (branchExists(repoPath, branch)) {
-    runCommand("git", ["-C", repoPath, "worktree", "add", destPath, branch]);
+    runCommand("git", ["-C", repoPath, "worktree", "add", destPath, branch], {
+      timeout: CHECKOUT_TIMEOUT_MS,
+    });
     return;
   }
 
-  runCommand("git", [
-    "-C",
-    repoPath,
-    "worktree",
-    "add",
-    "-b",
-    branch,
-    destPath,
-    "HEAD",
-  ]);
+  runCommand(
+    "git",
+    ["-C", repoPath, "worktree", "add", "-b", branch, destPath, "HEAD"],
+    { timeout: CHECKOUT_TIMEOUT_MS },
+  );
 }
 
 export function gitCommitsAheadOf(cwd: string, base: string): number {
