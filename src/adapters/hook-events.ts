@@ -4,6 +4,7 @@ export interface AgentHookInput {
   hook_event_name?: string;
   conversation_id?: string;
   session_id?: string;
+  cursor_version?: string;
   cwd?: string;
   tool_name?: string;
   failure_type?: string;
@@ -20,6 +21,13 @@ export type CursorHookInput = AgentHookInput;
 
 export function parseHookInput(raw: string): AgentHookInput {
   return JSON.parse(raw) as AgentHookInput;
+}
+
+/** True when a hook payload was emitted by Cursor (including via ~/.claude/settings.json). */
+export function isCursorHookPayload(input: AgentHookInput): boolean {
+  return (
+    typeof input.cursor_version === "string" && input.cursor_version.length > 0
+  );
 }
 
 export function resolveConversationId(input: AgentHookInput): string | null {

@@ -152,7 +152,11 @@ export function aggregateState(): AggregatedState {
       const poll = readWorkspacePoll(ws, detected, paneById);
       const { state, paneOptions } = applyWorkspacePoll(ws.name, poll);
       for (const { paneId, name, value } of paneOptions) {
-        tmux.setOption("pane", name, value, paneId);
+        if (value === null) {
+          tmux.unsetOption("pane", name, paneId);
+        } else {
+          tmux.setOption("pane", name, value, paneId);
+        }
       }
       agents = Object.values((state ?? ws).agents).map((a) =>
         enrichAgentView(a, session, paneById),
@@ -213,7 +217,7 @@ export interface PaneProbe {
 interface PaneOption {
   paneId: string;
   name: string;
-  value: string;
+  value: string | null;
 }
 
 function probeKey(agent: AgentRecord): string {
@@ -357,6 +361,17 @@ function paneOptionsFor(
   return options;
 }
 
+function unsetPaneOptionsFor(pane: TmuxPane): PaneOption[] {
+  const options: PaneOption[] = [];
+  if (pane.workAgentLabel) {
+    options.push({ paneId: pane.id, name: "@work-agent-label", value: null });
+  }
+  if (pane.workAgentCli) {
+    options.push({ paneId: pane.id, name: "@work-agent-cli", value: null });
+  }
+  return options;
+}
+
 function syncAgentsToWorkspace(
   ws: WorkspaceState,
   detected: ReturnType<typeof detectAgents>,
@@ -451,6 +466,7 @@ function syncAgentsToWorkspace(
         agent.paneId = null;
         agent.confidence = "none";
         clearScreenMetadata(agent);
+        if (pane) paneOptions.push(...unsetPaneOptionsFor(pane));
         changed = true;
         continue;
       }
@@ -468,6 +484,7 @@ function syncAgentsToWorkspace(
       agent.paneId = null;
       agent.confidence = "none";
       clearScreenMetadata(agent);
+      if (pane) paneOptions.push(...unsetPaneOptionsFor(pane));
       changed = true;
     }
   }
